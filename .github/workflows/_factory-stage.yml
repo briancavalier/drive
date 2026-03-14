@@ -10,8 +10,9 @@ on:
         required: true
         type: number
       pr_number:
-        required: true
+        required: false
         type: number
+        default: 0
       branch:
         required: true
         type: string
