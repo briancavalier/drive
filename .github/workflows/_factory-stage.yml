@@ -79,3 +79,4 @@ jobs:
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
           model: ${{ vars.FACTORY_CODEX_MODEL || 'gpt-5-codex' }}
+          codex-args: --full-auto
