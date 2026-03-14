@@ -1,0 +1,67 @@
+name: Factory Request
+description: Submit a structured request for the autonomous factory.
+title: "[Factory] "
+labels: []
+body:
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem statement
+      description: What problem should the factory solve?
+      placeholder: Describe the user or system problem clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What should success look like?
+      placeholder: List the concrete outcomes required for success.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What should remain out of scope?
+      placeholder: List the work the factory must not attempt.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Technical, product, or operational limits the factory must respect.
+      placeholder: Note compatibility, timing, regulatory, or architectural constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Describe the tests or conditions that must pass.
+      placeholder: Provide concrete checks that confirm the feature is complete.
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+      description: What could go wrong if the factory changes this area?
+      placeholder: Describe operational, security, or product risks.
+    validations:
+      required: true
+  - type: dropdown
+    id: affected_area
+    attributes:
+      label: Affected area
+      description: Which area of the repository is primarily affected?
+      options:
+        - Application
+        - API
+        - Infrastructure
+        - CI / Automation
+        - Documentation
+        - Other
+    validations:
+      required: true

@@ -1,0 +1,127 @@
+name: Factory PR Loop
+
+on:
+  pull_request:
+    types:
+      - labeled
+  pull_request_review:
+    types:
+      - submitted
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.route.outputs.action }}
+      pr_number: ${{ steps.route.outputs.pr_number }}
+      issue_number: ${{ steps.route.outputs.issue_number }}
+      branch: ${{ steps.route.outputs.branch }}
+      artifacts_path: ${{ steps.route.outputs.artifacts_path }}
+      ci_run_id: ${{ steps.route.outputs.ci_run_id }}
+      review_id: ${{ steps.route.outputs.review_id }}
+      repair_attempts: ${{ steps.route.outputs.repair_attempts }}
+      repeated_failure_count: ${{ steps.route.outputs.repeated_failure_count }}
+      last_failure_signature: ${{ steps.route.outputs.last_failure_signature }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Route PR loop event
+        id: route
+        run: node scripts/route-pr-loop.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  mark-in-progress:
+    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair'
+    needs: route
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Update PR status before stage run
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || 'repairing' }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
+          FACTORY_REMOVE_LABELS: ${{ needs.route.outputs.action == 'implement' && 'factory:plan-ready' || '' }}
+          FACTORY_CLEAR_IMPLEMENT_LABEL: ${{ needs.route.outputs.action == 'implement' && 'true' || 'false' }}
+
+  stage:
+    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair'
+    needs:
+      - route
+      - mark-in-progress
+    uses: ./.github/workflows/_factory-stage.yml
+    with:
+      mode: ${{ needs.route.outputs.action }}
+      issue_number: ${{ fromJSON(needs.route.outputs.issue_number) }}
+      pr_number: ${{ fromJSON(needs.route.outputs.pr_number) }}
+      branch: ${{ needs.route.outputs.branch }}
+      artifacts_path: ${{ needs.route.outputs.artifacts_path }}
+      max_repair_attempts: 3
+      ci_run_id: ${{ needs.route.outputs.ci_run_id }}
+      review_id: ${{ needs.route.outputs.review_id }}
+    secrets: inherit
+
+  block:
+    if: needs.route.outputs.action == 'blocked'
+    needs: route
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Mark PR as blocked
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: blocked
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
+          FACTORY_ADD_LABELS: factory:blocked
+          FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
+
+  ready:
+    if: needs.route.outputs.action == 'ci-success'
+    needs: route
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Mark PR ready for review
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: ready_for_review
+          FACTORY_CI_STATUS: success
+          FACTORY_READY_FOR_REVIEW: true
+          FACTORY_REMOVE_LABELS: factory:blocked
+          FACTORY_COMMENT: CI is green for this factory-managed branch. The PR is ready for human review.

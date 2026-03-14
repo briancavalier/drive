@@ -1,0 +1,83 @@
+name: Factory Stage Runner
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+      issue_number:
+        required: true
+        type: number
+      pr_number:
+        required: true
+        type: number
+      branch:
+        required: true
+        type: string
+      artifacts_path:
+        required: true
+        type: string
+      max_repair_attempts:
+        required: false
+        type: number
+        default: 3
+      ci_run_id:
+        required: false
+        type: string
+        default: ""
+      review_id:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Build stage prompt
+        run: node scripts/build-stage-prompt.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_BRANCH: ${{ inputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+          FACTORY_MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+          FACTORY_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ inputs.review_id }}
+
+      - name: Run Codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          github-token: ${{ github.token }}
+          prompt-file: .factory/tmp/prompt.md
+          sandbox: workspace-write
+          model: ${{ vars.FACTORY_CODEX_MODEL || 'codex-mini-latest' }}
+          git-user-name: github-actions[bot]
+          git-user-email: 41898282+github-actions[bot]@users.noreply.github.com

@@ -1,0 +1,75 @@
+name: Factory Intake
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    if: github.event.label.name == 'factory:start'
+    runs-on: ubuntu-latest
+    outputs:
+      issue_number: ${{ steps.prepare.outputs.issue_number }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      branch: ${{ steps.prepare.outputs.branch }}
+      artifacts_path: ${{ steps.prepare.outputs.artifacts_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Ensure factory labels exist
+        run: node scripts/ensure-labels.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Prepare branch and draft PR
+        id: prepare
+        run: node scripts/prepare-intake.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  plan:
+    needs: prepare
+    uses: ./.github/workflows/_factory-stage.yml
+    with:
+      mode: plan
+      issue_number: ${{ fromJSON(needs.prepare.outputs.issue_number) }}
+      pr_number: ${{ fromJSON(needs.prepare.outputs.pr_number) }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      artifacts_path: ${{ needs.prepare.outputs.artifacts_path }}
+      max_repair_attempts: 3
+    secrets: inherit
+
+  finalize:
+    if: needs.plan.result == 'success'
+    needs:
+      - prepare
+      - plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Finalize planning state
+        run: node scripts/finalize-plan.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.prepare.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.prepare.outputs.artifacts_path }}
