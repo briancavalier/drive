@@ -25,6 +25,7 @@ Configure these before using the scaffold in a live repository:
 3. Keep the workflow name `CI` or update the `workflow_run` trigger in
    `.github/workflows/factory-pr-loop.yml`.
 4. Protect your default branch and require normal human review for merges.
+5. Run the `Factory Bootstrap` workflow once to create the required labels.
 
 ## Factory operator flow
 

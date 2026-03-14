@@ -1,0 +1,40 @@
+name: Factory Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Ensure factory labels exist
+        run: node scripts/ensure-labels.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Summarize setup requirements
+        run: |
+          {
+            echo "## Factory Bootstrap"
+            echo ""
+            echo "Factory labels are now ensured for this repository."
+            echo ""
+            echo "Required repository setup:"
+            echo "- Add the \`OPENAI_API_KEY\` repository secret."
+            echo "- Set Actions workflow permissions to Read and write."
+            echo "- Allow GitHub Actions to create pull requests."
+            echo "- Keep the CI workflow named \`CI\`, or update the workflow_run trigger in \`factory-pr-loop.yml\`."
+            echo "- Protect the default branch and require human review for merges."
+          } >> "$GITHUB_STEP_SUMMARY"
