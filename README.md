@@ -28,6 +28,8 @@ Configure these before using the scaffold in a live repository:
 5. Run the `Factory Bootstrap` workflow once to create the required labels.
 6. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
    override the default `gpt-5-codex` model used by the stage runner.
+7. The stage runner executes Codex with `--full-auto` so planning, coding, and
+   repair runs stay non-interactive inside GitHub Actions.
 
 ## Factory operator flow
 
