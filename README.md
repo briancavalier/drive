@@ -26,6 +26,8 @@ Configure these before using the scaffold in a live repository:
    `.github/workflows/factory-pr-loop.yml`.
 4. Protect your default branch and require normal human review for merges.
 5. Run the `Factory Bootstrap` workflow once to create the required labels.
+6. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
+   override the default `gpt-5-codex` model used by the stage runner.
 
 ## Factory operator flow
 
