@@ -75,9 +75,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          github-token: ${{ github.token }}
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
           model: ${{ vars.FACTORY_CODEX_MODEL || 'codex-mini-latest' }}
-          git-user-name: github-actions[bot]
-          git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
