@@ -85,10 +85,16 @@ jobs:
         run: |
           git add -A
 
-          if git diff --cached --quiet; then
+          if ! git diff --cached --quiet; then
+            git commit -m "factory(${{ inputs.mode }}): issue #${{ inputs.issue_number }}"
+          fi
+
+          local_head="$(git rev-parse HEAD)"
+          remote_head="$(git rev-parse origin/${{ inputs.branch }} 2>/dev/null || true)"
+
+          if [ "$local_head" = "$remote_head" ]; then
             echo "Codex completed without producing repository changes."
             exit 1
           fi
 
-          git commit -m "factory(${{ inputs.mode }}): issue #${{ inputs.issue_number }}"
           git push origin "HEAD:${{ inputs.branch }}"
