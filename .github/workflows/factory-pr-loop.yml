@@ -33,6 +33,9 @@ jobs:
       repeated_failure_count: ${{ steps.route.outputs.repeated_failure_count }}
       last_failure_signature: ${{ steps.route.outputs.last_failure_signature }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -49,6 +52,9 @@ jobs:
     needs: route
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -88,6 +94,9 @@ jobs:
     needs: route
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -110,6 +119,9 @@ jobs:
     needs: route
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
