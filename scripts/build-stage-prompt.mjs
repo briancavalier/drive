@@ -85,24 +85,28 @@ function renderJobsSummary(jobsPayload) {
 const mode = process.env.FACTORY_MODE;
 const issueNumber = Number(process.env.FACTORY_ISSUE_NUMBER);
 const prNumber = Number(process.env.FACTORY_PR_NUMBER);
+const branch = process.env.FACTORY_BRANCH;
 const artifactsPath = process.env.FACTORY_ARTIFACTS_PATH;
 const reviewId = process.env.FACTORY_REVIEW_ID;
 const ciRunId = process.env.FACTORY_CI_RUN_ID;
 
-const [issue, pullRequest] = await Promise.all([
-  getIssue(issueNumber),
-  getPullRequest(prNumber)
-]);
+const issue = await getIssue(issueNumber);
 const parsedIssue = parseIssueForm(issue.body);
-const metadata = extractPrMetadata(pullRequest.body) || {};
+const pullRequest =
+  prNumber > 0 && mode !== "plan" ? await getPullRequest(prNumber) : null;
+const metadata = pullRequest ? extractPrMetadata(pullRequest.body) || {} : {};
 const review =
-  reviewId && mode === "repair" ? await getReview(prNumber, reviewId) : null;
+  pullRequest && reviewId && mode === "repair"
+    ? await getReview(prNumber, reviewId)
+    : null;
 const reviewComments =
-  reviewId && mode === "repair"
+  pullRequest && reviewId && mode === "repair"
     ? await listReviewComments(prNumber, reviewId)
     : [];
 const jobsPayload =
-  ciRunId && mode === "repair" ? await listWorkflowRunJobs(ciRunId) : null;
+  pullRequest && ciRunId && mode === "repair"
+    ? await listWorkflowRunJobs(ciRunId)
+    : null;
 
 const context = [
   section(
@@ -110,16 +114,20 @@ const context = [
     [
       `- Mode: ${mode}`,
       `- Issue: #${issueNumber}`,
-      `- Pull Request: #${prNumber}`,
-      `- Branch: ${pullRequest.head.ref}`,
+      `- Pull Request: ${pullRequest ? `#${prNumber}` : "not created yet"}`,
+      `- Branch: ${pullRequest ? pullRequest.head.ref : branch}`,
       `- Current status: ${metadata.status || "unknown"}`
     ].join("\n")
   ),
   section("Issue Request", renderIssueSections(parsedIssue)),
-  section(
-    "Pull Request Summary",
-    truncate(pullRequest.body.replace(/<!--\s*factory-state[\s\S]*?-->/m, "").trim())
-  ),
+  pullRequest
+    ? section(
+        "Pull Request Summary",
+        truncate(
+          pullRequest.body.replace(/<!--\s*factory-state[\s\S]*?-->/m, "").trim()
+        )
+      )
+    : "",
   section("Existing Artifacts", renderArtifacts(artifactsPath)),
   review
     ? section(
