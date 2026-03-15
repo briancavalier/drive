@@ -14,7 +14,7 @@ function gitDiffChanges(range) {
   return output
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
     .map((line) => {
       const [status, ...rest] = line.split("\t");
       return {
