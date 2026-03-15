@@ -89,6 +89,44 @@ jobs:
       review_id: ${{ needs.route.outputs.review_id }}
     secrets: inherit
 
+  stage-failed:
+    if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair') && needs.stage.result == 'failure'
+    needs:
+      - route
+      - stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Restore PR state after implement failure
+        if: needs.route.outputs.action == 'implement'
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: plan_ready
+          FACTORY_ADD_LABELS: factory:plan-ready
+          FACTORY_COMMENT: Factory implementation failed before producing a usable branch update. Review the failed run and re-apply `factory:implement` to retry.
+
+      - name: Mark PR as blocked after repair failure
+        if: needs.route.outputs.action == 'repair'
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: blocked
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
+          FACTORY_ADD_LABELS: factory:blocked
+          FACTORY_COMMENT: Factory repair failed before producing a usable branch update. Human intervention is required.
+
   block:
     if: needs.route.outputs.action == 'blocked'
     needs: route
