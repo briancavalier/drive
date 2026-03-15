@@ -3,6 +3,7 @@ import { extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
 import {
   addLabels,
   commentOnIssue,
+  convertPullRequestToDraft,
   getPullRequest,
   markReadyForReview,
   removeLabel,
@@ -29,16 +30,19 @@ const nextMetadata = {
   status: process.env.FACTORY_STATUS || metadata.status
 };
 
-if (process.env.FACTORY_REPAIR_ATTEMPTS) {
+if (process.env.FACTORY_REPAIR_ATTEMPTS !== undefined) {
   nextMetadata.repairAttempts = Number(process.env.FACTORY_REPAIR_ATTEMPTS);
 }
 
-if (process.env.FACTORY_LAST_FAILURE_SIGNATURE !== undefined) {
+if (
+  process.env.FACTORY_LAST_FAILURE_SIGNATURE !== undefined &&
+  process.env.FACTORY_LAST_FAILURE_SIGNATURE !== "__UNCHANGED__"
+) {
   nextMetadata.lastFailureSignature =
     process.env.FACTORY_LAST_FAILURE_SIGNATURE || null;
 }
 
-if (process.env.FACTORY_REPEATED_FAILURE_COUNT) {
+if (process.env.FACTORY_REPEATED_FAILURE_COUNT !== undefined) {
   nextMetadata.repeatedFailureCount = Number(
     process.env.FACTORY_REPEATED_FAILURE_COUNT
   );
@@ -65,6 +69,10 @@ for (const label of csv(process.env.FACTORY_REMOVE_LABELS)) {
 
 if (parseBoolean(process.env.FACTORY_READY_FOR_REVIEW) && pullRequest.draft) {
   await markReadyForReview(pullRequest.node_id);
+}
+
+if (parseBoolean(process.env.FACTORY_CONVERT_TO_DRAFT) && !pullRequest.draft) {
+  await convertPullRequestToDraft(pullRequest.node_id);
 }
 
 if (process.env.FACTORY_COMMENT) {

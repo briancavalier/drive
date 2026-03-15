@@ -35,6 +35,10 @@ Configure these before using the scaffold in a live repository:
 4. Apply the `factory:implement` label to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
 
+If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
+from the Actions tab to restore it to `plan_ready`, clear stale repair
+counters, and convert it back to draft before retrying `factory:implement`.
+
 ## Labels
 
 The workflows create and manage these labels automatically:
