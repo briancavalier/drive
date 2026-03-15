@@ -83,7 +83,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          github-token: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
           model: ${{ vars.FACTORY_CODEX_MODEL || 'gpt-5-codex' }}
