@@ -52,7 +52,9 @@ jobs:
       branch: ${{ needs.prepare.outputs.branch }}
       artifacts_path: ${{ needs.prepare.outputs.artifacts_path }}
       max_repair_attempts: ${{ fromJSON(needs.prepare.outputs.max_repair_attempts) }}
-    secrets: inherit
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   finalize:
     if: needs.plan.result == 'success'

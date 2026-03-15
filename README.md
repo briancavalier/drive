@@ -20,17 +20,22 @@ Actions, and the Codex GitHub Action.
 Configure these before using the scaffold in a live repository:
 
 1. Add the `OPENAI_API_KEY` repository secret.
-2. Allow GitHub Actions to push branches and create pull requests, or replace
-   `github.token` usage with a GitHub App token.
-3. Keep the workflow name `CI` or update the `workflow_run` trigger in
+2. Allow GitHub Actions to push branches and create pull requests.
+3. Add the optional `FACTORY_GITHUB_TOKEN` repository secret if you want the
+   factory to modify files under `.github/workflows/**`.
+   Create a fine-grained personal access token scoped only to this repository
+   with `Contents: Read/Write`, `Pull requests: Read/Write`, `Issues: Read/Write`,
+   `Workflows: Read/Write`, and `Metadata: Read`.
+   Self-modifying factory issues generally need this secret.
+4. Keep the workflow name `CI` or update the `workflow_run` trigger in
    `.github/workflows/factory-pr-loop.yml`.
-4. Protect your default branch and require normal human review for merges.
-5. Run the `Factory Bootstrap` workflow once to create the required labels.
-6. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
+5. Protect your default branch and require normal human review for merges.
+6. Run the `Factory Bootstrap` workflow once to create the required labels.
+7. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
    override the default `gpt-5-codex` model used by the stage runner.
-7. The stage runner executes Codex with `--full-auto` so planning, coding, and
+8. The stage runner executes Codex with `--full-auto` so planning, coding, and
    repair runs stay non-interactive inside GitHub Actions.
-8. Optional: tune prompt budgets with the following Actions variables:
+9. Optional: tune prompt budgets with the following Actions variables:
    `FACTORY_PLAN_PROMPT_MAX_CHARS`, `FACTORY_IMPLEMENT_PROMPT_MAX_CHARS`,
    `FACTORY_REPAIR_PROMPT_MAX_CHARS`, and `FACTORY_PROMPT_HARD_MAX_CHARS`.
 
@@ -41,6 +46,10 @@ Configure these before using the scaffold in a live repository:
 3. Review the generated draft PR and its planning artifacts.
 4. Apply the `factory:implement` label to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
+
+If a factory run changes `.github/workflows/**` without `FACTORY_GITHUB_TOKEN`,
+the stage will stop before `git push` with a setup error that tells you to add
+the secret. Non-workflow changes continue to use the default `github.token`.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair
