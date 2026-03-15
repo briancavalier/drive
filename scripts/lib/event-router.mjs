@@ -23,7 +23,7 @@ export function routePullRequestLabeled(payload) {
   if (
     payload.action !== "labeled" ||
     payload.label?.name !== FACTORY_LABELS.implement ||
-    metadata?.status !== "plan_ready" ||
+    !["plan_ready", "implementing"].includes(metadata?.status) ||
     !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
   ) {
     return { action: "noop" };
