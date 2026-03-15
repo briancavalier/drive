@@ -87,7 +87,9 @@ jobs:
       max_repair_attempts: 3
       ci_run_id: ${{ needs.route.outputs.ci_run_id }}
       review_id: ${{ needs.route.outputs.review_id }}
-    secrets: inherit
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   stage-failed:
     if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair') && needs.stage.result == 'failure'
