@@ -1,0 +1,90 @@
+name: Factory Reset PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Factory-managed pull request number to reset"
+        required: true
+        type: number
+      status:
+        description: "Factory status to write into PR metadata"
+        required: true
+        default: plan_ready
+        type: choice
+        options:
+          - planning
+          - plan_ready
+          - implementing
+          - repairing
+          - blocked
+          - ready_for_review
+      convert_to_draft:
+        description: "Convert the pull request back to draft"
+        required: true
+        default: true
+        type: boolean
+      clear_repair_state:
+        description: "Reset repair counters and failure signatures"
+        required: true
+        default: true
+        type: boolean
+      add_plan_ready_label:
+        description: "Add the factory:plan-ready label"
+        required: true
+        default: true
+        type: boolean
+      remove_pause_label:
+        description: "Remove the factory:paused label too"
+        required: true
+        default: false
+        type: boolean
+      comment:
+        description: "Optional note to add to the pull request"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Reset factory PR state
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_STATUS: ${{ inputs.status }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '' }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ inputs.clear_repair_state && '0' || '' }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_CI_STATUS: pending
+          FACTORY_ADD_LABELS: ${{ inputs.add_plan_ready_label && 'factory:plan-ready' || '' }}
+          FACTORY_REMOVE_LABELS: ${{ inputs.remove_pause_label && 'factory:implement,factory:blocked,factory:paused' || 'factory:implement,factory:blocked' }}
+          FACTORY_CONVERT_TO_DRAFT: ${{ inputs.convert_to_draft && 'true' || 'false' }}
+          FACTORY_COMMENT: ${{ inputs.comment || format('Factory PR reset via workflow_dispatch. Status set to {0}.', inputs.status) }}
+
+      - name: Summarize reset
+        run: |
+          {
+            echo "## Factory Reset"
+            echo ""
+            echo "- PR: #${{ inputs.pr_number }}"
+            echo "- Status: \`${{ inputs.status }}\`"
+            echo "- Convert to draft: \`${{ inputs.convert_to_draft }}\`"
+            echo "- Clear repair state: \`${{ inputs.clear_repair_state }}\`"
+            echo "- Add \`factory:plan-ready\`: \`${{ inputs.add_plan_ready_label }}\`"
+            echo "- Remove \`factory:paused\`: \`${{ inputs.remove_pause_label }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
