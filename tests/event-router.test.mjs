@@ -47,6 +47,23 @@ test("routePullRequestLabeled starts implementation for approved managed PRs", (
   assert.equal(result.prNumber, 33);
 });
 
+test("routePullRequestLabeled retries implementation for managed PRs already marked implementing", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "implement");
+  assert.equal(result.issueNumber, 12);
+  assert.equal(result.prNumber, 33);
+});
+
 test("routePullRequestReview triggers repair on changes requested", () => {
   const result = routePullRequestReview({
     action: "submitted",
