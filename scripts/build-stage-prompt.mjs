@@ -10,11 +10,14 @@ import {
   listReviewComments,
   listWorkflowRunJobs
 } from "./lib/github.mjs";
+import { resolveReviewMethodology } from "./lib/review-methods.mjs";
+import { setOutputs } from "./lib/actions-output.mjs";
 
 export const DEFAULT_PROMPT_BUDGETS = Object.freeze({
   plan: 20000,
   implement: 12000,
   repair: 14000,
+  review: 12000,
   hardMax: 24000
 });
 
@@ -93,6 +96,22 @@ const STAGE_SECTION_CONFIG = {
       "issue-synopsis": 120
     },
     dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context"]
+  },
+  review: {
+    order: ["run-metadata", "issue-synopsis", "artifact-index", "repair-log-tail"],
+    preferredChars: {
+      "run-metadata": 500,
+      "issue-synopsis": 1200,
+      "artifact-index": 5000,
+      "repair-log-tail": 1000
+    },
+    minChars: {
+      "run-metadata": 200,
+      "issue-synopsis": 200,
+      "artifact-index": 800,
+      "repair-log-tail": 0
+    },
+    dropPriority: ["repair-log-tail", "artifact-index", "issue-synopsis"]
   }
 };
 
@@ -122,6 +141,10 @@ export function resolvePromptBudgets(env = process.env) {
     ),
     repair: Math.min(
       positiveInt(env.FACTORY_REPAIR_PROMPT_MAX_CHARS, DEFAULT_PROMPT_BUDGETS.repair),
+      hardMax
+    ),
+    review: Math.min(
+      positiveInt(env.FACTORY_REVIEW_PROMPT_MAX_CHARS, DEFAULT_PROMPT_BUDGETS.review),
       hardMax
     )
   };
@@ -513,21 +536,26 @@ function buildSectionsForMode({
     );
   }
 
-  if (mode === "repair") {
+  if (mode === "repair" || mode === "review") {
     const repairLog = maybeRead(path.join(artifactsPath, "repair-log.md"));
 
+    if (mode === "repair") {
+      sections.push(
+        buildSection(
+          "failure-context",
+          "Failure Context",
+          renderFailureContext({
+            mode,
+            ciRunId,
+            jobsPayload,
+            review,
+            reviewComments
+          })
+        )
+      );
+    }
+
     sections.push(
-      buildSection(
-        "failure-context",
-        "Failure Context",
-        renderFailureContext({
-          mode,
-          ciRunId,
-          jobsPayload,
-          review,
-          reviewComments
-        })
-      ),
       buildSection(
         "artifact-index",
         "Artifact Index",
@@ -562,7 +590,8 @@ export function buildStagePrompt({
   reviewComments = [],
   jobsPayload = null,
   ciRunId = "",
-  templateText
+  templateText,
+  templateVariables = {}
 }) {
   const parsedIssue = parseIssueForm(issueBody);
   const metadata = pullRequestBody ? extractPrMetadata(pullRequestBody) || {} : {};
@@ -572,10 +601,23 @@ export function buildStagePrompt({
     throw new Error(`Unsupported FACTORY_MODE: ${mode}`);
   }
 
-  const promptWithoutContext = templateText
-    .replaceAll("{{ISSUE_NUMBER}}", String(issueNumber))
-    .replaceAll("{{ARTIFACTS_PATH}}", artifactsPath)
-    .replace("{{CONTEXT}}", "");
+  const replacements = {
+    ISSUE_NUMBER: String(issueNumber),
+    ARTIFACTS_PATH: artifactsPath,
+    ...templateVariables
+  };
+
+  let templateWithReplacements = templateText;
+
+  for (const [key, value] of Object.entries(replacements)) {
+    if (key === "CONTEXT") {
+      continue;
+    }
+
+    templateWithReplacements = templateWithReplacements.replaceAll(`{{${key}}}`, value);
+  }
+
+  const promptWithoutContext = templateWithReplacements.replace("{{CONTEXT}}", "");
   const contextBudget = Math.max(1000, budgets[mode] - promptWithoutContext.length);
   const sections = buildSectionsForMode({
     mode,
@@ -602,10 +644,7 @@ export function buildStagePrompt({
     const context = orderedSections
       .map((section) => serializeSection(section))
       .join("\n");
-    const prompt = templateText
-      .replaceAll("{{ISSUE_NUMBER}}", String(issueNumber))
-      .replaceAll("{{ARTIFACTS_PATH}}", artifactsPath)
-      .replace("{{CONTEXT}}", context);
+    const prompt = templateWithReplacements.replace("{{CONTEXT}}", context);
 
     return { orderedSections, context, prompt };
   }
@@ -650,6 +689,14 @@ export function buildStagePrompt({
       }))
   };
 
+  if (mode === "review" && templateVariables.METHODOLOGY_NAME) {
+    meta.methodology = {
+      name: templateVariables.METHODOLOGY_NAME,
+      requested: templateVariables.METHODOLOGY_REQUESTED || templateVariables.METHODOLOGY_NAME,
+      fallback: templateVariables.METHODOLOGY_FALLBACK === "true"
+    };
+  }
+
   return { prompt, context, meta };
 }
 
@@ -670,6 +717,7 @@ export async function loadStagePromptInputs(env = process.env) {
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH;
   const reviewId = env.FACTORY_REVIEW_ID;
   const ciRunId = env.FACTORY_CI_RUN_ID;
+  const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
 
   if (!mode || !branch || !artifactsPath || !Number.isInteger(issueNumber) || issueNumber <= 0) {
     throw new Error("FACTORY_MODE, FACTORY_BRANCH, FACTORY_ARTIFACTS_PATH, and FACTORY_ISSUE_NUMBER are required");
@@ -700,6 +748,7 @@ export async function loadStagePromptInputs(env = process.env) {
     reviewComments,
     jobsPayload,
     ciRunId,
+    reviewMethod,
     budgets: resolvePromptBudgets(env)
   };
 }
@@ -708,12 +757,45 @@ export async function main(env = process.env) {
   const input = await loadStagePromptInputs(env);
   const templatePath = path.join(".factory", "prompts", `${input.mode}.md`);
   const templateText = fs.readFileSync(templatePath, "utf8");
+  let templateVariables = {};
+  let methodology = null;
+
+  if (input.mode === "review") {
+    methodology = resolveReviewMethodology({ requested: input.reviewMethod });
+    const fallbackNote = methodology.fallback
+      ? `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`
+      : "";
+
+    templateVariables = {
+      METHODOLOGY_NAME: methodology.name,
+      METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+      METHODOLOGY_NOTE: fallbackNote,
+      METHODOLOGY_REQUESTED: methodology.requested,
+      METHODOLOGY_FALLBACK: methodology.fallback ? "true" : "false"
+    };
+
+    if (methodology.fallback) {
+      console.log(
+        `Review methodology fallback: requested="${methodology.requested}" using="${methodology.name}"`
+      );
+    } else {
+      console.log(`Review methodology resolved: "${methodology.name}"`);
+    }
+  }
+
   const result = buildStagePrompt({
     ...input,
-    templateText
+    templateText,
+    templateVariables
   });
 
   writePromptArtifacts(path.join(".factory", "tmp"), result);
+  setOutputs({
+    prompt_mode: input.mode,
+    review_methodology: methodology?.name || "",
+    review_methodology_requested: methodology?.requested || "",
+    review_methodology_fallback: methodology?.fallback ? "true" : "false"
+  });
 
   console.log(
     `Prompt budget: mode=${input.mode} chars=${result.meta.finalChars}/${result.meta.budgetChars} ` +

@@ -10,6 +10,7 @@ import {
 } from "../scripts/build-stage-prompt.mjs";
 import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { parseIssueForm } from "../scripts/lib/issue-form.mjs";
+import { resolveReviewMethodology } from "../scripts/lib/review-methods.mjs";
 
 const fixturesDir = path.join(process.cwd(), "tests", "fixtures", "prompt");
 const implementTemplate = fs.readFileSync(
@@ -22,6 +23,10 @@ const planTemplate = fs.readFileSync(
 );
 const repairTemplate = fs.readFileSync(
   path.join(process.cwd(), ".factory", "prompts", "repair.md"),
+  "utf8"
+);
+const reviewTemplate = fs.readFileSync(
+  path.join(process.cwd(), ".factory", "prompts", "review.md"),
   "utf8"
 );
 
@@ -132,6 +137,7 @@ test("resolvePromptBudgets honors overrides and hard ceiling", () => {
     FACTORY_PLAN_PROMPT_MAX_CHARS: "26000",
     FACTORY_IMPLEMENT_PROMPT_MAX_CHARS: "9000",
     FACTORY_REPAIR_PROMPT_MAX_CHARS: "15000",
+    FACTORY_REVIEW_PROMPT_MAX_CHARS: "8000",
     FACTORY_PROMPT_HARD_MAX_CHARS: "10000"
   });
 
@@ -139,7 +145,8 @@ test("resolvePromptBudgets honors overrides and hard ceiling", () => {
     hardMax: 10000,
     plan: 10000,
     implement: 9000,
-    repair: 10000
+    repair: 10000,
+    review: 8000
   });
 });
 
@@ -215,6 +222,94 @@ test("implement prompt excludes PR body and full artifact bodies", () => {
   );
   assert.match(result.prompt, /Artifact Index/);
   assert.match(result.prompt, /headings: Summary \| Workflow Flow/);
+});
+
+test("review prompt embeds methodology instructions and metadata", () => {
+  const artifactsDir = makeArtifactsDir();
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata: defaultPrMetadata({
+      issueNumber: 1,
+      artifactsPath: artifactsDir,
+      status: "reviewing"
+    })
+  });
+  const methodology = resolveReviewMethodology({ requested: "default" });
+  const templateVariables = {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: "",
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: "false"
+  };
+
+  const result = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    templateText: reviewTemplate,
+    templateVariables,
+    budgets: {
+      plan: 5500,
+      implement: 12000,
+      review: 12000,
+      repair: 14000,
+      hardMax: 14000
+    }
+  });
+
+  assert.match(result.prompt, /Autonomous review stage/i);
+  assert.match(result.prompt, new RegExp(methodology.instructions.trim().slice(0, 20)));
+  assert.deepEqual(result.meta.methodology, {
+    name: "default",
+    requested: "default",
+    fallback: false
+  });
+});
+
+test("review prompt records fallback note when method missing", () => {
+  const artifactsDir = makeArtifactsDir();
+  const methodology = resolveReviewMethodology({ requested: "nonexistent-method" });
+  const templateVariables = {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`,
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: "true"
+  };
+
+  const result = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    templateText: reviewTemplate,
+    templateVariables,
+    budgets: {
+      plan: 5500,
+      implement: 12000,
+      review: 12000,
+      repair: 14000,
+      hardMax: 14000
+    }
+  });
+
+  assert.match(result.prompt, /Falling back to "default"/);
+  assert.deepEqual(result.meta.methodology, {
+    name: "default",
+    requested: methodology.requested,
+    fallback: true
+  });
 });
 
 test("repair prompt includes failure context and capped repair-log tail", () => {

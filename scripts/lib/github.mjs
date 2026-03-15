@@ -163,6 +163,23 @@ export async function commentOnIssue(issueNumber, body) {
   });
 }
 
+export async function submitPullRequestReview({ prNumber, event, body }) {
+  const { owner, repo } = getRepoContext();
+  const normalizedEvent = `${event || ""}`.toUpperCase();
+
+  if (!["APPROVE", "REQUEST_CHANGES", "COMMENT"].includes(normalizedEvent)) {
+    throw new Error(`Unsupported pull request review event: ${event}`);
+  }
+
+  return githubRequest(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`, {
+    method: "POST",
+    body: {
+      event: normalizedEvent,
+      body: body || ""
+    }
+  });
+}
+
 export async function findOpenPullRequestByHead(branch) {
   const { owner, repo } = getRepoContext();
 

@@ -9,11 +9,13 @@ Actions, and the Codex GitHub Action.
 - A structured issue form for factory requests
 - A `factory-intake` workflow that turns a labeled issue into a draft PR with
   planning artifacts
-- A `factory-pr-loop` workflow that handles implementation, CI-driven repair,
-  and repair after `changes_requested` reviews
+- A `factory-pr-loop` workflow that handles implementation, autonomous review,
+  CI-driven repair, and repair after `changes_requested` reviews
 - A reusable stage runner that invokes `openai/codex-action`
 - A minimal `CI` workflow so the repair loop has a concrete workflow target
 - Node-based helper scripts and tests with no runtime dependencies
+- A pluggable autonomous review methodology with durable `review.md` and
+  `review.json` artifacts
 
 ## Required repository setup
 
@@ -37,7 +39,11 @@ Configure these before using the scaffold in a live repository:
    repair runs stay non-interactive inside GitHub Actions.
 9. Optional: tune prompt budgets with the following Actions variables:
    `FACTORY_PLAN_PROMPT_MAX_CHARS`, `FACTORY_IMPLEMENT_PROMPT_MAX_CHARS`,
-   `FACTORY_REPAIR_PROMPT_MAX_CHARS`, and `FACTORY_PROMPT_HARD_MAX_CHARS`.
+   `FACTORY_REPAIR_PROMPT_MAX_CHARS`, `FACTORY_REVIEW_PROMPT_MAX_CHARS`,
+   and `FACTORY_PROMPT_HARD_MAX_CHARS`.
+10. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
+    methodology under `.factory/review-methods/<method>/instructions.md`.
+    Missing or invalid values fall back to the built-in `default` rubric.
 
 ## Factory operator flow
 
@@ -46,6 +52,22 @@ Configure these before using the scaffold in a live repository:
 3. Review the generated draft PR and its planning artifacts.
 4. Apply the `factory:implement` label to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
+
+## Autonomous review stage
+
+After CI succeeds on a factory-managed pull request, the loop enters a dedicated
+`review` stage. The stage loads the methodology specified by the
+`FACTORY_REVIEW_METHOD` Actions variable (falling back to `default`) and
+instructs the agent to produce two durable artifacts inside the run directory:
+
+- `review.md` — human-readable summary with decisions and findings.
+- `review.json` — machine-readable decision payload with severity-classified findings.
+
+If the autonomous review issues a `pass` decision, the workflow promotes the PR
+to `ready_for_review`, clears `factory:blocked`, marks the PR ready, and posts a
+summary comment referencing the artifacts. When the decision is
+`request_changes`, the workflow submits a GitHub `REQUEST_CHANGES` review using
+the generated markdown so the existing repair loop can act on the feedback automatically.
 
 If a factory run changes `.github/workflows/**` without `FACTORY_GITHUB_TOKEN`,
 the stage will stop before `git push` with a setup error that tells you to add
