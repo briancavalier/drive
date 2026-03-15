@@ -34,6 +34,8 @@ on:
     secrets:
       OPENAI_API_KEY:
         required: true
+      FACTORY_GITHUB_TOKEN:
+        required: false
 
 jobs:
   run:
@@ -48,6 +50,7 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
+          token: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,7 +65,7 @@ jobs:
       - name: Build stage prompt
         run: node scripts/build-stage-prompt.mjs
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
           FACTORY_MODE: ${{ inputs.mode }}
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
@@ -85,20 +88,14 @@ jobs:
           model: ${{ vars.FACTORY_CODEX_MODEL || 'gpt-5-codex' }}
           codex-args: --full-auto
 
-      - name: Commit and push stage output
-        run: |
-          git add -A
+      - name: Prepare stage output for push
+        run: node scripts/prepare-stage-push.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          FACTORY_BRANCH: ${{ inputs.branch }}
 
-          if ! git diff --cached --quiet; then
-            git commit -m "factory(${{ inputs.mode }}): issue #${{ inputs.issue_number }}"
-          fi
-
-          local_head="$(git rev-parse HEAD)"
-          remote_head="$(git rev-parse origin/${{ inputs.branch }} 2>/dev/null || true)"
-
-          if [ "$local_head" = "$remote_head" ]; then
-            echo "Codex completed without producing repository changes."
-            exit 1
-          fi
-
-          git push origin "HEAD:${{ inputs.branch }}"
+      - name: Push stage output
+        run: git push origin "HEAD:${{ inputs.branch }}"
