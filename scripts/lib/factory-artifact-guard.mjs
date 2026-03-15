@@ -1,14 +1,18 @@
-export function listFactoryRunArtifacts(changedFiles) {
-  return changedFiles.filter((file) => file.startsWith(".factory/runs/"));
+export function listFactoryRunArtifacts(changes) {
+  return changes.filter((change) => change.path.startsWith(".factory/runs/"));
+}
+
+export function listBlockingFactoryRunArtifacts(changes) {
+  return listFactoryRunArtifacts(changes).filter((change) => change.status !== "D");
 }
 
 export function shouldBlockFactoryRunArtifacts({
   eventName,
   baseRef = "",
   headRef = "",
-  changedFiles = []
+  changes = []
 }) {
-  const artifacts = listFactoryRunArtifacts(changedFiles);
+  const artifacts = listBlockingFactoryRunArtifacts(changes);
 
   if (artifacts.length === 0) {
     return false;

@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import {
+  listBlockingFactoryRunArtifacts,
   listFactoryRunArtifacts,
   shouldBlockFactoryRunArtifacts
 } from "./lib/factory-artifact-guard.mjs";
 
-function gitDiffNames(range) {
-  const output = execFileSync("git", ["diff", "--name-only", range, "--"], {
+function gitDiffChanges(range) {
+  const output = execFileSync("git", ["diff", "--name-status", range, "--"], {
     encoding: "utf8"
   });
 
@@ -14,6 +15,13 @@ function gitDiffNames(range) {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+    .map((line) => {
+      const [status, ...rest] = line.split("\t");
+      return {
+        status,
+        path: rest.at(-1) || ""
+      };
+    });
 }
 
 function buildContext(eventName, payload) {
@@ -22,7 +30,7 @@ function buildContext(eventName, payload) {
       eventName,
       baseRef: payload.pull_request?.base?.ref || "",
       headRef: payload.pull_request?.head?.ref || "",
-      changedFiles: gitDiffNames(
+      changes: gitDiffChanges(
         `${payload.pull_request?.base?.sha}...${payload.pull_request?.head?.sha}`
       )
     };
@@ -31,20 +39,21 @@ function buildContext(eventName, payload) {
   if (eventName === "push") {
     return {
       eventName,
-      changedFiles: gitDiffNames(`${payload.before}...${payload.after}`)
+      changes: gitDiffChanges(`${payload.before}...${payload.after}`)
     };
   }
 
   return {
     eventName,
-    changedFiles: []
+    changes: []
   };
 }
 
 const eventName = process.env.GITHUB_EVENT_NAME || "";
 const payload = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
 const context = buildContext(eventName, payload);
-const artifacts = listFactoryRunArtifacts(context.changedFiles);
+const artifacts = listFactoryRunArtifacts(context.changes);
+const blockingArtifacts = listBlockingFactoryRunArtifacts(context.changes);
 
 if (!shouldBlockFactoryRunArtifacts(context)) {
   console.log(`Factory artifact guard passed (${artifacts.length} artifact files changed).`);
@@ -52,7 +61,7 @@ if (!shouldBlockFactoryRunArtifacts(context)) {
 }
 
 console.error("Factory run artifacts may only be merged to main from factory/* branches.");
-for (const artifact of artifacts) {
-  console.error(`- ${artifact}`);
+for (const artifact of blockingArtifacts) {
+  console.error(`- ${artifact.path}`);
 }
 process.exit(1);

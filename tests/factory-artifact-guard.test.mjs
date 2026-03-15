@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  listBlockingFactoryRunArtifacts,
   listFactoryRunArtifacts,
   shouldBlockFactoryRunArtifacts
 } from "../scripts/lib/factory-artifact-guard.mjs";
@@ -8,11 +9,24 @@ import {
 test("listFactoryRunArtifacts returns only run artifacts", () => {
   assert.deepEqual(
     listFactoryRunArtifacts([
-      ".factory/runs/1/spec.md",
-      ".factory/prompts/plan.md",
-      ".factory/runs/1/plan.md"
+      { status: "A", path: ".factory/runs/1/spec.md" },
+      { status: "M", path: ".factory/prompts/plan.md" },
+      { status: "D", path: ".factory/runs/1/plan.md" }
     ]),
-    [".factory/runs/1/spec.md", ".factory/runs/1/plan.md"]
+    [
+      { status: "A", path: ".factory/runs/1/spec.md" },
+      { status: "D", path: ".factory/runs/1/plan.md" }
+    ]
+  );
+});
+
+test("listBlockingFactoryRunArtifacts ignores deletions", () => {
+  assert.deepEqual(
+    listBlockingFactoryRunArtifacts([
+      { status: "D", path: ".factory/runs/1/spec.md" },
+      { status: "M", path: ".factory/runs/1/plan.md" }
+    ]),
+    [{ status: "M", path: ".factory/runs/1/plan.md" }]
   );
 });
 
@@ -22,7 +36,7 @@ test("guard blocks non-factory pull requests targeting main", () => {
       eventName: "pull_request",
       baseRef: "main",
       headRef: "codex/fix",
-      changedFiles: [".factory/runs/1/spec.md"]
+      changes: [{ status: "A", path: ".factory/runs/1/spec.md" }]
     }),
     true
   );
@@ -34,7 +48,7 @@ test("guard allows factory pull requests targeting main", () => {
       eventName: "pull_request",
       baseRef: "main",
       headRef: "factory/1-example",
-      changedFiles: [".factory/runs/1/spec.md"]
+      changes: [{ status: "A", path: ".factory/runs/1/spec.md" }]
     }),
     false
   );
@@ -46,7 +60,19 @@ test("guard ignores unrelated changes", () => {
       eventName: "pull_request",
       baseRef: "main",
       headRef: "codex/fix",
-      changedFiles: [".github/workflows/factory-pr-loop.yml"]
+      changes: [{ status: "M", path: ".github/workflows/factory-pr-loop.yml" }]
+    }),
+    false
+  );
+});
+
+test("guard allows deletion-only cleanup pull requests", () => {
+  assert.equal(
+    shouldBlockFactoryRunArtifacts({
+      eventName: "pull_request",
+      baseRef: "main",
+      headRef: "codex/fix",
+      changes: [{ status: "D", path: ".factory/runs/1/spec.md" }]
     }),
     false
   );
