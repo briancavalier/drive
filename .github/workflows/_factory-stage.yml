@@ -71,6 +71,10 @@ jobs:
           FACTORY_MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
           FACTORY_CI_RUN_ID: ${{ inputs.ci_run_id }}
           FACTORY_REVIEW_ID: ${{ inputs.review_id }}
+          FACTORY_PLAN_PROMPT_MAX_CHARS: ${{ vars.FACTORY_PLAN_PROMPT_MAX_CHARS || '' }}
+          FACTORY_IMPLEMENT_PROMPT_MAX_CHARS: ${{ vars.FACTORY_IMPLEMENT_PROMPT_MAX_CHARS || '' }}
+          FACTORY_REPAIR_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REPAIR_PROMPT_MAX_CHARS || '' }}
+          FACTORY_PROMPT_HARD_MAX_CHARS: ${{ vars.FACTORY_PROMPT_HARD_MAX_CHARS || '' }}
 
       - name: Run Codex
         uses: openai/codex-action@v1

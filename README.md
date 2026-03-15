@@ -30,6 +30,9 @@ Configure these before using the scaffold in a live repository:
    override the default `gpt-5-codex` model used by the stage runner.
 7. The stage runner executes Codex with `--full-auto` so planning, coding, and
    repair runs stay non-interactive inside GitHub Actions.
+8. Optional: tune prompt budgets with the following Actions variables:
+   `FACTORY_PLAN_PROMPT_MAX_CHARS`, `FACTORY_IMPLEMENT_PROMPT_MAX_CHARS`,
+   `FACTORY_REPAIR_PROMPT_MAX_CHARS`, and `FACTORY_PROMPT_HARD_MAX_CHARS`.
 
 ## Factory operator flow
 
