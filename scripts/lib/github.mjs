@@ -206,3 +206,19 @@ export async function markReadyForReview(pullRequestId) {
     { pullRequestId }
   );
 }
+
+export async function convertPullRequestToDraft(pullRequestId) {
+  return githubGraphql(
+    `
+      mutation ConvertToDraft($pullRequestId: ID!) {
+        convertPullRequestToDraft(input: { pullRequestId: $pullRequestId }) {
+          pullRequest {
+            id
+            isDraft
+          }
+        }
+      }
+    `,
+    { pullRequestId }
+  );
+}
