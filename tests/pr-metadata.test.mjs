@@ -24,5 +24,6 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.issueNumber, 7);
   assert.equal(metadata.artifactsPath, ".factory/runs/7");
   assert.equal(metadata.status, "plan_ready");
+  assert.match(body, /Closes #7/);
   assert.match(body, /\[spec\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
 });
