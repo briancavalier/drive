@@ -1,4 +1,4 @@
-Autonomous review completed with decision **PASS** (methodology: {{REVIEW_METHOD}}).
+✅ Autonomous review completed with decision **PASS** (methodology: {{REVIEW_METHOD}}).
 
 Summary: {{REVIEW_SUMMARY}}
 
