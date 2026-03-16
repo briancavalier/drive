@@ -166,6 +166,7 @@ jobs:
           FACTORY_MODE: ${{ inputs.mode }}
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_BRANCH: ${{ inputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
 
       - name: Stop on stage output preparation failure
         if: steps.prepare.outcome == 'failure'
