@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveStageCommitAction } from "../scripts/prepare-stage-push.mjs";
+import {
+  resolveStageCommitAction,
+  shouldAllowNoChanges
+} from "../scripts/prepare-stage-push.mjs";
 
 test("resolveStageCommitAction commits staged changes with generated summary", () => {
   const result = resolveStageCommitAction({
@@ -56,4 +59,10 @@ test("resolveStageCommitAction rejects multiple local commits ahead of origin", 
       }),
     /Expected at most one stage-output commit/
   );
+});
+
+test("review mode allows no-op stage output for identical artifacts", () => {
+  assert.equal(shouldAllowNoChanges("review"), true);
+  assert.equal(shouldAllowNoChanges("implement"), false);
+  assert.equal(shouldAllowNoChanges("repair"), false);
 });

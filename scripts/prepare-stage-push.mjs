@@ -110,6 +110,10 @@ export function prepareStageCommit({ mode, issueNumber, branch, issueTitle, remo
   return action;
 }
 
+export function shouldAllowNoChanges(mode) {
+  return mode === "review";
+}
+
 export function main(env = process.env) {
   const branch = env.FACTORY_BRANCH;
   const mode = env.FACTORY_MODE || "stage";
@@ -138,6 +142,18 @@ export function main(env = process.env) {
   const localHead = git(["rev-parse", "HEAD"]);
 
   if (localHead === remoteHead) {
+    if (shouldAllowNoChanges(mode)) {
+      setOutputs({
+        changed_files: "",
+        token_source: resolvedToken.source,
+        workflow_changes: "false",
+        failure_type: "",
+        failure_message: "",
+        transient_retry_attempts: "0"
+      });
+      return;
+    }
+
     throw new Error("Codex completed without producing repository changes.");
   }
 
