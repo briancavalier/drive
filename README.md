@@ -168,6 +168,9 @@ Protocol-critical behavior stays in code:
   the renderer
 - request-changes truncation behavior remains code-owned
 - artifact link generation remains code-owned
+- the metadata JSON includes `pendingReviewSha` when a review commit is waiting
+  for delivery so routers can ignore the immediate CI completion from that same
+  commit
 
 Example `pr-body.md` override:
 

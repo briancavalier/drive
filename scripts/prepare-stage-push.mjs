@@ -6,6 +6,7 @@ import { buildCommitMessage } from "./lib/commit-message.mjs";
 import { classifyFailure } from "./lib/failure-classification.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
+import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
 
 function git(args, { allowFailure = false } = {}) {
   try {
@@ -114,11 +115,31 @@ export function shouldAllowNoChanges(mode) {
   return mode === "review";
 }
 
+export function validateReviewArtifactsForStage(
+  { mode, artifactsPath, reviewMethod },
+  validator = loadValidatedReviewArtifacts
+) {
+  if (mode !== "review") {
+    return;
+  }
+
+  if (!artifactsPath) {
+    throw new Error("FACTORY_ARTIFACTS_PATH is required when FACTORY_MODE is \"review\".");
+  }
+
+  validator({
+    artifactsPath,
+    requestedMethodology: reviewMethod
+  });
+}
+
 export function main(env = process.env) {
   const branch = env.FACTORY_BRANCH;
   const mode = env.FACTORY_MODE || "stage";
   const issueNumber = env.FACTORY_ISSUE_NUMBER || "0";
   const issueTitle = env.FACTORY_ISSUE_TITLE || "";
+  const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
+  const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -130,6 +151,13 @@ export function main(env = process.env) {
   });
 
   pruneFactoryTempArtifacts();
+  validateReviewArtifactsForStage(
+    {
+      mode,
+      artifactsPath,
+      reviewMethod
+    }
+  );
   const remoteHead = git(["rev-parse", `origin/${branch}`], { allowFailure: true });
 
   if (!remoteHead) {
@@ -149,7 +177,8 @@ export function main(env = process.env) {
         workflow_changes: "false",
         failure_type: "",
         failure_message: "",
-        transient_retry_attempts: "0"
+        transient_retry_attempts: "0",
+        prepared_head_sha: localHead
       });
       return;
     }
@@ -173,7 +202,8 @@ export function main(env = process.env) {
     workflow_changes: evaluation.workflowChanges ? "true" : "false",
     failure_type: "",
     failure_message: "",
-    transient_retry_attempts: "0"
+    transient_retry_attempts: "0",
+    prepared_head_sha: localHead
   });
 }
 
@@ -188,7 +218,8 @@ if (isDirectExecution) {
     setOutputs({
       failure_type: classifyFailure(error.message),
       failure_message: `${error.message || ""}`.trim(),
-      transient_retry_attempts: "0"
+      transient_retry_attempts: "0",
+      prepared_head_sha: ""
     });
     console.error(`${error.message}`);
     process.exitCode = 1;

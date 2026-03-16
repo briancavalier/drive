@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyPendingReviewSha,
   applyTransientRetryAttempts,
   resolveNextStatus
 } from "../scripts/apply-pr-state.mjs";
@@ -65,4 +66,54 @@ test("transientRetryAttempts is cleared when reset explicitly sets 0", () => {
   const nextMetadata = applyTransientRetryAttempts(metadata, "0");
 
   assert.equal(nextMetadata.transientRetryAttempts, 0);
+});
+
+test("applyPendingReviewSha leaves metadata unchanged when env undefined", () => {
+  const metadata = defaultPrMetadata({
+    pendingReviewSha: "abc123"
+  });
+
+  const nextMetadata = applyPendingReviewSha(metadata, undefined);
+
+  assert.equal(nextMetadata.pendingReviewSha, "abc123");
+});
+
+test("applyPendingReviewSha preserves value when __UNCHANGED__", () => {
+  const metadata = defaultPrMetadata({
+    pendingReviewSha: "abc123"
+  });
+
+  const nextMetadata = applyPendingReviewSha(metadata, "__UNCHANGED__");
+
+  assert.equal(nextMetadata.pendingReviewSha, "abc123");
+});
+
+test("applyPendingReviewSha clears value when empty", () => {
+  const metadata = defaultPrMetadata({
+    pendingReviewSha: "abc123"
+  });
+
+  const nextMetadata = applyPendingReviewSha(metadata, "");
+
+  assert.equal(nextMetadata.pendingReviewSha, null);
+});
+
+test("applyPendingReviewSha clears value when __CLEAR__", () => {
+  const metadata = defaultPrMetadata({
+    pendingReviewSha: "abc123"
+  });
+
+  const nextMetadata = applyPendingReviewSha(metadata, "__CLEAR__");
+
+  assert.equal(nextMetadata.pendingReviewSha, null);
+});
+
+test("applyPendingReviewSha sets pending SHA when provided", () => {
+  const metadata = defaultPrMetadata({
+    pendingReviewSha: null
+  });
+
+  const nextMetadata = applyPendingReviewSha(metadata, "deadbeef");
+
+  assert.equal(nextMetadata.pendingReviewSha, "deadbeef");
 });

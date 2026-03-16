@@ -167,6 +167,7 @@ jobs:
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_BRANCH: ${{ inputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+          FACTORY_REVIEW_METHOD: ${{ steps.build.outputs.review_methodology_requested }}
 
       - name: Stop on stage output preparation failure
         if: steps.prepare.outcome == 'failure'
@@ -183,3 +184,14 @@ jobs:
       - name: Stop on push failure
         if: steps.push.outcome == 'failure'
         run: exit 1
+
+      # Two-stage review guard: record the freshly pushed review commit so CI completion
+      # from the same SHA does not trigger an immediate rerun. process-review clears it.
+      - name: Record pending review commit
+        if: inputs.mode == 'review' && inputs.pr_number > 0 && steps.push.outcome == 'success' && steps.prepare.outputs.prepared_head_sha != '' && steps.prepare.outputs.prepared_head_sha != steps.capture_head.outputs.refreshed_head_sha
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_PENDING_REVIEW_SHA: ${{ steps.prepare.outputs.prepared_head_sha }}
+          FACTORY_CI_STATUS: pending

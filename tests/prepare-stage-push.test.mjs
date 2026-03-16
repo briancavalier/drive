@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   resolveStageCommitAction,
-  shouldAllowNoChanges
+  shouldAllowNoChanges,
+  validateReviewArtifactsForStage,
+  main as prepareStagePushMain
 } from "../scripts/prepare-stage-push.mjs";
 
 test("resolveStageCommitAction commits staged changes with generated summary", () => {
@@ -65,4 +70,92 @@ test("review mode allows no-op stage output for identical artifacts", () => {
   assert.equal(shouldAllowNoChanges("review"), true);
   assert.equal(shouldAllowNoChanges("implement"), false);
   assert.equal(shouldAllowNoChanges("repair"), false);
+});
+
+test("validateReviewArtifactsForStage skips non-review modes", () => {
+  let called = false;
+
+  validateReviewArtifactsForStage(
+    { mode: "implement", artifactsPath: "", reviewMethod: "" },
+    () => {
+      called = true;
+    }
+  );
+
+  assert.equal(called, false);
+});
+
+test("validateReviewArtifactsForStage requires artifacts path in review mode", () => {
+  assert.throws(
+    () =>
+      validateReviewArtifactsForStage(
+        { mode: "review", artifactsPath: "", reviewMethod: "default" },
+        () => {}
+      ),
+    /FACTORY_ARTIFACTS_PATH is required/
+  );
+});
+
+test("validateReviewArtifactsForStage delegates to loadValidatedReviewArtifacts", () => {
+  let invocation = null;
+
+  validateReviewArtifactsForStage(
+    {
+      mode: "review",
+      artifactsPath: "/tmp/review-artifacts",
+      reviewMethod: "custom"
+    },
+    (options) => {
+      invocation = options;
+    }
+  );
+
+  assert.deepEqual(invocation, {
+    artifactsPath: "/tmp/review-artifacts",
+    requestedMethodology: "custom"
+  });
+});
+
+test("prepare-stage-push fails before git when review validation rejects", () => {
+  const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-review-invalid-"));
+  const reviewJson = {
+    methodology: "default",
+    decision: "pass",
+    summary: "Test summary",
+    blocking_findings_count: 0,
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Validation runs before push.",
+        status: "satisfied",
+        evidence: "Guarded by prepare-stage-push."
+      }
+    ],
+    findings: []
+  };
+
+  fs.writeFileSync(path.join(artifactsDir, "review.json"), JSON.stringify(reviewJson, null, 2));
+  fs.writeFileSync(path.join(artifactsDir, "review.md"), "# Invalid review\n\nMissing traceability.");
+
+  try {
+    let thrown = null;
+
+    try {
+      prepareStagePushMain({
+        FACTORY_BRANCH: "factory/34-review-test",
+        FACTORY_MODE: "review",
+        FACTORY_ISSUE_NUMBER: "34",
+        FACTORY_ISSUE_TITLE: "Add validation guard",
+        FACTORY_ARTIFACTS_PATH: artifactsDir,
+        FACTORY_REVIEW_METHOD: "default",
+        GITHUB_TOKEN: "ghs_mock"
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert.ok(thrown, "expected validation failure");
+    assert.match(thrown.message, /review\.md must include/);
+  } finally {
+  }
 });

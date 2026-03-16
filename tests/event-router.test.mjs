@@ -211,6 +211,49 @@ test("routeWorkflowRun also reruns review for managed PRs already reviewing", ()
   assert.equal(result.action, "review");
 });
 
+test("routeWorkflowRun ignores CI completions for pending autonomous review commits", () => {
+  const headSha = "abc123";
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 200,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: headSha
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("reviewing", 0, { pendingReviewSha: headSha }),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun still triggers review when CI head SHA differs from pending marker", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 201,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "def456"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("reviewing", 0, { pendingReviewSha: "abc123" }),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "review");
+});
+
 test("routeWorkflowRun ignores push-triggered CI runs for managed PR branches", () => {
   const result = routeWorkflowRun({
     workflowRun: {

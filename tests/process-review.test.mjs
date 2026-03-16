@@ -135,6 +135,7 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
   assert.equal(execCalls[0].options.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, "0");
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
   assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
   assert.match(commentBody, /## 📝 Summary/);
   assert.match(commentBody, /## 🧭 Traceability/);
@@ -363,10 +364,12 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   });
   const env = baseEnv({ artifactsPath: dir });
   let reviewPayload = null;
+  const execCalls = [];
 
   await processReview({
     env,
-    execFileImpl: (_file, _args, _options, callback) => {
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
       callback(null, "", "");
     },
     githubClient: {
@@ -386,6 +389,39 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.match(reviewPayload.body, /### Missing tests/);
   assert.match(reviewPayload.body, /## 🧭 Traceability/);
   assert.match(reviewPayload.body, /<details>/);
+  assert.equal(execCalls.length, 1);
+  assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+  assert.equal(execCalls[0].options.env.FACTORY_CI_STATUS, "pending");
+  assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
+});
+
+test("processReview clears pending review SHA when validation fails early", async () => {
+  const env = baseEnv({ artifactsPath: path.join(os.tmpdir(), "missing-review-artifacts") });
+  const execCalls = [];
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (file, args, options, callback) => {
+        execCalls.push({ file, args, options });
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {
+          throw new Error("commentOnIssue should not be called on validation failure");
+        },
+        submitPullRequestReview: async () => {
+          throw new Error("submitPullRequestReview should not be called on validation failure");
+        }
+      }
+    }),
+    /Failed to read/
+  );
+
+  assert.equal(execCalls.length, 1);
+  assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
 });
 
 test("processReview main writes failure message output for workflow follow-up", async () => {
