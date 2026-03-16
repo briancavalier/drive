@@ -1,5 +1,8 @@
+import path from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import {
   FAILURE_TYPES,
   parseRetryLimit
@@ -57,23 +60,23 @@ function buildFailureComment({ action, failureType, retryAttempts, failureMessag
   );
 }
 
-function buildStateUpdate(action, failureType) {
+export function buildStateUpdate(action, failureType) {
   if (action === "implement" && failureType === FAILURE_TYPES.contentOrLogic) {
     return {
-      status: "plan_ready",
+      status: FACTORY_PR_STATUSES.planReady,
       addLabels: "factory:plan-ready",
       removeLabels: "factory:implement,factory:blocked"
     };
   }
 
   return {
-    status: "blocked",
+    status: FACTORY_PR_STATUSES.blocked,
     addLabels: "factory:blocked",
     removeLabels: "factory:implement"
   };
 }
 
-async function main(env = process.env) {
+export async function main(env = process.env) {
   const execFileAsync = promisify(execFile);
   const action = requiredEnv("FACTORY_FAILED_ACTION", env);
   const failureType = env.FACTORY_FAILURE_TYPE || FAILURE_TYPES.contentOrLogic;
@@ -104,4 +107,13 @@ async function main(env = process.env) {
   });
 }
 
-await main();
+const isDirectExecution =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectExecution) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
