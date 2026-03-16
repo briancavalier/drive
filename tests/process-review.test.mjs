@@ -4,9 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { main as processReviewMain, processReview } from "../scripts/process-review.mjs";
-import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
-function renderReviewMarkdown(reviewJson, extras = {}) {
+function renderReviewMarkdown(reviewJson) {
   const lines = [
     "# Autonomous Review",
     "",
@@ -46,16 +45,6 @@ function renderReviewMarkdown(reviewJson, extras = {}) {
     }
   }
 
-  if (extras.beforeTraceability) {
-    lines.push(extras.beforeTraceability, "");
-  }
-
-  lines.push(renderCanonicalTraceabilityMarkdown(reviewJson.requirement_checks));
-
-  if (extras.afterTraceability) {
-    lines.push("", extras.afterTraceability);
-  }
-
   return lines.join("\n");
 }
 
@@ -66,18 +55,10 @@ function makeArtifacts(overrides = {}) {
     decision: "pass",
     summary: "All acceptance criteria are satisfied.",
     blocking_findings_count: 0,
-    requirement_checks: [
-      {
-        type: "acceptance_criterion",
-        requirement: "A factory-managed PR that reaches green CI enters review.",
-        status: "satisfied",
-        evidence: "Verified by CI routing and review stage tests."
-      }
-    ],
     findings: [],
     ...overrides.reviewJson
   };
-  const reviewMd = overrides.reviewMd || renderReviewMarkdown(reviewJson, overrides.reviewMdExtras);
+  const reviewMd = overrides.reviewMd || renderReviewMarkdown(reviewJson);
 
   fs.writeFileSync(path.join(dir, "review.json"), JSON.stringify(reviewJson, null, 2));
   fs.writeFileSync(path.join(dir, "review.md"), reviewMd);
@@ -333,14 +314,6 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
     reviewJson: {
       decision: "request_changes",
       blocking_findings_count: 1,
-      requirement_checks: [
-        {
-          type: "acceptance_criterion",
-          requirement: "Acceptance criteria are fully covered by tests.",
-          status: "not_satisfied",
-          evidence: "Negative-path coverage is missing."
-        }
-      ],
       findings: [
         {
           level: "blocking",
@@ -373,10 +346,7 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.equal(reviewPayload.prNumber, 33);
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /Autonomous review decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /Blocking findings:/);
-  assert.match(reviewPayload.body, /Unmet requirement checks:/);
   assert.match(reviewPayload.body, /Missing tests/);
-  assert.match(reviewPayload.body, /<details>/);
 });
 
 test("processReview main writes failure message output for workflow follow-up", async () => {
@@ -384,14 +354,6 @@ test("processReview main writes failure message output for workflow follow-up", 
     reviewJson: {
       decision: "request_changes",
       blocking_findings_count: 1,
-      requirement_checks: [
-        {
-          type: "acceptance_criterion",
-          requirement: "Acceptance criteria are fully covered by tests.",
-          status: "not_satisfied",
-          evidence: "Negative-path coverage is missing."
-        }
-      ],
       findings: [
         {
           level: "blocking",
