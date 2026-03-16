@@ -17,6 +17,7 @@ import {
   resolveReviewMethodology,
   sanitizeReviewDecision
 } from "./lib/review-methods.mjs";
+import { renderCanonicalTraceabilityMarkdown } from "./lib/review-output.mjs";
 
 const REVIEW_JSON_NAME = "review.json";
 const REVIEW_MD_NAME = "review.md";
@@ -201,6 +202,23 @@ function validateReviewPayload(payload, expectedMethodology) {
   };
 }
 
+function normalizeMarkdown(markdown) {
+  return `${markdown || ""}`.replaceAll("\r\n", "\n").trim();
+}
+
+function validateReviewMarkdown(reviewMarkdown, review) {
+  const canonicalTraceability = normalizeMarkdown(
+    renderCanonicalTraceabilityMarkdown(review.requirement_checks)
+  );
+  const normalizedReviewMarkdown = normalizeMarkdown(reviewMarkdown);
+
+  if (!normalizedReviewMarkdown.includes(canonicalTraceability)) {
+    throw new Error(
+      "review.md must include the canonical Traceability section derived from review.json"
+    );
+  }
+}
+
 async function runApplyPrState(execFileAsync, env, envOverrides) {
   const childEnv = {
     ...env,
@@ -262,6 +280,8 @@ async function handleRequestChanges({
     {
       methodology: review.methodology,
       summary: review.summary,
+      findings: review.findings,
+      requirementChecks: review.requirement_checks,
       reviewMarkdown,
       artifactsPath,
       maxBodyChars: MAX_REVIEW_BODY_CHARS
@@ -306,6 +326,7 @@ export async function processReview({
   const reviewMarkdown = readMarkdown(reviewMarkdownPath);
   const parsed = parseJsonFile(reviewJsonPath);
   const review = validateReviewPayload(parsed, methodology.name);
+  validateReviewMarkdown(reviewMarkdown, review);
 
   console.log(
     `Processing autonomous review for PR #${prNumber} on branch ${branch} (methodology: ${review.methodology}, decision: ${review.decision})`

@@ -3,17 +3,24 @@
 Review procedure:
 
 1. Read the approved `spec.md`, `plan.md`, `acceptance-tests.md`, relevant CI evidence, and the current git diff before deciding.
-2. Produce a compact **Traceability** section in `review.md` that covers:
+2. Write `review.md` in this order: decision and summary, blocking findings, non-blocking notes, then **Traceability**.
+3. Keep blocking findings and unmet requirements outside collapsible sections so repair context stays visible in GitHub reviews.
+4. Produce a compact **Traceability** section in `review.md` that covers:
    - every acceptance criterion
    - each major spec commitment touched by the change
    - each plan deliverable touched by the change
-3. For every traceability item, record:
+5. Render traceability as GitHub-friendly `<details><summary>` blocks, grouped by:
+   - `Traceability: Acceptance Criteria`
+   - `Traceability: Spec Commitments`
+   - `Traceability: Plan Deliverables`
+6. For every traceability item, record:
    - type: `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`
    - requirement text
    - status: `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`
    - concrete evidence such as changed files, tests, CI jobs, or artifact evidence
-4. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.
-5. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.
+7. Use the canonical traceability block derived from `review.json` exactly, so the machine-readable and human-readable artifacts stay in sync.
+8. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.
+9. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.
 
 Focus areas:
 

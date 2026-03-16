@@ -268,6 +268,8 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /Autonomous review stage/i);
   assert.match(result.prompt, new RegExp(methodology.instructions.trim().slice(0, 20)));
   assert.match(result.prompt, /Traceability/);
+  assert.match(result.prompt, /<details><summary>/);
+  assert.match(result.prompt, /outside any collapsible sections/);
   assert.match(result.prompt, /requirement_checks/);
   assert.match(result.prompt, /partially_satisfied/);
   assert.deepEqual(result.meta.methodology, {

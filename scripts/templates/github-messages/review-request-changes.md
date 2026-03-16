@@ -2,6 +2,18 @@ Autonomous review decision: REQUEST_CHANGES (methodology: {{REVIEW_METHOD}})
 
 Summary: {{REVIEW_SUMMARY}}
 
----
+Blocking findings:
+{{BLOCKING_FINDINGS_SUMMARY}}
 
-{{REVIEW_MARKDOWN}}
+Unmet requirement checks:
+{{UNMET_REQUIREMENT_CHECKS_SUMMARY}}
+
+Artifacts:
+- `{{REVIEW_MARKDOWN_PATH}}`
+- `{{REVIEW_JSON_PATH}}`
+
+{{FULL_BLOCKING_FINDINGS_DETAILS}}
+
+{{TRACEABILITY_DETAILS}}
+
+{{FULL_REVIEW_DETAILS}}

@@ -16,10 +16,24 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
 1. `review.md` — human-readable summary that includes:
    - Overall decision and short summary.
-   - A `Traceability` section before findings that uses a compact table or bullet list with requirement type, requirement text, status, and evidence.
-   - Blocking findings (if any) with affected scope and recommendations.
+   - Blocking findings first, outside any collapsible sections.
    - Non-blocking findings or notes.
+   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections.
    - Methodology used (`{{METHODOLOGY_NAME}}`).
+   - Use this exact traceability structure, omitting empty groups:
+
+   ```md
+   ## Traceability
+
+   <details>
+   <summary>Traceability: Acceptance Criteria</summary>
+
+   - Requirement: <requirement text>
+     - Status: `<status>`
+     - Evidence: <files, tests, CI jobs, or artifact evidence>
+
+   </details>
+   ```
 2. `review.json` — machine-readable artifact that MUST follow this schema:
 
    ```json
@@ -57,6 +71,7 @@ Review guidance:
 - Confirm test coverage and CI evidence are sufficient.
 - Assess regression risk, security/safety implications, and scope control.
 - Flag missing artifacts, weak evidence, or deviations from plan/spec.
+- Keep blocking findings and unmet requirements visible outside collapsible sections.
 - When requesting changes, clearly document actionable recommendations.
 
 Context:
