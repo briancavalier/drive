@@ -1,10 +1,14 @@
-import { PR_STATE_MARKER, DEFAULT_MAX_REPAIR_ATTEMPTS } from "./factory-config.mjs";
+import {
+  PR_STATE_MARKER,
+  DEFAULT_MAX_REPAIR_ATTEMPTS,
+  FACTORY_PR_STATUSES
+} from "./factory-config.mjs";
 
 export function defaultPrMetadata(overrides = {}) {
   return {
     issueNumber: null,
     artifactsPath: null,
-    status: "planning",
+    status: FACTORY_PR_STATUSES.planning,
     repairAttempts: 0,
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     lastFailureSignature: null,

@@ -1,4 +1,10 @@
-import { FACTORY_LABELS, isFactoryBranch } from "./factory-config.mjs";
+import {
+  FACTORY_ACTIVE_CI_STATUSES,
+  FACTORY_IMPLEMENT_TRIGGER_STATUSES,
+  FACTORY_LABELS,
+  FACTORY_REVIEW_REPAIRABLE_STATUSES,
+  isFactoryBranch
+} from "./factory-config.mjs";
 import { extractPrMetadata } from "./pr-metadata.mjs";
 import { nextRepairState } from "./repair-state.mjs";
 
@@ -23,7 +29,7 @@ export function routePullRequestLabeled(payload) {
   if (
     payload.action !== "labeled" ||
     payload.label?.name !== FACTORY_LABELS.implement ||
-    !["plan_ready", "implementing"].includes(metadata?.status) ||
+    !FACTORY_IMPLEMENT_TRIGGER_STATUSES.includes(metadata?.status) ||
     !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
   ) {
     return { action: "noop" };
@@ -45,7 +51,7 @@ export function routePullRequestReview(payload) {
   if (
     payload.action !== "submitted" ||
     payload.review?.state?.toLowerCase() !== "changes_requested" ||
-    !["implementing", "repairing", "reviewing", "ready_for_review"].includes(metadata?.status) ||
+    !FACTORY_REVIEW_REPAIRABLE_STATUSES.includes(metadata?.status) ||
     !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
   ) {
     return { action: "noop" };
@@ -90,7 +96,7 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     return { action: "noop" };
   }
 
-  if (!["implementing", "repairing"].includes(metadata?.status)) {
+  if (!FACTORY_ACTIVE_CI_STATUSES.includes(metadata?.status)) {
     return { action: "noop" };
   }
 
