@@ -1,0 +1,9 @@
+# Factory Run
+
+Linked issue: #{{ISSUE_NUMBER}}
+
+{{STATUS_SECTION}}
+
+{{ARTIFACTS_SECTION}}
+
+{{OPERATOR_NOTES_SECTION}}

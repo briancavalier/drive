@@ -14,6 +14,7 @@ Actions, and the Codex GitHub Action.
 - A reusable stage runner that invokes `openai/codex-action`
 - A minimal `CI` workflow so the repair loop has a concrete workflow target
 - Node-based helper scripts and tests with no runtime dependencies
+- Repo-local GitHub message template overrides under `.factory/messages/`
 
 ## Required repository setup
 
@@ -49,6 +50,65 @@ The workflows create and manage these labels automatically:
 - `factory:implement`
 - `factory:blocked`
 - `factory:paused`
+
+## GitHub message templates
+
+Factory-posted GitHub messages use built-in markdown templates and can be
+overridden repo-locally by adding files under `.factory/messages/`.
+
+Supported override files:
+
+- `pr-body.md`
+- `plan-ready-issue-comment.md`
+- `intake-rejected-comment.md`
+- `review-pass-comment.md`
+- `review-request-changes.md`
+
+The renderer supports simple `{{TOKEN}}` replacement only. Unknown tokens or
+missing required tokens cause the override to be ignored with a warning, and
+the factory falls back to the built-in template for that message.
+
+Common tokens include:
+
+- identifiers such as `ISSUE_NUMBER`, `PR_NUMBER`, `BRANCH`, and `ARTIFACTS_PATH`
+- status values such as `STATUS`, `CI_STATUS`, `REPAIR_ATTEMPTS`, and
+  `MAX_REPAIR_ATTEMPTS`
+- review values such as `REVIEW_METHOD`, `REVIEW_SUMMARY`, and
+  `BLOCKING_FINDINGS_COUNT`
+
+Composite tokens include:
+
+- `STATUS_SECTION`
+- `ARTIFACTS_SECTION`
+- `OPERATOR_NOTES_SECTION`
+- `REVIEW_MARKDOWN`
+
+Required-token policy:
+
+- `pr-body.md` must include `{{STATUS_SECTION}}` and `{{ARTIFACTS_SECTION}}`
+- `review-request-changes.md` must include `{{REVIEW_MARKDOWN}}`
+- the other message templates do not require specific tokens
+
+Protocol-critical behavior stays in code:
+
+- the hidden `factory-state` metadata comment is always appended to PR bodies by
+  the renderer
+- request-changes truncation behavior remains code-owned
+- artifact link generation remains code-owned
+
+Example `pr-body.md` override:
+
+```md
+# Custom Factory Run
+
+Issue: #{{ISSUE_NUMBER}}
+
+{{ARTIFACTS_SECTION}}
+
+{{STATUS_SECTION}}
+
+{{OPERATOR_NOTES_SECTION}}
+```
 
 ## Local validation
 

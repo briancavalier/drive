@@ -2,6 +2,7 @@ import {
   FACTORY_LABELS,
   DEFAULT_MAX_REPAIR_ATTEMPTS
 } from "./lib/factory-config.mjs";
+import { renderPlanReadyIssueComment } from "./lib/github-messages.mjs";
 import { extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
 import {
   addLabels,
@@ -39,5 +40,8 @@ await addLabels(prNumber, [FACTORY_LABELS.managed, FACTORY_LABELS.planReady]);
 await removeLabel(issueNumber, FACTORY_LABELS.start);
 await commentOnIssue(
   issueNumber,
-  `Factory planning is ready in PR #${prNumber}. Review the draft PR and apply \`${FACTORY_LABELS.implement}\` to start coding.`
+  renderPlanReadyIssueComment({
+    prNumber,
+    implementLabel: FACTORY_LABELS.implement
+  })
 );

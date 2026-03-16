@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   issueArtifactsPath
 } from "./lib/factory-config.mjs";
+import { renderIntakeRejectedComment } from "./lib/github-messages.mjs";
 import {
   isValidIssueForm,
   missingIssueFormFields,
@@ -50,7 +51,7 @@ if (!isValidIssueForm(parsedIssue)) {
   const missing = missingIssueFormFields(parsedIssue).join(", ");
   await commentOnIssue(
     issue.number,
-    `Factory intake rejected. Missing required issue sections: ${missing}.`
+    renderIntakeRejectedComment({ missingFields: missing })
   );
   throw new Error(`Issue form is incomplete: ${missing}`);
 }

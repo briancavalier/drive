@@ -1,4 +1,5 @@
 import { PR_STATE_MARKER, DEFAULT_MAX_REPAIR_ATTEMPTS } from "./factory-config.mjs";
+import { renderPrBody as renderGithubPrBody } from "./github-messages.mjs";
 
 export function defaultPrMetadata(overrides = {}) {
   return {
@@ -50,37 +51,13 @@ export function renderPrBody({
   artifactsPath,
   metadata,
   ciStatus = "pending"
-}) {
-  const state = defaultPrMetadata({
+}, options = {}) {
+  return renderGithubPrBody({
     issueNumber,
+    branch,
+    repositoryUrl,
     artifactsPath,
-    ...metadata
-  });
-  const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
-
-  return [
-    "# Factory Run",
-    "",
-    `Linked issue: #${issueNumber}`,
-    "",
-    "## Status",
-    `- Stage: ${state.status}`,
-    `- CI: ${ciStatus}`,
-    `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
-    "",
-    "## Artifacts",
-    `- [spec.md](${links.spec})`,
-    `- [plan.md](${links.plan})`,
-    `- [acceptance-tests.md](${links.acceptanceTests})`,
-    `- [repair-log.md](${links.repairLog})`,
-    "",
-    "## Operator Notes",
-    "- Apply `factory:implement` to start coding after plan review.",
-    "- Apply `factory:paused` to pause autonomous work.",
-    "- Remove `factory:paused` and re-apply `factory:implement` to resume.",
-    "",
-    `<!-- ${PR_STATE_MARKER}`,
-    JSON.stringify(state, null, 2),
-    "-->"
-  ].join("\n");
+    metadata,
+    ciStatus
+  }, options);
 }
