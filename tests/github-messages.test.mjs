@@ -75,6 +75,27 @@ test("renderPrBody falls back to default template when required tokens are missi
   assert.match(warnings[0], /missing required tokens: STATUS_SECTION/);
 });
 
+test("renderPrBody prefixes known stage and CI statuses with emoji", () => {
+  const body = renderPrBody(
+    {
+      ...prBodyInput(),
+      ciStatus: "success"
+    },
+    {}
+  );
+
+  assert.match(body, /- Stage: 👀 plan_ready/);
+  assert.match(body, /- CI: ✅ success/);
+});
+
+test("renderPrBody operator notes include the prescribed emoji prefixes", () => {
+  const body = renderPrBody(prBodyInput(), {});
+
+  assert.match(body, /- ▶️ Apply `factory:implement` to start coding after plan review\./);
+  assert.match(body, /- ⏸️ Apply `factory:paused` to pause autonomous work\./);
+  assert.match(body, /- ▶️ Remove `factory:paused` and re-apply `factory:implement` to resume\./);
+});
+
 test("renderPlanReadyIssueComment falls back to default when override contains unknown tokens", () => {
   const overridesRoot = makeOverrides({
     "plan-ready-issue-comment.md": "PR #{{PR_NUMBER}} {{UNKNOWN_TOKEN}}"
@@ -92,7 +113,7 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
   );
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /unknown tokens: UNKNOWN_TOKEN/);
@@ -107,7 +128,7 @@ test("renderPlanReadyIssueComment uses built-in default when override file is ab
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
   );
 });
 
@@ -131,6 +152,7 @@ test("renderReviewPassComment keeps the no-findings default copy", () => {
     artifactsPath: ".factory/runs/9"
   });
 
+  assert.ok(message.startsWith("✅ "));
   assert.match(message, /No blocking findings recorded\./);
   assert.match(message, /review\.md/);
 });

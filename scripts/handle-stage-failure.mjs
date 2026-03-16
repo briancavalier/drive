@@ -3,10 +3,9 @@ import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
-import {
-  FAILURE_TYPES,
-  parseRetryLimit
-} from "./lib/failure-classification.mjs";
+import { FAILURE_TYPES, parseRetryLimit } from "./lib/failure-classification.mjs";
+
+const BLOCKED_COMMENT_PREFIX = "⚠️ ";
 
 function requiredEnv(name, env = process.env) {
   const value = `${env[name] || ""}`.trim();
@@ -18,46 +17,49 @@ function requiredEnv(name, env = process.env) {
   return value;
 }
 
-function buildFailureComment({ action, failureType, retryAttempts, failureMessage }) {
+export function buildFailureComment({ action, failureType, retryAttempts, failureMessage }) {
+  let message;
+
   if (failureType === FAILURE_TYPES.staleBranchConflict) {
-    return (
+    message =
       "Factory could not merge `origin/main` into this factory branch automatically. " +
-      "Resolve the merge conflict on the branch, then re-run the factory stage."
-    );
+      "Resolve the merge conflict on the branch, then re-run the factory stage.";
+    return `${BLOCKED_COMMENT_PREFIX}${message}`;
   }
 
   if (failureType === FAILURE_TYPES.transientInfra) {
-    return (
+    message =
       `Factory exhausted ${retryAttempts} transient retry attempt(s) for this stage and is now blocked. ` +
-      "Review the failed run for infrastructure details, then reset the PR to retry."
-    );
+      "Review the failed run for infrastructure details, then reset the PR to retry.";
+    return `${BLOCKED_COMMENT_PREFIX}${message}`;
   }
 
   if (failureType === FAILURE_TYPES.configuration) {
-    return (
+    message =
       "Factory encountered a configuration error and is blocked pending operator intervention. " +
-      `${failureMessage || "Review the failed run for details."}`
-    ).trim();
+      `${failureMessage || "Review the failed run for details."}`;
+    return `${BLOCKED_COMMENT_PREFIX}${message.trim()}`;
   }
 
   if (action === "implement") {
-    return (
+    message =
       "Factory implementation failed before producing a usable branch update. " +
-      "Review the failed run and re-apply `factory:implement` after addressing the issue."
-    );
+      "Review the failed run and re-apply `factory:implement` after addressing the issue.";
+    return `${BLOCKED_COMMENT_PREFIX}${message}`;
   }
 
   if (action === "review") {
-    return (
+    message =
       "Factory review stage failed before producing a decision. " +
-      "Investigate the review artifacts and re-trigger the workflow after addressing the issue."
-    );
+      "Investigate the review artifacts and re-trigger the workflow after addressing the issue.";
+    return `${BLOCKED_COMMENT_PREFIX}${message}`;
   }
 
-  return (
+  message =
     "Factory repair failed before producing a usable branch update. " +
-    "Human intervention is required."
-  );
+    "Human intervention is required.";
+
+  return `${BLOCKED_COMMENT_PREFIX}${message}`;
 }
 
 export function buildStateUpdate(action, failureType) {

@@ -24,6 +24,39 @@ const DEFAULT_TEMPLATES_ROOT = path.resolve(
 const DEFAULT_OVERRIDE_ROOT = path.join(".factory", "messages");
 const MAX_REVIEW_BODY_CHARS = 60000;
 
+const STAGE_EMOJI_BY_STATUS = Object.freeze({
+  planning: "📝",
+  plan_ready: "👀",
+  implementing: "🏗️",
+  repairing: "🛠️",
+  blocked: "⚠️",
+  ready_for_review: "✅"
+});
+
+const CI_EMOJI_BY_STATUS = Object.freeze({
+  pending: "⏳",
+  success: "✅",
+  failure: "❌"
+});
+
+function decorateWithEmoji(value, emojiMap) {
+  if (!value) {
+    return value;
+  }
+
+  const normalizedValue = String(value);
+  const emoji = emojiMap[normalizedValue];
+  return emoji ? `${emoji} ${normalizedValue}` : normalizedValue;
+}
+
+function formatStageStatus(status) {
+  return decorateWithEmoji(status, STAGE_EMOJI_BY_STATUS);
+}
+
+function formatCiStatus(status) {
+  return decorateWithEmoji(status, CI_EMOJI_BY_STATUS);
+}
+
 const MESSAGE_SPECS = Object.freeze({
   "pr-body": {
     fileName: "pr-body.md",
@@ -224,6 +257,10 @@ export function renderPrBody(
     ...metadata
   });
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
+  const formattedStage =
+    formatStageStatus(state.status) || state.status || "unknown";
+  const formattedCiStatus =
+    formatCiStatus(ciStatus) || ciStatus || "unknown";
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
     BRANCH: branch,
@@ -245,8 +282,8 @@ export function renderPrBody(
     TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
     STATUS_SECTION: [
       "## Status",
-      `- Stage: ${state.status}`,
-      `- CI: ${ciStatus}`,
+      `- Stage: ${formattedStage}`,
+      `- CI: ${formattedCiStatus}`,
       `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
       state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
       state.transientRetryAttempts
@@ -266,9 +303,9 @@ export function renderPrBody(
     ].join("\n"),
     OPERATOR_NOTES_SECTION: [
       "## Operator Notes",
-      `- Apply \`${FACTORY_LABELS.implement}\` to start coding after plan review.`,
-      `- Apply \`${FACTORY_LABELS.paused}\` to pause autonomous work.`,
-      `- Remove \`${FACTORY_LABELS.paused}\` and re-apply \`${FACTORY_LABELS.implement}\` to resume.`
+      `- ▶️ Apply \`${FACTORY_LABELS.implement}\` to start coding after plan review.`,
+      `- ⏸️ Apply \`${FACTORY_LABELS.paused}\` to pause autonomous work.`,
+      `- ▶️ Remove \`${FACTORY_LABELS.paused}\` and re-apply \`${FACTORY_LABELS.implement}\` to resume.`
     ].join("\n")
   };
   const body = renderMessage("pr-body", variables, options);
