@@ -1,0 +1,113 @@
+{
+  "methodology": "default",
+  "decision": "request_changes",
+  "summary": "Emoji cues land across PR surfaces with solid tests, but the new git rev-parse fallback can emit non-SHA strings, so we need to fix that before merging.",
+  "blocking_findings_count": 1,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Stage status shows mapped emoji",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:61-77"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "CI status shows mapped emoji",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:61-77"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Operator notes use required cues",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:95-109"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Plan-ready comment is emoji-prefixed",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:129-163"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Ready-for-review comment is emoji-prefixed",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:177-188"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Failure comments are emoji-prefixed",
+      "status": "satisfied",
+      "evidence": "scripts/handle-stage-failure.mjs:21-74; tests/handle-stage-failure.test.mjs:26-59"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Unmapped stage values stay readable",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:79-93"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Introduce deterministic maps for stage and CI states inside scripts/lib/github-messages.mjs covering the required values and update renderPrBody to prefix emojis while preserving fallback behavior.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:27-294; tests/github-messages.test.mjs:61-93"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Adjust the operator notes bullets to prefix ▶️ for start/resume and ⏸️ for pause without altering label text.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:289-294; tests/github-messages.test.mjs:95-109"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Update plan-ready and review-pass templates and prepend ⚠️ to buildFailureComment outputs so all human-facing failure comments share the cue.",
+      "status": "satisfied",
+      "evidence": "scripts/templates/github-messages/plan-ready-issue-comment.md:1; scripts/templates/github-messages/review-pass-comment.md:1-5; scripts/handle-stage-failure.mjs:21-74"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Extend the test suite to cover emoji-enhanced rendering and failure comment prefixes, including fallback cases.",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:61-188; tests/handle-stage-failure.test.mjs:26-59"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Introduce emoji mapping helpers",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:27-272"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Refresh operator notes copy",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:289-294; tests/github-messages.test.mjs:95-109"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Adjust automated comment templates",
+      "status": "satisfied",
+      "evidence": "scripts/templates/github-messages/plan-ready-issue-comment.md:1; scripts/templates/github-messages/review-pass-comment.md:1-5"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Prefix failure comments",
+      "status": "satisfied",
+      "evidence": "scripts/handle-stage-failure.mjs:21-74; tests/handle-stage-failure.test.mjs:26-59"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Expand regression tests",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:61-188; tests/handle-stage-failure.test.mjs:26-59"
+    }
+  ],
+  "findings": [
+    {
+      "level": "blocking",
+      "title": "git rev-parse fallback returns invalid SHA",
+      "details": "The new gitRevParse error handling swallows non-zero exits and returns whatever stdout contained (scripts/process-review.mjs:26-43). When git emits the requested ref name on stdout for an invalid revision, the function now returns that ref string instead of throwing. handlePass then forwards this value as FACTORY_LAST_READY_SHA (scripts/process-review.mjs:261-269), so an invalid SHA can be recorded for ready-for-review metadata. Example: `git rev-parse invalid-ref-name` exits 128 but prints `invalid-ref-name` on stdout, which would now be treated as a commit id.",
+      "scope": "scripts/process-review.mjs",
+      "recommendation": "Restore fail-fast behavior or validate that stdout contains a 40-character SHA before returning it from gitRevParse."
+    }
+  ]
+}
