@@ -1,0 +1,7 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Commit summary helper now derives stage-aware subjects and tests confirm the acceptance scenarios.",
+  "blocking_findings_count": 0,
+  "findings": []
+}
