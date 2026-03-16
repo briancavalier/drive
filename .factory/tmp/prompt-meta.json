@@ -1,0 +1,65 @@
+{
+  "mode": "repair",
+  "budgetChars": 14000,
+  "hardMaxChars": 24000,
+  "contextBudgetChars": 13095,
+  "finalChars": 2688,
+  "includedSections": [
+    "run-metadata",
+    "failure-context",
+    "artifact-index",
+    "repair-log-tail",
+    "issue-synopsis"
+  ],
+  "omittedSections": [],
+  "truncatedSections": [
+    "issue-synopsis"
+  ],
+  "sections": [
+    {
+      "id": "run-metadata",
+      "title": "Run Metadata",
+      "included": true,
+      "dropped": false,
+      "truncated": false,
+      "originalChars": 142,
+      "finalChars": 142
+    },
+    {
+      "id": "failure-context",
+      "title": "Failure Context",
+      "included": true,
+      "dropped": false,
+      "truncated": false,
+      "originalChars": 89,
+      "finalChars": 89
+    },
+    {
+      "id": "artifact-index",
+      "title": "Artifact Index",
+      "included": true,
+      "dropped": false,
+      "truncated": false,
+      "originalChars": 484,
+      "finalChars": 484
+    },
+    {
+      "id": "repair-log-tail",
+      "title": "Repair Log Tail",
+      "included": true,
+      "dropped": false,
+      "truncated": false,
+      "originalChars": 170,
+      "finalChars": 170
+    },
+    {
+      "id": "issue-synopsis",
+      "title": "Issue Synopsis",
+      "included": true,
+      "dropped": false,
+      "truncated": true,
+      "originalChars": 1085,
+      "finalChars": 799
+    }
+  ]
+}
