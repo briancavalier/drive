@@ -72,6 +72,38 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.ok(commentBody.includes("Artifacts"));
 });
 
+test("processReview rejects pass decision when blocking findings present", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      blocking_findings_count: 1,
+      findings: [
+        {
+          level: "blocking",
+          title: "Security regression",
+          details: "Detected blocking regression.",
+          scope: "src/index.js",
+          recommendation: "Fix the regression."
+        }
+      ]
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /decision "pass" is not allowed/
+  );
+});
+
 test("processReview submits REQUEST_CHANGES review when decision requests changes", async () => {
   const { dir } = makeArtifacts({
     reviewJson: {

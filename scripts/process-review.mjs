@@ -122,6 +122,12 @@ function validateReviewPayload(payload, expectedMethodology) {
     );
   }
 
+  if (decision === "pass" && computedBlocking > 0) {
+    throw new Error(
+      "decision \"pass\" is not allowed when review.json includes blocking findings"
+    );
+  }
+
   return {
     methodology,
     decision,

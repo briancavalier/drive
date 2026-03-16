@@ -274,6 +274,58 @@ test("review prompt embeds methodology instructions and metadata", () => {
   });
 });
 
+test("review prompt includes CI evidence when workflow run provided", () => {
+  const artifactsDir = makeArtifactsDir();
+  const methodology = resolveReviewMethodology({ requested: "default" });
+  const templateVariables = {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: "",
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: "false"
+  };
+  const jobsPayload = {
+    jobs: [
+      {
+        id: 42,
+        name: "ci / test",
+        conclusion: "success",
+        steps: [
+          { name: "Install dependencies", conclusion: "success" },
+          { name: "Run tests", conclusion: "success" },
+          { name: "Upload coverage", conclusion: "success" }
+        ]
+      }
+    ]
+  };
+
+  const result = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    templateText: reviewTemplate,
+    templateVariables,
+    jobsPayload,
+    ciRunId: "123456789",
+    budgets: {
+      plan: 5500,
+      implement: 12000,
+      review: 12000,
+      repair: 14000,
+      hardMax: 14000
+    }
+  });
+
+  assert.match(result.prompt, /## CI Evidence/);
+  assert.match(result.prompt, /123456789/);
+  assert.match(result.prompt, /ci \/ test: success/);
+  assert.ok(result.meta.includedSections.includes("ci-evidence"));
+});
+
 test("review prompt records fallback note when method missing", () => {
   const artifactsDir = makeArtifactsDir();
   const methodology = resolveReviewMethodology({ requested: "nonexistent-method" });

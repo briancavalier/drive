@@ -98,20 +98,22 @@ const STAGE_SECTION_CONFIG = {
     dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context"]
   },
   review: {
-    order: ["run-metadata", "issue-synopsis", "artifact-index", "repair-log-tail"],
+    order: ["run-metadata", "ci-evidence", "issue-synopsis", "artifact-index", "repair-log-tail"],
     preferredChars: {
       "run-metadata": 500,
+      "ci-evidence": 800,
       "issue-synopsis": 1200,
       "artifact-index": 5000,
       "repair-log-tail": 1000
     },
     minChars: {
       "run-metadata": 200,
+      "ci-evidence": 200,
       "issue-synopsis": 200,
       "artifact-index": 800,
       "repair-log-tail": 0
     },
-    dropPriority: ["repair-log-tail", "artifact-index", "issue-synopsis"]
+    dropPriority: ["repair-log-tail", "artifact-index", "ci-evidence", "issue-synopsis"]
   }
 };
 
@@ -383,6 +385,44 @@ function renderFailureContext({
   return "";
 }
 
+function renderCiEvidence({ ciRunId, jobsPayload }) {
+  if (!ciRunId) {
+    return "";
+  }
+
+  const lines = [`- Workflow run id: ${ciRunId}`];
+
+  if (!jobsPayload?.jobs?.length) {
+    lines.push("- Job details could not be retrieved for this run.");
+    return lines.join("\n");
+  }
+
+  const jobs = jobsPayload.jobs.slice(0, 6);
+
+  for (const job of jobs) {
+    const name = job.name || job.display_title || `job-${job.id || "unknown"}`;
+    const conclusion = job.conclusion || job.status || "unknown";
+    lines.push(`- ${name}: ${conclusion}`);
+
+    const steps = (job.steps || [])
+      .filter((step) => step?.name)
+      .filter((step) => step.conclusion && step.conclusion !== "skipped");
+    const highlightedSteps = steps
+      .filter(
+        (step) =>
+          step.conclusion !== "success" ||
+          /test|lint|coverage|build|deploy/i.test(step.name)
+      )
+      .slice(0, 4);
+
+    for (const step of highlightedSteps) {
+      lines.push(`  - ${step.name}: ${step.conclusion}`);
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
 function buildSection(id, title, body) {
   return {
     id,
@@ -551,6 +591,16 @@ function buildSectionsForMode({
             review,
             reviewComments
           })
+        )
+      );
+    }
+
+    if (mode === "review") {
+      sections.push(
+        buildSection(
+          "ci-evidence",
+          "CI Evidence",
+          renderCiEvidence({ ciRunId, jobsPayload })
         )
       );
     }
@@ -734,7 +784,9 @@ export async function loadStagePromptInputs(env = process.env) {
       ? await listReviewComments(prNumber, reviewId)
       : [];
   const jobsPayload =
-    ciRunId && mode === "repair" ? await listWorkflowRunJobs(ciRunId) : null;
+    ciRunId && (mode === "repair" || mode === "review")
+      ? await listWorkflowRunJobs(ciRunId)
+      : null;
 
   return {
     mode,

@@ -89,7 +89,8 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
       prNumber: pullRequest.number,
       issueNumber: metadata.issueNumber,
       branch: workflowRun.head_branch,
-      artifactsPath: metadata.artifactsPath
+      artifactsPath: metadata.artifactsPath,
+      ciRunId: workflowRun.id
     };
   }
 
