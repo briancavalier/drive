@@ -48,6 +48,39 @@ if (process.env.FACTORY_REPEATED_FAILURE_COUNT !== undefined) {
   );
 }
 
+if (process.env.FACTORY_LAST_READY_SHA !== undefined) {
+  if (process.env.FACTORY_LAST_READY_SHA !== "__UNCHANGED__") {
+    nextMetadata.lastReadySha = process.env.FACTORY_LAST_READY_SHA || null;
+  }
+}
+
+if (process.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID !== undefined) {
+  if (process.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID !== "__UNCHANGED__") {
+    nextMetadata.lastProcessedWorkflowRunId =
+      process.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID || null;
+  }
+}
+
+if (process.env.FACTORY_LAST_FAILURE_TYPE !== undefined) {
+  if (process.env.FACTORY_LAST_FAILURE_TYPE !== "__UNCHANGED__") {
+    nextMetadata.lastFailureType = process.env.FACTORY_LAST_FAILURE_TYPE || null;
+  }
+}
+
+if (process.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS !== undefined) {
+  const transientRetryAttempts = `${process.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS || ""}`.trim();
+
+  if (transientRetryAttempts && transientRetryAttempts !== "__UNCHANGED__") {
+    nextMetadata.transientRetryAttempts = Number(transientRetryAttempts);
+  }
+}
+
+if (process.env.FACTORY_LAST_REFRESHED_SHA !== undefined) {
+  if (process.env.FACTORY_LAST_REFRESHED_SHA !== "__UNCHANGED__") {
+    nextMetadata.lastRefreshedSha = process.env.FACTORY_LAST_REFRESHED_SHA || null;
+  }
+}
+
 const body = renderPrBody({
   issueNumber: nextMetadata.issueNumber,
   branch: pullRequest.head.ref,

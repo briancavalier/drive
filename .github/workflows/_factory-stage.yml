@@ -10,8 +10,9 @@ on:
         required: true
         type: number
       pr_number:
-        required: true
+        required: false
         type: number
+        default: 0
       branch:
         required: true
         type: string
@@ -30,13 +31,49 @@ on:
         required: false
         type: string
         default: ""
+    outputs:
+      review_methodology:
+        description: Resolved review methodology used for the stage run.
+        value: ${{ jobs.run.outputs.review_methodology }}
+      review_methodology_fallback:
+        description: Indicates whether the review methodology defaulted due to fallback.
+        value: ${{ jobs.run.outputs.review_methodology_fallback }}
+      review_methodology_requested:
+        description: Requested review methodology before fallback resolution.
+        value: ${{ jobs.run.outputs.review_methodology_requested }}
+      failure_type:
+        description: Classified stage failure type.
+        value: ${{ jobs.run.outputs.failure_type }}
+      failure_message:
+        description: Human-readable failure message captured by the stage runner.
+        value: ${{ jobs.run.outputs.failure_message }}
+      transient_retry_attempts:
+        description: Number of transient retries consumed during the stage run.
+        value: ${{ jobs.run.outputs.transient_retry_attempts }}
+      refreshed_head_sha:
+        description: Branch head SHA after any automatic refresh from origin/main.
+        value: ${{ jobs.run.outputs.refreshed_head_sha }}
+      refreshed_from_main:
+        description: Indicates whether the branch was refreshed from origin/main.
+        value: ${{ jobs.run.outputs.refreshed_from_main }}
     secrets:
       OPENAI_API_KEY:
         required: true
+      FACTORY_GITHUB_TOKEN:
+        required: false
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    outputs:
+      review_methodology: ${{ steps.build.outputs.review_methodology }}
+      review_methodology_fallback: ${{ steps.build.outputs.review_methodology_fallback }}
+      review_methodology_requested: ${{ steps.build.outputs.review_methodology_requested }}
+      failure_type: ${{ steps.refresh.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
+      failure_message: ${{ steps.refresh.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
+      transient_retry_attempts: ${{ steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
+      refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
+      refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}
     permissions:
       contents: write
       pull-requests: write
@@ -47,6 +84,7 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
+          token: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -58,10 +96,28 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Refresh branch from main before stage
+        id: refresh
+        if: inputs.mode == 'implement' || inputs.mode == 'repair'
+        continue-on-error: true
+        run: node scripts/refresh-stage-branch.mjs
+        env:
+          FACTORY_BRANCH: ${{ inputs.branch }}
+
+      - name: Stop on branch refresh conflict
+        if: steps.refresh.outcome == 'failure'
+        run: exit 1
+
+      - name: Capture current branch head
+        id: capture_head
+        run: |
+          echo "refreshed_head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Build stage prompt
+        id: build
         run: node scripts/build-stage-prompt.mjs
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
           FACTORY_MODE: ${{ inputs.mode }}
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
@@ -70,14 +126,55 @@ jobs:
           FACTORY_MAX_REPAIR_ATTEMPTS: ${{ inputs.max_repair_attempts }}
           FACTORY_CI_RUN_ID: ${{ inputs.ci_run_id }}
           FACTORY_REVIEW_ID: ${{ inputs.review_id }}
+          FACTORY_PLAN_PROMPT_MAX_CHARS: ${{ vars.FACTORY_PLAN_PROMPT_MAX_CHARS || '' }}
+          FACTORY_IMPLEMENT_PROMPT_MAX_CHARS: ${{ vars.FACTORY_IMPLEMENT_PROMPT_MAX_CHARS || '' }}
+          FACTORY_REPAIR_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REPAIR_PROMPT_MAX_CHARS || '' }}
+          FACTORY_PROMPT_HARD_MAX_CHARS: ${{ vars.FACTORY_PROMPT_HARD_MAX_CHARS || '' }}
+          FACTORY_REVIEW_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REVIEW_PROMPT_MAX_CHARS || '' }}
+          FACTORY_REVIEW_METHOD: ${{ vars.FACTORY_REVIEW_METHOD || '' }}
 
       - name: Run Codex
+        id: codex
+        continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          github-token: ${{ github.token }}
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_CODEX_MODEL || 'codex-mini-latest' }}
-          git-user-name: github-actions[bot]
-          git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
+          model: ${{ vars.FACTORY_CODEX_MODEL || 'gpt-5-codex' }}
+          codex-args: --full-auto
+
+      - name: Stop on Codex failure
+        id: codex_failure
+        if: steps.codex.outcome == 'failure'
+        run: |
+          echo "failure_type=configuration" >> "$GITHUB_OUTPUT"
+          echo "failure_message=Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Prepare stage output for push
+        id: prepare
+        continue-on-error: true
+        run: node scripts/prepare-stage-push.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          FACTORY_BRANCH: ${{ inputs.branch }}
+
+      - name: Stop on stage output preparation failure
+        if: steps.prepare.outcome == 'failure'
+        run: exit 1
+
+      - name: Push stage output
+        id: push
+        continue-on-error: true
+        run: node scripts/push-stage-output.mjs
+        env:
+          FACTORY_BRANCH: ${{ inputs.branch }}
+          FACTORY_TRANSIENT_RETRY_LIMIT: 2
+
+      - name: Stop on push failure
+        if: steps.push.outcome == 'failure'
+        run: exit 1

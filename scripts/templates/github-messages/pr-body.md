@@ -1,6 +1,6 @@
 # Factory Run
 
-Linked issue: #{{ISSUE_NUMBER}}
+Closes #{{ISSUE_NUMBER}}
 
 {{STATUS_SECTION}}
 

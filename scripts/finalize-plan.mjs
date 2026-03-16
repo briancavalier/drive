@@ -3,23 +3,31 @@ import {
   DEFAULT_MAX_REPAIR_ATTEMPTS
 } from "./lib/factory-config.mjs";
 import { renderPlanReadyIssueComment } from "./lib/github-messages.mjs";
-import { extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
+import { defaultPrMetadata, extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
 import {
   addLabels,
   commentOnIssue,
+  createPullRequest,
+  findOpenPullRequestByHead,
+  getIssue,
   getPullRequest,
   removeLabel,
   updatePullRequest
 } from "./lib/github.mjs";
 
 const issueNumber = Number(process.env.FACTORY_ISSUE_NUMBER);
-const prNumber = Number(process.env.FACTORY_PR_NUMBER);
+const inputPrNumber = Number(process.env.FACTORY_PR_NUMBER);
 const branch = process.env.FACTORY_BRANCH;
 const artifactsPath = process.env.FACTORY_ARTIFACTS_PATH;
-
-const pullRequest = await getPullRequest(prNumber);
-const metadata = extractPrMetadata(pullRequest.body) || {};
+const defaultBranch = process.env.GITHUB_REF_NAME || "main";
+const issue = await getIssue(issueNumber);
 const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+const existingPullRequest =
+  inputPrNumber > 0
+    ? await getPullRequest(inputPrNumber)
+    : await findOpenPullRequestByHead(branch);
+const metadata = extractPrMetadata(existingPullRequest?.body) || defaultPrMetadata();
+const title = `Factory: ${`${issue.title || ""}`.replace(/^\[factory\]\s*/i, "").trim() || issue.title}`;
 const body = renderPrBody({
   issueNumber,
   branch,
@@ -34,14 +42,23 @@ const body = renderPrBody({
       metadata.maxRepairAttempts || DEFAULT_MAX_REPAIR_ATTEMPTS
   }
 });
+const pullRequest =
+  existingPullRequest ||
+  (await createPullRequest({
+    title,
+    head: branch,
+    base: defaultBranch,
+    body,
+    draft: true
+  }));
 
-await updatePullRequest({ prNumber, body });
-await addLabels(prNumber, [FACTORY_LABELS.managed, FACTORY_LABELS.planReady]);
+await updatePullRequest({ prNumber: pullRequest.number, body });
+await addLabels(pullRequest.number, [FACTORY_LABELS.managed, FACTORY_LABELS.planReady]);
 await removeLabel(issueNumber, FACTORY_LABELS.start);
 await commentOnIssue(
   issueNumber,
   renderPlanReadyIssueComment({
-    prNumber,
+    prNumber: pullRequest.number,
     implementLabel: FACTORY_LABELS.implement
   })
 );

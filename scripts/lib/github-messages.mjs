@@ -169,7 +169,8 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
     repairLog: `${base}/repair-log.md`,
-    review: `${base}/review.md`
+    review: `${base}/review.md`,
+    reviewJson: `${base}/review.json`
   };
 }
 
@@ -182,6 +183,11 @@ function defaultPrMetadata(overrides = {}) {
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     lastFailureSignature: null,
     repeatedFailureCount: 0,
+    lastReadySha: null,
+    lastProcessedWorkflowRunId: null,
+    lastFailureType: null,
+    transientRetryAttempts: 0,
+    lastRefreshedSha: null,
     ...overrides
   };
 }
@@ -224,20 +230,32 @@ export function renderPrBody(
     PLAN_URL: links.plan,
     ACCEPTANCE_TESTS_URL: links.acceptanceTests,
     REPAIR_LOG_URL: links.repairLog,
+    REVIEW_URL: links.review,
+    REVIEW_JSON_URL: links.reviewJson,
     IMPLEMENT_LABEL: FACTORY_LABELS.implement,
     PAUSED_LABEL: FACTORY_LABELS.paused,
+    LAST_FAILURE_TYPE: state.lastFailureType || "",
+    TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
     STATUS_SECTION: [
       "## Status",
       `- Stage: ${state.status}`,
       `- CI: ${ciStatus}`,
-      `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`
-    ].join("\n"),
+      `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
+      state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
+      state.transientRetryAttempts
+        ? `- Transient retries used: ${state.transientRetryAttempts}`
+        : null
+    ]
+      .filter(Boolean)
+      .join("\n"),
     ARTIFACTS_SECTION: [
       "## Artifacts",
       `- [spec.md](${links.spec})`,
       `- [plan.md](${links.plan})`,
       `- [acceptance-tests.md](${links.acceptanceTests})`,
-      `- [repair-log.md](${links.repairLog})`
+      `- [repair-log.md](${links.repairLog})`,
+      `- [review.md](${links.review})`,
+      `- [review.json](${links.reviewJson})`
     ].join("\n"),
     OPERATOR_NOTES_SECTION: [
       "## Operator Notes",

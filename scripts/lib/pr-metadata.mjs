@@ -10,6 +10,11 @@ export function defaultPrMetadata(overrides = {}) {
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     lastFailureSignature: null,
     repeatedFailureCount: 0,
+    lastReadySha: null,
+    lastProcessedWorkflowRunId: null,
+    lastFailureType: null,
+    transientRetryAttempts: 0,
+    lastRefreshedSha: null,
     ...overrides
   };
 }
@@ -40,7 +45,9 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     spec: `${base}/spec.md`,
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
-    repairLog: `${base}/repair-log.md`
+    repairLog: `${base}/repair-log.md`,
+    review: `${base}/review.md`,
+    reviewJson: `${base}/review.json`
   };
 }
 

@@ -14,8 +14,6 @@ import {
 import { defaultPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
 import {
   commentOnIssue,
-  createPullRequest,
-  findOpenPullRequestByHead,
   getCollaboratorPermission
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
@@ -62,7 +60,6 @@ const branch = `factory/${issue.number}-${slug}`;
 const artifactsPath = issueArtifactsPath(issue.number);
 const maxRepairAttempts =
   Number(process.env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
-const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
 
 git(["config", "user.name", "github-actions[bot]"]);
 git(["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
@@ -70,32 +67,10 @@ git(["fetch", "origin", defaultBranch]);
 git(["checkout", "-B", branch, `origin/${defaultBranch}`]);
 git(["push", "origin", `HEAD:refs/heads/${branch}`]);
 
-const title = `Factory: ${stripFactoryPrefix(issue.title) || issue.title}`;
-const existingPullRequest = await findOpenPullRequestByHead(branch);
-const pullRequest =
-  existingPullRequest ||
-  (await createPullRequest({
-    title,
-    head: branch,
-    base: defaultBranch,
-    body: renderPrBody({
-      issueNumber: issue.number,
-      branch,
-      repositoryUrl,
-      artifactsPath,
-      metadata: defaultPrMetadata({
-        issueNumber: issue.number,
-        artifactsPath,
-        status: "planning",
-        maxRepairAttempts
-      })
-    }),
-    draft: true
-  }));
-
 setOutputs({
   issue_number: issue.number,
-  pr_number: pullRequest.number,
+  pr_number: "0",
   branch,
-  artifacts_path: artifactsPath
+  artifacts_path: artifactsPath,
+  max_repair_attempts: String(maxRepairAttempts)
 });

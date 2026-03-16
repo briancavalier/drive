@@ -19,6 +19,7 @@ jobs:
       pr_number: ${{ steps.prepare.outputs.pr_number }}
       branch: ${{ steps.prepare.outputs.branch }}
       artifacts_path: ${{ steps.prepare.outputs.artifacts_path }}
+      max_repair_attempts: ${{ steps.prepare.outputs.max_repair_attempts }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +36,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Prepare branch and draft PR
+      - name: Prepare branch for planning
         id: prepare
         run: node scripts/prepare-intake.mjs
         env:
@@ -47,11 +48,13 @@ jobs:
     with:
       mode: plan
       issue_number: ${{ fromJSON(needs.prepare.outputs.issue_number) }}
-      pr_number: ${{ fromJSON(needs.prepare.outputs.pr_number) }}
+      pr_number: 0
       branch: ${{ needs.prepare.outputs.branch }}
       artifacts_path: ${{ needs.prepare.outputs.artifacts_path }}
-      max_repair_attempts: 3
-    secrets: inherit
+      max_repair_attempts: ${{ fromJSON(needs.prepare.outputs.max_repair_attempts) }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   finalize:
     if: needs.plan.result == 'success'
@@ -60,6 +63,9 @@ jobs:
       - plan
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

@@ -1,5 +1,38 @@
 const DEFAULT_API_URL = "https://api.github.com";
 const DEFAULT_SERVER_URL = "https://github.com";
+const MAX_TRANSIENT_RETRIES = 2;
+const RETRY_POLICY = {
+  safe: "safe",
+  never: "never"
+};
+
+function isTransientStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+function isTransientErrorMessage(message) {
+  return /fetch failed|econnreset|etimedout|enotfound|eai_again|timed out/i.test(
+    `${message || ""}`
+  );
+}
+
+async function delay(milliseconds) {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export function normalizeMethod(method) {
+  return `${method || "GET"}`.trim().toUpperCase() || "GET";
+}
+
+export function shouldRetryRequest({ method, retryPolicy = RETRY_POLICY.safe }) {
+  const normalizedMethod = normalizeMethod(method);
+
+  if (retryPolicy === RETRY_POLICY.never) {
+    return false;
+  }
+
+  return normalizedMethod === "GET" || normalizedMethod === "HEAD";
+}
 
 export function getRepoContext() {
   const [owner, repo] = `${process.env.GITHUB_REPOSITORY || ""}`.split("/");
@@ -24,37 +57,67 @@ export function getRepoContext() {
 
 export async function githubRequest(path, options = {}) {
   const context = getRepoContext();
-  const response = await fetch(`${context.apiUrl}${path}`, {
-    method: options.method || "GET",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${context.token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "github-native-autonomous-factory",
-      ...(options.headers || {})
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
+  const method = normalizeMethod(options.method);
+  const retryable = shouldRetryRequest({
+    method,
+    retryPolicy: options.retryPolicy || RETRY_POLICY.safe
   });
+  let attempt = 0;
 
-  if (response.status === 204) {
-    return null;
+  while (true) {
+    try {
+      const response = await fetch(`${context.apiUrl}${path}`, {
+        method,
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${context.token}`,
+          "Content-Type": "application/json",
+          "User-Agent": "github-native-autonomous-factory",
+          ...(options.headers || {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      if (!response.ok) {
+        if (retryable && isTransientStatus(response.status) && attempt < MAX_TRANSIENT_RETRIES) {
+          attempt += 1;
+          await delay(500 * attempt);
+          continue;
+        }
+
+        throw new Error(`GitHub API ${response.status}: ${JSON.stringify(payload)}`);
+      }
+
+      return payload;
+    } catch (error) {
+      if (
+        retryable &&
+        attempt < MAX_TRANSIENT_RETRIES &&
+        isTransientErrorMessage(error.message)
+      ) {
+        attempt += 1;
+        await delay(500 * attempt);
+        continue;
+      }
+
+      throw error;
+    }
   }
-
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
-
-  if (!response.ok) {
-    throw new Error(`GitHub API ${response.status}: ${JSON.stringify(payload)}`);
-  }
-
-  return payload;
 }
 
 export async function githubGraphql(query, variables = {}) {
   return githubRequest("/graphql", {
     method: "POST",
+    retryPolicy: RETRY_POLICY.never,
     body: {
       query,
       variables
@@ -160,6 +223,23 @@ export async function commentOnIssue(issueNumber, body) {
   return githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
     method: "POST",
     body: { body }
+  });
+}
+
+export async function submitPullRequestReview({ prNumber, event, body }) {
+  const { owner, repo } = getRepoContext();
+  const normalizedEvent = `${event || ""}`.toUpperCase();
+
+  if (!["APPROVE", "REQUEST_CHANGES", "COMMENT"].includes(normalizedEvent)) {
+    throw new Error(`Unsupported pull request review event: ${event}`);
+  }
+
+  return githubRequest(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`, {
+    method: "POST",
+    body: {
+      event: normalizedEvent,
+      body: body || ""
+    }
   });
 }
 

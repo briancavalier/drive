@@ -11,7 +11,7 @@ import {
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 
-function managedPrBody(status = "plan_ready", repairAttempts = 0) {
+function managedPrBody(status = "plan_ready", repairAttempts = 0, overrides = {}) {
   return renderPrBody({
     issueNumber: 12,
     branch: "factory/12-sample",
@@ -24,7 +24,8 @@ function managedPrBody(status = "plan_ready", repairAttempts = 0) {
       repairAttempts,
       maxRepairAttempts: 3,
       lastFailureSignature: null,
-      repeatedFailureCount: 0
+      repeatedFailureCount: 0,
+      ...overrides
     }
   });
 }
@@ -100,6 +101,24 @@ test("routePullRequestLabeled still parses metadata from custom PR body template
 
   assert.equal(result.action, "implement");
   assert.equal(result.issueNumber, 12);
+  assert.equal(result.prNumber, 33);
+});
+
+test("routePullRequestLabeled retries implementation for managed PRs already marked implementing", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "implement");
+  assert.equal(result.issueNumber, 12);
+  assert.equal(result.prNumber, 33);
 });
 
 test("routePullRequestReview triggers repair on changes requested", () => {
@@ -119,13 +138,31 @@ test("routePullRequestReview triggers repair on changes requested", () => {
   assert.equal(result.repairState.repairAttempts, 1);
 });
 
-test("routeWorkflowRun marks successful CI as ready", () => {
+test("routePullRequestReview also handles reviewing status", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    review: { id: 56, state: "CHANGES_REQUESTED" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "repair");
+  assert.equal(result.reviewId, 56);
+});
+
+test("routeWorkflowRun routes successful CI to review stage", () => {
   const result = routeWorkflowRun({
     workflowRun: {
       id: 77,
       name: "CI",
       conclusion: "success",
-      head_branch: "factory/12-sample"
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
     },
     pullRequest: {
       number: 33,
@@ -135,7 +172,49 @@ test("routeWorkflowRun marks successful CI as ready", () => {
     }
   });
 
-  assert.equal(result.action, "ci-success");
+  assert.equal(result.action, "review");
+});
+
+test("routeWorkflowRun ignores push-triggered CI runs for managed PR branches", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 78,
+      name: "CI",
+      conclusion: "success",
+      event: "push",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("repairing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun ignores already-promoted green SHAs", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 79,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("repairing", 0, { lastReadySha: "abc123" }),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
 });
 
 test("routeWorkflowRun blocks after exceeding repair limit", () => {
@@ -144,6 +223,7 @@ test("routeWorkflowRun blocks after exceeding repair limit", () => {
       id: 77,
       name: "CI",
       conclusion: "failure",
+      event: "pull_request",
       head_branch: "factory/12-sample"
     },
     pullRequest: {
