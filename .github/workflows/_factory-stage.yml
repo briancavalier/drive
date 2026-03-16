@@ -133,6 +133,9 @@ jobs:
           FACTORY_REVIEW_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REVIEW_PROMPT_MAX_CHARS || '' }}
           FACTORY_REVIEW_METHOD: ${{ vars.FACTORY_REVIEW_METHOD || '' }}
 
+      - name: Ensure artifacts path exists
+        run: mkdir -p "${{ inputs.artifacts_path }}"
+
       - name: Run Codex
         id: codex
         continue-on-error: true
