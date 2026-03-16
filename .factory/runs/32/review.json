@@ -1,0 +1,93 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Shared helper now posts the full review markdown for both outcomes, enforces the emoji guidance, and applies the deterministic truncation footer with tests covering all paths.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "PASS review posts the full markdown",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:270-276; tests/process-review.test.mjs:134-142"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "REQUEST_CHANGES review mirrors `review.md`",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:286-296; tests/process-review.test.mjs:340-388"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Oversized review triggers deterministic truncation",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:383-422; tests/github-messages.test.mjs:210-261; tests/process-review.test.mjs:500-519"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Canonical traceability block carries emoji",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:45-58; tests/process-review.test.mjs:138-141"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Review prompt mandates emoji cues",
+      "status": "satisfied",
+      "evidence": ".factory/prompts/review.md:17-36; tests/build-stage-prompt.test.mjs:275-283"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Post the complete `review.md` body into the pull request conversation for both PASS and REQUEST_CHANGES decisions so humans can read the full assessment without opening artifacts.",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:270-296; tests/process-review.test.mjs:134-388"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Treat `review.md` as the single source of truth when composing GitHub comments/reviews, only appending deterministic metadata (e.g., artifact links, truncation notices) to avoid drift.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:369-422; tests/github-messages.test.mjs:194-261"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "The helper should keep pre-traceability content, append the traceability heading, and add a deterministic truncation notice when exceeding `MAX_REVIEW_BODY_CHARS`.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:383-422; tests/github-messages.test.mjs:210-261"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Update `renderCanonicalTraceabilityMarkdown` and related guidance to emit emoji-decorated headings for traceability sections.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:45-58; .factory/prompts/review.md:17-36; tests/build-stage-prompt.test.mjs:275-283"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Create shared review body helper",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:369-422"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Wire helper into review processing",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:270-296"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Emoji-enable canonical review markdown",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:45-58; .factory/prompts/review.md:17-36"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update and extend automated tests",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:194-261; tests/process-review.test.mjs:120-519; tests/build-stage-prompt.test.mjs:275-283"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Regression guardrails",
+      "status": "satisfied",
+      "evidence": "CI run 23166719458 (unit)"
+    }
+  ],
+  "findings": []
+}

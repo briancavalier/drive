@@ -6,13 +6,7 @@ import {
   FACTORY_LABELS,
   PR_STATE_MARKER
 } from "./factory-config.mjs";
-import {
-  renderBlockingFindingsSummary,
-  renderFullBlockingFindingsDetails,
-  renderFullReviewDetails,
-  renderTraceabilityDetails,
-  renderUnmetRequirementChecksSummary
-} from "./review-output.mjs";
+import { normalizeNewlines } from "./review-output.mjs";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TEMPLATES_ROOT = path.resolve(
@@ -22,7 +16,7 @@ const DEFAULT_TEMPLATES_ROOT = path.resolve(
   "github-messages"
 );
 const DEFAULT_OVERRIDE_ROOT = path.join(".factory", "messages");
-const MAX_REVIEW_BODY_CHARS = 60000;
+export const MAX_REVIEW_BODY_CHARS = 60000;
 
 const STAGE_STATUS_EMOJI = Object.freeze({
   planning: "📝",
@@ -333,65 +327,97 @@ export function renderIntakeRejectedComment(
   );
 }
 
-export function renderReviewPassComment(
-  { methodology, summary, blockingFindingsCount, artifactsPath },
-  options = {}
-) {
-  const reviewMarkdownPath = path.join(artifactsPath, "review.md");
-  const blockingFindingsLine =
-    Number(blockingFindingsCount) > 0
-      ? `Blocking findings recorded: ${blockingFindingsCount}. See \`${reviewMarkdownPath}\` for details.`
-      : "No blocking findings recorded.";
+const TRACEABILITY_HEADING_TOKENS = ["## 🧭 Traceability", "## Traceability"];
 
-  return renderMessage(
-    "review-pass-comment",
-    {
-      REVIEW_METHOD: methodology,
-      REVIEW_SUMMARY: summary,
-      BLOCKING_FINDINGS_COUNT: String(blockingFindingsCount),
-      BLOCKING_FINDINGS_LINE: blockingFindingsLine,
-      ARTIFACTS_PATH: artifactsPath,
-      REVIEW_MARKDOWN_PATH: reviewMarkdownPath
-    },
-    options
+function normalizeReviewMarkdown(markdown) {
+  return normalizeNewlines(`${markdown || ""}`).trim();
+}
+
+function findTraceabilityLineIndex(lines) {
+  return lines.findIndex((line) =>
+    TRACEABILITY_HEADING_TOKENS.some((token) => line.trimStart().startsWith(token))
   );
 }
 
-export function renderRequestChangesReviewBody(
-  {
-    methodology,
-    summary,
-    findings = [],
-    requirementChecks = [],
-    reviewMarkdown,
-    artifactsPath,
-    maxBodyChars = MAX_REVIEW_BODY_CHARS
-  },
-  options = {}
-) {
-  const reviewMarkdownPath = path.join(artifactsPath, "review.md");
-  const reviewJsonPath = path.join(artifactsPath, "review.json");
-  const body = `${renderMessage(
-    "review-request-changes",
-    {
-      REVIEW_METHOD: methodology,
-      REVIEW_SUMMARY: summary,
-      BLOCKING_FINDINGS_SUMMARY: renderBlockingFindingsSummary(findings),
-      UNMET_REQUIREMENT_CHECKS_SUMMARY: renderUnmetRequirementChecksSummary(requirementChecks),
-      FULL_BLOCKING_FINDINGS_DETAILS: renderFullBlockingFindingsDetails(findings),
-      TRACEABILITY_DETAILS: renderTraceabilityDetails(requirementChecks),
-      FULL_REVIEW_DETAILS: renderFullReviewDetails(`${reviewMarkdown || ""}`.trim()),
-      REVIEW_MARKDOWN: `${reviewMarkdown || ""}`.trim(),
-      ARTIFACTS_PATH: artifactsPath,
-      REVIEW_MARKDOWN_PATH: reviewMarkdownPath,
-      REVIEW_JSON_PATH: reviewJsonPath
-    },
-    options
-  )}\n`;
-
-  if (body.length <= maxBodyChars) {
-    return body;
+function trimCorePreservingIntro(text, limit) {
+  if (limit <= 0) {
+    return "";
   }
 
-  return `${body.slice(0, maxBodyChars)}\n\n*(Review truncated. See \`${reviewMarkdownPath}\` for the full report.)*`;
+  if (text.length <= limit) {
+    return text.trimEnd();
+  }
+
+  let slice = text.slice(0, limit);
+  const firstNewline = slice.indexOf("\n");
+
+  if (firstNewline === -1) {
+    return slice.trimEnd();
+  }
+
+  const lastNewline = slice.lastIndexOf("\n");
+
+  if (lastNewline > firstNewline) {
+    slice = slice.slice(0, lastNewline);
+  } else {
+    slice = slice.slice(0, firstNewline + 1);
+  }
+
+  return slice.trimEnd();
+}
+
+export function buildReviewConversationBody({
+  reviewMarkdown,
+  artifactsPath,
+  maxBodyChars = MAX_REVIEW_BODY_CHARS
+}) {
+  const normalized = normalizeReviewMarkdown(reviewMarkdown);
+  const reviewMarkdownPath = path.join(artifactsPath, "review.md");
+  const footer = `\n\n—\nArtifacts: \`${reviewMarkdownPath}\``;
+  const fullBody = `${normalized}${footer}`;
+
+  if (fullBody.length <= maxBodyChars) {
+    return fullBody;
+  }
+
+  const truncationNote = `\n\n**Review truncated after traceability details. See \`${reviewMarkdownPath}\` for the full report.**`;
+  const reserve = truncationNote.length + footer.length;
+  const maxCoreLength = Math.max(0, maxBodyChars - reserve);
+  const lines = normalized.split("\n");
+  const traceabilityIndex = findTraceabilityLineIndex(lines);
+
+  if (traceabilityIndex !== -1) {
+    const beforeTraceability = lines.slice(0, traceabilityIndex).join("\n").replace(/\s+$/u, "");
+    const headingLine = lines[traceabilityIndex];
+    const needsSeparator = Boolean(beforeTraceability);
+    let visibleSection = needsSeparator
+      ? `${beforeTraceability}\n${headingLine}`
+      : headingLine;
+
+    if (visibleSection.length > maxCoreLength) {
+      const maxBeforeLength = Math.max(
+        0,
+        maxCoreLength - headingLine.length - (needsSeparator ? 1 : 0)
+      );
+      const trimmedBefore = trimCorePreservingIntro(beforeTraceability, maxBeforeLength);
+      visibleSection = trimmedBefore
+        ? `${trimmedBefore}\n${headingLine}`
+        : headingLine;
+    }
+
+    const candidate = `${visibleSection}${truncationNote}${footer}`.trimStart();
+
+    if (candidate.length <= maxBodyChars) {
+      return candidate;
+    }
+  }
+
+  const trimmedFallbackCore = trimCorePreservingIntro(normalized, maxCoreLength);
+  const fallback = `${trimmedFallbackCore}${truncationNote}${footer}`.trimStart();
+
+  if (fallback.length <= maxBodyChars) {
+    return fallback;
+  }
+
+  return fallback.slice(0, maxBodyChars);
 }

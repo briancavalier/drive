@@ -7,12 +7,13 @@ import { main as processReviewMain, processReview } from "../scripts/process-rev
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function renderReviewMarkdown(reviewJson, extras = {}) {
+  const decisionLabel =
+    reviewJson.decision === "pass" ? "PASS" : "REQUEST_CHANGES";
+  const decisionEmoji = reviewJson.decision === "pass" ? "✅" : "❌";
   const lines = [
-    "# Autonomous Review",
+    `# ${decisionEmoji} Autonomous Review Decision: ${decisionLabel}`,
     "",
-    `Decision: ${reviewJson.decision}`,
-    "",
-    "Summary:",
+    "## 📝 Summary",
     reviewJson.summary,
     ""
   ];
@@ -23,7 +24,7 @@ function renderReviewMarkdown(reviewJson, extras = {}) {
   );
 
   if (blockingFindings.length) {
-    lines.push("## Blocking Findings", "");
+    lines.push("## 🚨 Blocking Findings", "");
 
     for (const finding of blockingFindings) {
       lines.push(`### ${finding.title}`, "");
@@ -32,11 +33,11 @@ function renderReviewMarkdown(reviewJson, extras = {}) {
       lines.push(`- Recommendation: ${finding.recommendation}`, "");
     }
   } else {
-    lines.push("## Blocking Findings", "", "No blocking findings.", "");
+    lines.push("## 🚨 Blocking Findings", "", "No blocking findings.", "");
   }
 
   if (nonBlockingFindings.length) {
-    lines.push("## Non-Blocking Notes", "");
+    lines.push("## ⚠️ Non-Blocking Notes", "");
 
     for (const finding of nonBlockingFindings) {
       lines.push(`### ${finding.title}`, "");
@@ -134,8 +135,10 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
   assert.equal(execCalls[0].options.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, "0");
-  assert.ok(commentBody.includes("decision **PASS**"));
-  assert.ok(commentBody.includes("Artifacts"));
+  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
+  assert.match(commentBody, /## 📝 Summary/);
+  assert.match(commentBody, /## 🧭 Traceability/);
+  assert.match(commentBody, /Artifacts: `.+\/review\.md`/);
 });
 
 test("processReview uses configured pass-comment overrides", async () => {
@@ -162,7 +165,11 @@ test("processReview uses configured pass-comment overrides", async () => {
     }
   });
 
-  assert.equal(commentBody, "PASS OVERRIDE default :: All acceptance criteria are satisfied.");
+  const expectedBody = `${renderReviewMarkdown(JSON.parse(
+    fs.readFileSync(path.join(dir, "review.json"), "utf8")
+  ))}\n\n—\nArtifacts: \`${path.join(dir, "review.md")}\``;
+
+  assert.equal(commentBody, expectedBody);
 });
 
 test("processReview rejects pass decision when blocking findings present", async () => {
@@ -293,9 +300,11 @@ test("processReview normalizes mixed-case enums before rendering request changes
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /\*\*Missing tests\*\*/);
-  assert.match(reviewPayload.body, /\[acceptance_criterion\] `not_satisfied`/);
-  assert.match(reviewPayload.body, /Traceability: Acceptance Criteria/);
+  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
+  assert.match(reviewPayload.body, /### Missing tests/);
+  assert.match(reviewPayload.body, /`not_satisfied`/);
+  assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria/);
 });
 
 test("processReview rejects pass decision when mixed-case unmet requirement checks exist", async () => {
@@ -372,10 +381,10 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
 
   assert.equal(reviewPayload.prNumber, 33);
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /Autonomous review decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /Blocking findings:/);
-  assert.match(reviewPayload.body, /Unmet requirement checks:/);
-  assert.match(reviewPayload.body, /Missing tests/);
+  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
+  assert.match(reviewPayload.body, /### Missing tests/);
+  assert.match(reviewPayload.body, /## 🧭 Traceability/);
   assert.match(reviewPayload.body, /<details>/);
 });
 
@@ -505,8 +514,9 @@ test("processReview uses configured request-changes overrides and preserves trun
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /OVERRIDE default/);
-  assert.match(reviewPayload.body, /Review truncated\./);
+  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(reviewPayload.body, /Review truncated after traceability details/);
+  assert.match(reviewPayload.body, /Artifacts: `.+\/review\.md`/);
 });
 
 test("processReview rejects missing requirement checks", async () => {

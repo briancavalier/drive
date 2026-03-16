@@ -15,18 +15,19 @@ Methodology rubric:
 Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
 1. `review.md` — human-readable summary that includes:
-   - Overall decision and short summary.
-   - Blocking findings first, outside any collapsible sections.
-   - Non-blocking findings or notes.
-   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections.
+   - Overall decision and short summary. Prefix the decision heading with `✅` (pass) or `❌` (request_changes).
+   - A Summary section using the `📝` heading.
+   - Blocking findings first, using a `🚨` heading and keeping them outside collapsible sections.
+   - Non-blocking findings or notes under a `⚠️` heading when present.
+   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections with the `🧭` cue.
    - Methodology used (`{{METHODOLOGY_NAME}}`).
    - Use this exact traceability structure, omitting empty groups:
 
    ```md
-   ## Traceability
+   ## 🧭 Traceability
 
    <details>
-   <summary>Traceability: Acceptance Criteria</summary>
+   <summary>🧭 Traceability: Acceptance Criteria</summary>
 
    - Requirement: <requirement text>
      - Status: `<status>`
