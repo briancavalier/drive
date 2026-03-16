@@ -1,0 +1,99 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Shared the canonical review artifact validator across prepare-stage-push and process-review, added a pending-review SHA guard to suppress duplicate reruns, and updated workflow/docs; CI (npm test) is green.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Invalid review artifacts block the push",
+      "status": "satisfied",
+      "evidence": "scripts/prepare-stage-push.mjs:153; tests/prepare-stage-push.test.mjs:120"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Valid review artifacts still produce a commit",
+      "status": "satisfied",
+      "evidence": "scripts/prepare-stage-push.mjs:167; tests/review-artifacts.test.mjs:56"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Self-generated review commit does not retrigger review",
+      "status": "satisfied",
+      "evidence": "scripts/lib/event-router.mjs:105; tests/event-router.test.mjs:214"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "New branch updates still trigger review",
+      "status": "satisfied",
+      "evidence": "scripts/lib/event-router.mjs:118; tests/event-router.test.mjs:236"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Process review clears the pending SHA",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:45; tests/process-review.test.mjs:393; tests/process-review.test.mjs:422"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Workflow documentation reflects the guard",
+      "status": "satisfied",
+      "evidence": ".github/workflows/_factory-stage.yml:188; README.md:171"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Shared Review Artifact Validation",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-artifacts.mjs:1; scripts/process-review.mjs:149; tests/review-artifacts.test.mjs:56"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Pre-Push Review Guard in prepare-stage-push",
+      "status": "satisfied",
+      "evidence": "scripts/prepare-stage-push.mjs:120; .github/workflows/_factory-stage.yml:160; tests/prepare-stage-push.test.mjs:144"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Review Rerun Suppression",
+      "status": "satisfied",
+      "evidence": ".github/workflows/_factory-stage.yml:188; scripts/lib/event-router.mjs:105; scripts/apply-pr-state.mjs:55; tests/event-router.test.mjs:214; tests/apply-pr-state-metadata.test.mjs:71; scripts/process-review.mjs:45"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Documentation & Observability",
+      "status": "satisfied",
+      "evidence": "README.md:171; .github/workflows/_factory-stage.yml:188"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Lift review validation into a shared helper",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-artifacts.mjs:1; scripts/process-review.mjs:149; tests/review-artifacts.test.mjs:56"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Gate review commits with pre-push validation",
+      "status": "satisfied",
+      "evidence": "scripts/prepare-stage-push.mjs:120; .github/workflows/_factory-stage.yml:160; tests/prepare-stage-push.test.mjs:144"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Track pending review SHAs in metadata",
+      "status": "satisfied",
+      "evidence": "scripts/apply-pr-state.mjs:55; scripts/lib/github-messages.mjs:207; scripts/lib/pr-metadata.mjs:22; tests/apply-pr-state-metadata.test.mjs:71; tests/pr-metadata.test.mjs:10"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Suppress redundant review reruns",
+      "status": "satisfied",
+      "evidence": ".github/workflows/_factory-stage.yml:188; scripts/lib/event-router.mjs:105; tests/event-router.test.mjs:214"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Document the guard",
+      "status": "satisfied",
+      "evidence": ".github/workflows/_factory-stage.yml:188; README.md:171"
+    }
+  ],
+  "findings": []
+}
