@@ -173,7 +173,6 @@ jobs:
         run: node scripts/push-stage-output.mjs
         env:
           FACTORY_BRANCH: ${{ inputs.branch }}
-          FACTORY_REFRESHED_HEAD_SHA: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
           FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Stop on push failure

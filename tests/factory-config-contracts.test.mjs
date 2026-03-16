@@ -18,15 +18,25 @@ function extractResetWorkflowStatusOptions(workflowText) {
   );
 }
 
-test("factory reset workflow status options stay in sync with shared config", () => {
-  const workflowPath = path.join(
-    process.cwd(),
-    ".github",
-    "workflows",
-    "factory-reset-pr.yml"
+function readWorkflowText(fileName) {
+  return fs.readFileSync(
+    path.join(process.cwd(), ".github", "workflows", fileName),
+    "utf8"
   );
-  const workflowText = fs.readFileSync(workflowPath, "utf8");
+}
+
+test("factory reset workflow status options stay in sync with shared config", () => {
+  const workflowText = readWorkflowText("factory-reset-pr.yml");
   const options = extractResetWorkflowStatusOptions(workflowText);
 
   assert.deepEqual(options, FACTORY_RESETTABLE_PR_STATUSES);
+});
+
+test("factory PR loop concurrency prefers linked PR numbers for workflow_run events", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(
+    workflowText,
+    /github\.event\.workflow_run\.pull_requests\[0\]\.number/
+  );
 });

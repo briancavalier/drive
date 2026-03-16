@@ -25,6 +25,15 @@ function fetchRemoteHead(branch, gitImpl = git) {
   return gitImpl(["rev-parse", "FETCH_HEAD"]);
 }
 
+function remoteContainsLocalHead(localHead, remoteHead, gitImpl = git) {
+  try {
+    gitImpl(["merge-base", "--is-ancestor", localHead, remoteHead]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sleep(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
@@ -49,9 +58,9 @@ function tryPush(branch, gitImpl = git) {
 
 export function shouldTreatPushRaceAsSuccess({
   failureType,
-  stageStartHead,
   localHead,
-  remoteHead
+  remoteHead,
+  remoteContainsLocalCommit
 }) {
   if (failureType !== FAILURE_TYPES.staleStagePush || !remoteHead) {
     return false;
@@ -61,7 +70,7 @@ export function shouldTreatPushRaceAsSuccess({
     return true;
   }
 
-  return Boolean(stageStartHead) && remoteHead !== stageStartHead;
+  return remoteContainsLocalCommit === true;
 }
 
 export function main(
@@ -69,7 +78,6 @@ export function main(
   { gitImpl = git, setOutputsImpl = setOutputs, logger = console } = {}
 ) {
   const branch = `${env.FACTORY_BRANCH || ""}`.trim();
-  const stageStartHead = `${env.FACTORY_REFRESHED_HEAD_SHA || ""}`.trim();
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -97,10 +105,12 @@ export function main(
     if (result.failureType === FAILURE_TYPES.staleStagePush) {
       let localHead = "";
       let remoteHead = "";
+      let containsLocalCommit = false;
 
       try {
         localHead = currentHead(gitImpl);
         remoteHead = fetchRemoteHead(branch, gitImpl);
+        containsLocalCommit = remoteContainsLocalHead(localHead, remoteHead, gitImpl);
       } catch {
         remoteHead = "";
       }
@@ -108,9 +118,9 @@ export function main(
       if (
         shouldTreatPushRaceAsSuccess({
           failureType: result.failureType,
-          stageStartHead,
           localHead,
-          remoteHead
+          remoteHead,
+          remoteContainsLocalCommit: containsLocalCommit
         })
       ) {
         logger.warn(
