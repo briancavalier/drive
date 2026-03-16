@@ -1,6 +1,10 @@
 const DEFAULT_API_URL = "https://api.github.com";
 const DEFAULT_SERVER_URL = "https://github.com";
 const MAX_TRANSIENT_RETRIES = 2;
+const RETRY_POLICY = {
+  safe: "safe",
+  never: "never"
+};
 
 function isTransientStatus(status) {
   return status === 429 || status >= 500;
@@ -14,6 +18,20 @@ function isTransientErrorMessage(message) {
 
 async function delay(milliseconds) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export function normalizeMethod(method) {
+  return `${method || "GET"}`.trim().toUpperCase() || "GET";
+}
+
+export function shouldRetryRequest({ method, retryPolicy = RETRY_POLICY.safe }) {
+  const normalizedMethod = normalizeMethod(method);
+
+  if (retryPolicy === RETRY_POLICY.never) {
+    return false;
+  }
+
+  return normalizedMethod === "GET" || normalizedMethod === "HEAD";
 }
 
 export function getRepoContext() {
@@ -39,12 +57,17 @@ export function getRepoContext() {
 
 export async function githubRequest(path, options = {}) {
   const context = getRepoContext();
+  const method = normalizeMethod(options.method);
+  const retryable = shouldRetryRequest({
+    method,
+    retryPolicy: options.retryPolicy || RETRY_POLICY.safe
+  });
   let attempt = 0;
 
   while (true) {
     try {
       const response = await fetch(`${context.apiUrl}${path}`, {
-        method: options.method || "GET",
+        method,
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${context.token}`,
@@ -65,7 +88,7 @@ export async function githubRequest(path, options = {}) {
         : await response.text();
 
       if (!response.ok) {
-        if (isTransientStatus(response.status) && attempt < MAX_TRANSIENT_RETRIES) {
+        if (retryable && isTransientStatus(response.status) && attempt < MAX_TRANSIENT_RETRIES) {
           attempt += 1;
           await delay(500 * attempt);
           continue;
@@ -76,7 +99,11 @@ export async function githubRequest(path, options = {}) {
 
       return payload;
     } catch (error) {
-      if (attempt < MAX_TRANSIENT_RETRIES && isTransientErrorMessage(error.message)) {
+      if (
+        retryable &&
+        attempt < MAX_TRANSIENT_RETRIES &&
+        isTransientErrorMessage(error.message)
+      ) {
         attempt += 1;
         await delay(500 * attempt);
         continue;
@@ -90,6 +117,7 @@ export async function githubRequest(path, options = {}) {
 export async function githubGraphql(query, variables = {}) {
   return githubRequest("/graphql", {
     method: "POST",
+    retryPolicy: RETRY_POLICY.never,
     body: {
       query,
       variables
