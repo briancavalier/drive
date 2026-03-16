@@ -61,6 +61,21 @@ test("routePullRequestLabeled starts implementation for approved managed PRs", (
   assert.equal(result.prNumber, 33);
 });
 
+test("routePullRequestLabeled ignores stale implement events when the label is no longer present", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
 test("routePullRequestLabeled still parses metadata from custom PR body templates", () => {
   const overridesRoot = makeOverrides({
     "pr-body.md": [

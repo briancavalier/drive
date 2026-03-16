@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import {
   classifyFailure,
@@ -14,13 +16,31 @@ function git(args) {
   }).trim();
 }
 
+function currentHead(gitImpl = git) {
+  return gitImpl(["rev-parse", "HEAD"]);
+}
+
+function fetchRemoteHead(branch, gitImpl = git) {
+  gitImpl(["fetch", "origin", branch]);
+  return gitImpl(["rev-parse", "FETCH_HEAD"]);
+}
+
+function remoteContainsLocalHead(localHead, remoteHead, gitImpl = git) {
+  try {
+    gitImpl(["merge-base", "--is-ancestor", localHead, remoteHead]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sleep(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-function tryPush(branch) {
+function tryPush(branch, gitImpl = git) {
   try {
-    git(["push", "origin", `HEAD:${branch}`]);
+    gitImpl(["push", "origin", `HEAD:${branch}`]);
     return {
       ok: true,
       message: "",
@@ -36,7 +56,27 @@ function tryPush(branch) {
   }
 }
 
-function main(env = process.env) {
+export function shouldTreatPushRaceAsSuccess({
+  failureType,
+  localHead,
+  remoteHead,
+  remoteContainsLocalCommit
+}) {
+  if (failureType !== FAILURE_TYPES.staleStagePush || !remoteHead) {
+    return false;
+  }
+
+  if (remoteHead === localHead) {
+    return true;
+  }
+
+  return remoteContainsLocalCommit === true;
+}
+
+export function main(
+  env = process.env,
+  { gitImpl = git, setOutputsImpl = setOutputs, logger = console } = {}
+) {
   const branch = `${env.FACTORY_BRANCH || ""}`.trim();
 
   if (!branch) {
@@ -51,15 +91,48 @@ function main(env = process.env) {
   };
 
   while (true) {
-    const result = tryPush(branch);
+    const result = tryPush(branch, gitImpl);
 
     if (result.ok) {
-      setOutputs({
+      setOutputsImpl({
         transient_retry_attempts: `${transientRetryAttempts}`,
         failure_type: "",
         failure_message: ""
       });
       return;
+    }
+
+    if (result.failureType === FAILURE_TYPES.staleStagePush) {
+      let localHead = "";
+      let remoteHead = "";
+      let containsLocalCommit = false;
+
+      try {
+        localHead = currentHead(gitImpl);
+        remoteHead = fetchRemoteHead(branch, gitImpl);
+        containsLocalCommit = remoteContainsLocalHead(localHead, remoteHead, gitImpl);
+      } catch {
+        remoteHead = "";
+      }
+
+      if (
+        shouldTreatPushRaceAsSuccess({
+          failureType: result.failureType,
+          localHead,
+          remoteHead,
+          remoteContainsLocalCommit: containsLocalCommit
+        })
+      ) {
+        logger.warn(
+          `Remote branch ${branch} advanced during stage execution; treating rejected push as a stale duplicate.`
+        );
+        setOutputsImpl({
+          transient_retry_attempts: `${transientRetryAttempts}`,
+          failure_type: "",
+          failure_message: ""
+        });
+        return;
+      }
     }
 
     lastFailure = {
@@ -68,7 +141,7 @@ function main(env = process.env) {
     };
 
     if (!isTransientFailureType(result.failureType) || transientRetryAttempts >= retryLimit) {
-      setOutputs({
+      setOutputsImpl({
         transient_retry_attempts: `${transientRetryAttempts}`,
         failure_type: result.failureType,
         failure_message: result.message
@@ -77,16 +150,22 @@ function main(env = process.env) {
     }
 
     transientRetryAttempts += 1;
-    console.warn(
+    logger.warn(
       `Transient push failure detected (attempt ${transientRetryAttempts}/${retryLimit}). Retrying...`
     );
     sleep(1000 * transientRetryAttempts);
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`${error.message}`);
-  process.exitCode = 1;
+const isDirectExecution =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isDirectExecution) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`${error.message}`);
+    process.exitCode = 1;
+  }
 }

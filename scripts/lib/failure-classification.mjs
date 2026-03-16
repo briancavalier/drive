@@ -20,6 +20,13 @@ const STALE_BRANCH_CONFLICT_PATTERNS = [
   /\bconflict\b/i
 ];
 
+const STALE_STAGE_PUSH_PATTERNS = [
+  /\[rejected\].*\(fetch first\)/i,
+  /non-fast-forward/i,
+  /failed to push some refs/i,
+  /updates were rejected because the remote contains work that you do not have locally/i
+];
+
 const CONFIGURATION_PATTERNS = [
   /factory_github_token/i,
   /openai_api_key/i,
@@ -35,6 +42,7 @@ const CONFIGURATION_PATTERNS = [
 export const FAILURE_TYPES = {
   transientInfra: "transient_infra",
   staleBranchConflict: "stale_branch_conflict",
+  staleStagePush: "stale_stage_push",
   configuration: "configuration",
   contentOrLogic: "content_or_logic"
 };
@@ -50,6 +58,10 @@ export function classifyFailure(message) {
 
   if (STALE_BRANCH_CONFLICT_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return FAILURE_TYPES.staleBranchConflict;
+  }
+
+  if (STALE_STAGE_PUSH_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return FAILURE_TYPES.staleStagePush;
   }
 
   if (TRANSIENT_PATTERNS.some((pattern) => pattern.test(normalized))) {

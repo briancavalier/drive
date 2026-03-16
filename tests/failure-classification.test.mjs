@@ -25,6 +25,17 @@ test("classifyFailure detects stale branch conflicts", () => {
   );
 });
 
+test("classifyFailure detects stale stage push races", () => {
+  assert.equal(
+    classifyFailure("! [rejected] HEAD -> factory/12-sample (fetch first)"),
+    FAILURE_TYPES.staleStagePush
+  );
+  assert.equal(
+    classifyFailure("error: failed to push some refs to 'https://github.com/example/repo'"),
+    FAILURE_TYPES.staleStagePush
+  );
+});
+
 test("classifyFailure detects configuration failures", () => {
   assert.equal(
     classifyFailure("Factory stage output modifies .github/workflows/** but FACTORY_GITHUB_TOKEN is not configured."),
