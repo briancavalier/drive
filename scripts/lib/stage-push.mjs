@@ -32,15 +32,58 @@ export function normalizeChangedFiles(value) {
     .filter(Boolean);
 }
 
+export function parseChangedFiles(value) {
+  if (Array.isArray(value) && value.every((entry) => entry && typeof entry === "object")) {
+    return value.map(({ status = "", path = "" }) => ({
+      status: `${status}`.trim(),
+      path: `${path}`.trim()
+    }));
+  }
+
+  return normalizeChangedFiles(value).map((entry) => {
+    const [status = "", ...pathParts] = `${entry}`.split("\t");
+    const path = pathParts.join("\t").trim();
+
+    if (!path) {
+      return {
+        status: "",
+        path: status.trim()
+      };
+    }
+
+    return {
+      status: status.trim(),
+      path
+    };
+  });
+}
+
 export function hasWorkflowFileChanges(changedFiles) {
-  return normalizeChangedFiles(changedFiles).some((file) =>
-    file.startsWith(".github/workflows/")
+  return parseChangedFiles(changedFiles).some(({ path, status }) =>
+    path.startsWith(".github/workflows/") && status !== "D"
+  );
+}
+
+export function hasTempFactoryArtifactWrites(changedFiles) {
+  return parseChangedFiles(changedFiles).some(({ path, status }) =>
+    path.startsWith(".factory/tmp/") && status !== "D"
   );
 }
 
 export function evaluateStagePush({ changedFiles, hasFactoryToken }) {
-  const files = normalizeChangedFiles(changedFiles);
+  const files = parseChangedFiles(changedFiles);
   const workflowChanges = hasWorkflowFileChanges(files);
+  const tempArtifactWrites = hasTempFactoryArtifactWrites(files);
+
+  if (tempArtifactWrites) {
+    return {
+      allowed: false,
+      workflowChanges,
+      reason:
+        "Factory stage output attempted to add or modify temporary artifacts under .factory/tmp/. " +
+        "These files are workspace-only scratch space and must be cleaned up before continuing."
+    };
+  }
 
   if (workflowChanges && !hasFactoryToken) {
     return {

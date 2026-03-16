@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   evaluateStagePush,
+  hasTempFactoryArtifactWrites,
   hasWorkflowFileChanges,
+  parseChangedFiles,
   resolveStageToken
 } from "../scripts/lib/stage-push.mjs";
 
@@ -28,18 +30,47 @@ test("resolveStageToken falls back to GITHUB_TOKEN", () => {
 
 test("hasWorkflowFileChanges only matches workflow paths", () => {
   assert.equal(
-    hasWorkflowFileChanges(["README.md", "scripts/apply-pr-state.mjs"]),
+    hasWorkflowFileChanges(["M\tREADME.md", "A\tscripts/apply-pr-state.mjs"]),
     false
   );
   assert.equal(
-    hasWorkflowFileChanges([".github/workflows/factory-pr-loop.yml"]),
+    hasWorkflowFileChanges(["M\t.github/workflows/factory-pr-loop.yml"]),
+    true
+  );
+  assert.equal(
+    hasWorkflowFileChanges(["D\t.github/workflows/factory-pr-loop.yml"]),
+    false
+  );
+});
+
+test("parseChangedFiles supports raw paths and name-status entries", () => {
+  assert.deepEqual(parseChangedFiles(["README.md"]), [
+    { status: "", path: "README.md" }
+  ]);
+  assert.deepEqual(parseChangedFiles(["M\tREADME.md", "D\t.factory/tmp/prompt.md"]), [
+    { status: "M", path: "README.md" },
+    { status: "D", path: ".factory/tmp/prompt.md" }
+  ]);
+});
+
+test("hasTempFactoryArtifactWrites only matches temp additions or modifications", () => {
+  assert.equal(
+    hasTempFactoryArtifactWrites(["D\t.factory/tmp/prompt.md"]),
+    false
+  );
+  assert.equal(
+    hasTempFactoryArtifactWrites(["M\t.factory/tmp/prompt.md"]),
+    true
+  );
+  assert.equal(
+    hasTempFactoryArtifactWrites(["A\t.factory/tmp/prompt-meta.json"]),
     true
   );
 });
 
 test("evaluateStagePush allows non-workflow changes without FACTORY_GITHUB_TOKEN", () => {
   const result = evaluateStagePush({
-    changedFiles: ["README.md", "scripts/apply-pr-state.mjs"],
+    changedFiles: ["M\tREADME.md", "A\tscripts/apply-pr-state.mjs"],
     hasFactoryToken: false
   });
 
@@ -49,7 +80,7 @@ test("evaluateStagePush allows non-workflow changes without FACTORY_GITHUB_TOKEN
 
 test("evaluateStagePush blocks workflow changes without FACTORY_GITHUB_TOKEN", () => {
   const result = evaluateStagePush({
-    changedFiles: [".github/workflows/_factory-stage.yml", "README.md"],
+    changedFiles: ["M\t.github/workflows/_factory-stage.yml", "M\tREADME.md"],
     hasFactoryToken: false
   });
 
@@ -60,10 +91,29 @@ test("evaluateStagePush blocks workflow changes without FACTORY_GITHUB_TOKEN", (
 
 test("evaluateStagePush allows workflow changes with FACTORY_GITHUB_TOKEN", () => {
   const result = evaluateStagePush({
-    changedFiles: [".github/workflows/_factory-stage.yml", "README.md"],
+    changedFiles: ["M\t.github/workflows/_factory-stage.yml", "M\tREADME.md"],
     hasFactoryToken: true
   });
 
   assert.equal(result.allowed, true);
   assert.equal(result.workflowChanges, true);
+});
+
+test("evaluateStagePush allows deleting temp artifacts", () => {
+  const result = evaluateStagePush({
+    changedFiles: ["D\t.factory/tmp/prompt.md", "M\tREADME.md"],
+    hasFactoryToken: true
+  });
+
+  assert.equal(result.allowed, true);
+});
+
+test("evaluateStagePush blocks adding temp artifacts", () => {
+  const result = evaluateStagePush({
+    changedFiles: ["A\t.factory/tmp/prompt.md", "M\tREADME.md"],
+    hasFactoryToken: true
+  });
+
+  assert.equal(result.allowed, false);
+  assert.match(result.reason, /\.factory\/tmp\//);
 });

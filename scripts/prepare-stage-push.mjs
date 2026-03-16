@@ -29,9 +29,9 @@ function hasStagedChanges() {
 }
 
 function getChangedFiles(remoteHead, localHead) {
-  return git(["diff", "--name-only", `${remoteHead}..${localHead}`])
+  return git(["diff", "--name-status", `${remoteHead}..${localHead}`])
     .split("\n")
-    .map((file) => file.trim())
+    .map((entry) => entry.trim())
     .filter(Boolean);
 }
 
