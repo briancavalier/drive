@@ -79,7 +79,22 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     return { action: "noop" };
   }
 
+  if (workflowRun.event && workflowRun.event !== "pull_request") {
+    return { action: "noop" };
+  }
+
+  if (
+    metadata?.lastProcessedWorkflowRunId &&
+    `${metadata.lastProcessedWorkflowRunId}` === `${workflowRun.id}`
+  ) {
+    return { action: "noop" };
+  }
+
   if (!["implementing", "repairing"].includes(metadata?.status)) {
+    return { action: "noop" };
+  }
+
+  if (workflowRun.conclusion === "success" && metadata?.lastReadySha === workflowRun.head_sha) {
     return { action: "noop" };
   }
 

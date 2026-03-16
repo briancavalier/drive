@@ -8,7 +8,7 @@ import {
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 
-function managedPrBody(status = "plan_ready", repairAttempts = 0) {
+function managedPrBody(status = "plan_ready", repairAttempts = 0, overrides = {}) {
   return renderPrBody({
     issueNumber: 12,
     branch: "factory/12-sample",
@@ -21,7 +21,8 @@ function managedPrBody(status = "plan_ready", repairAttempts = 0) {
       repairAttempts,
       maxRepairAttempts: 3,
       lastFailureSignature: null,
-      repeatedFailureCount: 0
+      repeatedFailureCount: 0,
+      ...overrides
     }
   });
 }
@@ -103,7 +104,9 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
       id: 77,
       name: "CI",
       conclusion: "success",
-      head_branch: "factory/12-sample"
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
     },
     pullRequest: {
       number: 33,
@@ -116,12 +119,55 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
   assert.equal(result.action, "review");
 });
 
+test("routeWorkflowRun ignores push-triggered CI runs for managed PR branches", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 78,
+      name: "CI",
+      conclusion: "success",
+      event: "push",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("repairing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun ignores already-promoted green SHAs", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 79,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("repairing", 0, { lastReadySha: "abc123" }),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
 test("routeWorkflowRun blocks after exceeding repair limit", () => {
   const result = routeWorkflowRun({
     workflowRun: {
       id: 77,
       name: "CI",
       conclusion: "failure",
+      event: "pull_request",
       head_branch: "factory/12-sample"
     },
     pullRequest: {

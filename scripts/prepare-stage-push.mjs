@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { setOutputs } from "./lib/actions-output.mjs";
+import { classifyFailure } from "./lib/failure-classification.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 
@@ -89,13 +90,21 @@ function main(env = process.env) {
   setOutputs({
     changed_files: changedFiles.join("\n"),
     token_source: resolvedToken.source,
-    workflow_changes: evaluation.workflowChanges ? "true" : "false"
+    workflow_changes: evaluation.workflowChanges ? "true" : "false",
+    failure_type: "",
+    failure_message: "",
+    transient_retry_attempts: "0"
   });
 }
 
 try {
   main();
 } catch (error) {
+  setOutputs({
+    failure_type: classifyFailure(error.message),
+    failure_message: `${error.message || ""}`.trim(),
+    transient_retry_attempts: "0"
+  });
   console.error(`${error.message}`);
   process.exitCode = 1;
 }
