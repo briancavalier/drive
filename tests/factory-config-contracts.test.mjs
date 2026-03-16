@@ -49,3 +49,9 @@ test("factory stage workflow creates the stage artifacts path before Codex runs"
     /name:\s+Ensure artifacts path exists[\s\S]*mkdir -p "\$\{\{\s*inputs\.artifacts_path\s*\}\}"/
   );
 });
+
+test("factory stage workflow pins the Codex CLI to the last known good version", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(workflowText, /codex-version:\s*0\.114\.0/);
+});
