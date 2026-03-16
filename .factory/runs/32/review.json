@@ -1,0 +1,93 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Shared helper now posts the full review markdown for both outcomes, applies the deterministic truncation note, and updates emoji guidance across traceability and prompts with tests covering the new flow.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "PASS review posts the full markdown",
+      "status": "satisfied",
+      "evidence": "tests/process-review.test.mjs:134-141; tests/github-messages.test.mjs:194-205"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "REQUEST_CHANGES review mirrors `review.md`",
+      "status": "satisfied",
+      "evidence": "tests/process-review.test.mjs:340-388; scripts/process-review.mjs:264-303"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Oversized review triggers deterministic truncation",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:210-259"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Canonical traceability block carries emoji",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:27-44"
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Review prompt mandates emoji cues",
+      "status": "satisfied",
+      "evidence": ".factory/prompts/review.md:15-29; tests/build-stage-prompt.test.mjs:275-283"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Post the complete `review.md` body into the pull request conversation for both PASS and REQUEST_CHANGES decisions so humans can read the full assessment without opening artifacts.",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:264-303; tests/process-review.test.mjs:134-388"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Treat `review.md` as the single source of truth when composing GitHub comments/reviews, only appending deterministic metadata (e.g., artifact links, truncation notices) to avoid drift.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:333-406"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Always keep the pre-traceability content, append the traceability heading, and add a deterministic truncation notice when exceeding MAX_REVIEW_BODY_CHARS.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:352-406; tests/github-messages.test.mjs:210-259"
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Update `renderCanonicalTraceabilityMarkdown` and related guidance to emit emoji-decorated headings for traceability sections.",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:27-44; .factory/prompts/review.md:15-29; tests/process-review.test.mjs:134-388"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Create shared review body helper",
+      "status": "satisfied",
+      "evidence": "scripts/lib/github-messages.mjs:333-406"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Wire helper into review processing",
+      "status": "satisfied",
+      "evidence": "scripts/process-review.mjs:264-303"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Emoji-enable canonical review markdown",
+      "status": "satisfied",
+      "evidence": "scripts/lib/review-output.mjs:27-44; .factory/prompts/review.md:15-29"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update and extend automated tests",
+      "status": "satisfied",
+      "evidence": "tests/github-messages.test.mjs:194-259; tests/process-review.test.mjs:120-389; tests/build-stage-prompt.test.mjs:275-283"
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Regression guardrails",
+      "status": "satisfied",
+      "evidence": "CI workflow 23166585234 unit job (Run tests)"
+    }
+  ],
+  "findings": []
+}
