@@ -10,14 +10,18 @@ import {
   listReviewComments,
   listWorkflowRunJobs
 } from "./lib/github.mjs";
+import {
+  FACTORY_STAGE_MODES,
+  FACTORY_STAGE_MODE_VALUES
+} from "./lib/factory-config.mjs";
 import { resolveReviewMethodology } from "./lib/review-methods.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
 
 export const DEFAULT_PROMPT_BUDGETS = Object.freeze({
-  plan: 20000,
-  implement: 12000,
-  repair: 14000,
-  review: 12000,
+  [FACTORY_STAGE_MODES.plan]: 20000,
+  [FACTORY_STAGE_MODES.implement]: 12000,
+  [FACTORY_STAGE_MODES.repair]: 14000,
+  [FACTORY_STAGE_MODES.review]: 12000,
   hardMax: 24000
 });
 
@@ -39,7 +43,7 @@ const ISSUE_SECTION_CONFIG = [
 ];
 
 const STAGE_SECTION_CONFIG = {
-  plan: {
+  [FACTORY_STAGE_MODES.plan]: {
     order: ["run-metadata", "problem", "goals", "acceptance", "constraints", "risk", "affected-area", "non-goals", "artifacts"],
     preferredChars: {
       "run-metadata": 500,
@@ -65,7 +69,7 @@ const STAGE_SECTION_CONFIG = {
     },
     dropPriority: ["non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem"]
   },
-  implement: {
+  [FACTORY_STAGE_MODES.implement]: {
     order: ["run-metadata", "issue-synopsis", "artifact-index"],
     preferredChars: {
       "run-metadata": 500,
@@ -79,7 +83,7 @@ const STAGE_SECTION_CONFIG = {
     },
     dropPriority: ["issue-synopsis", "artifact-index"]
   },
-  repair: {
+  [FACTORY_STAGE_MODES.repair]: {
     order: ["run-metadata", "failure-context", "artifact-index", "repair-log-tail", "issue-synopsis"],
     preferredChars: {
       "run-metadata": 500,
@@ -97,7 +101,7 @@ const STAGE_SECTION_CONFIG = {
     },
     dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context"]
   },
-  review: {
+  [FACTORY_STAGE_MODES.review]: {
     order: ["run-metadata", "ci-evidence", "issue-synopsis", "artifact-index", "repair-log-tail"],
     preferredChars: {
       "run-metadata": 500,
@@ -524,7 +528,7 @@ function buildSectionsForMode({
     )
   );
 
-  if (mode === "plan") {
+  if (mode === FACTORY_STAGE_MODES.plan) {
     const byKey = Object.fromEntries(
       ISSUE_SECTION_CONFIG.map((entry) => [entry.key, entry])
     );
@@ -561,7 +565,7 @@ function buildSectionsForMode({
     );
   }
 
-  if (mode === "implement") {
+  if (mode === FACTORY_STAGE_MODES.implement) {
     sections.push(
       buildSection(
         "issue-synopsis",
@@ -576,10 +580,13 @@ function buildSectionsForMode({
     );
   }
 
-  if (mode === "repair" || mode === "review") {
+  if (
+    mode === FACTORY_STAGE_MODES.repair ||
+    mode === FACTORY_STAGE_MODES.review
+  ) {
     const repairLog = maybeRead(path.join(artifactsPath, "repair-log.md"));
 
-    if (mode === "repair") {
+    if (mode === FACTORY_STAGE_MODES.repair) {
       sections.push(
         buildSection(
           "failure-context",
@@ -595,7 +602,7 @@ function buildSectionsForMode({
       );
     }
 
-    if (mode === "review") {
+    if (mode === FACTORY_STAGE_MODES.review) {
       sections.push(
         buildSection(
           "ci-evidence",
@@ -647,8 +654,12 @@ export function buildStagePrompt({
   const metadata = pullRequestBody ? extractPrMetadata(pullRequestBody) || {} : {};
   const modeConfig = STAGE_SECTION_CONFIG[mode];
 
-  if (!modeConfig) {
+  if (!FACTORY_STAGE_MODE_VALUES.includes(mode)) {
     throw new Error(`Unsupported FACTORY_MODE: ${mode}`);
+  }
+
+  if (!modeConfig) {
+    throw new Error(`Missing stage prompt configuration for FACTORY_MODE: ${mode}`);
   }
 
   const replacements = {
@@ -739,7 +750,10 @@ export function buildStagePrompt({
       }))
   };
 
-  if (mode === "review" && templateVariables.METHODOLOGY_NAME) {
+  if (
+    mode === FACTORY_STAGE_MODES.review &&
+    templateVariables.METHODOLOGY_NAME
+  ) {
     meta.methodology = {
       name: templateVariables.METHODOLOGY_NAME,
       requested: templateVariables.METHODOLOGY_REQUESTED || templateVariables.METHODOLOGY_NAME,
@@ -776,15 +790,17 @@ export async function loadStagePromptInputs(env = process.env) {
   const issue = await getIssue(issueNumber);
   const pullRequest = prNumber > 0 ? await getPullRequest(prNumber) : null;
   const review =
-    prNumber > 0 && reviewId && mode === "repair"
+    prNumber > 0 && reviewId && mode === FACTORY_STAGE_MODES.repair
       ? await getReview(prNumber, reviewId)
       : null;
   const reviewComments =
-    prNumber > 0 && reviewId && mode === "repair"
+    prNumber > 0 && reviewId && mode === FACTORY_STAGE_MODES.repair
       ? await listReviewComments(prNumber, reviewId)
       : [];
   const jobsPayload =
-    ciRunId && (mode === "repair" || mode === "review")
+    ciRunId &&
+    (mode === FACTORY_STAGE_MODES.repair ||
+      mode === FACTORY_STAGE_MODES.review)
       ? await listWorkflowRunJobs(ciRunId)
       : null;
 
@@ -812,7 +828,7 @@ export async function main(env = process.env) {
   let templateVariables = {};
   let methodology = null;
 
-  if (input.mode === "review") {
+  if (input.mode === FACTORY_STAGE_MODES.review) {
     methodology = resolveReviewMethodology({ requested: input.reviewMethod });
     const fallbackNote = methodology.fallback
       ? `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`

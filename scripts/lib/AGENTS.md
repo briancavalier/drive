@@ -8,7 +8,8 @@ This directory contains the shared contracts for factory behavior. Changes here 
 - Factory label names are defined centrally and must stay aligned with workflows and state transitions.
 - PR metadata is stored inside the `factory-state` HTML comment marker as embedded JSON.
 - Factory artifact paths use `.factory/runs/<issueNumber>`.
-- Routing and PR state values include `planning`, `plan_ready`, `implementing`, `repairing`, `ready_for_review`, and `blocked`.
+- Supported prompt modes live in `scripts/lib/factory-config.mjs` and are consumed by `scripts/build-stage-prompt.mjs`.
+- Valid PR statuses and transition allowlists live in `scripts/lib/factory-config.mjs` and are consumed by routing/state code such as `event-router.mjs`, `pr-metadata.mjs`, and `apply-pr-state.mjs`.
 - Repair-attempt tracking and repeated-failure accounting must remain consistent across routing and PR metadata updates.
 
 ## Design Rules

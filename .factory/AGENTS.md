@@ -2,14 +2,14 @@
 
 This directory holds factory prompt templates and per-run artifacts.
 
-- `.factory/prompts/*.md` are hand-authored stage templates for `plan`, `implement`, and `repair`.
+- `.factory/prompts/*.md` are hand-authored stage templates for the active factory flow, including `plan`, `implement`, `repair`, and `review`.
 - `.factory/runs/<issueNumber>/` contains artifacts produced for a specific run.
 
 ## Working Rules
 
 - Preserve template placeholders exactly: `{{ISSUE_NUMBER}}`, `{{ARTIFACTS_PATH}}`, and `{{CONTEXT}}`.
-- Keep prompt edits compatible with the section assembly and budget trimming in `scripts/build-stage-prompt.mjs`.
-- Keep each stage prompt narrowly scoped to its stage. Do not add instructions that blur planning, implementation, and repair responsibilities.
+- Keep prompt edits compatible with the supported mode definitions in `scripts/lib/factory-config.mjs` and the section assembly and budget trimming in `scripts/build-stage-prompt.mjs`.
+- Keep each stage prompt narrowly scoped to its stage. Do not add instructions that blur planning, implementation, repair, and review responsibilities.
 - Treat `.factory/runs/*` as run outputs, not a general editing surface, unless the task explicitly targets committed run artifacts.
 
 ## Validation

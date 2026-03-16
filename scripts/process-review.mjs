@@ -7,6 +7,7 @@ import {
   commentOnIssue,
   submitPullRequestReview
 } from "./lib/github.mjs";
+import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import {
   countBlockingFindings,
   resolveReviewMethodology,
@@ -206,7 +207,7 @@ async function handlePass({
   const currentHead = gitRevParse("HEAD");
 
   await runApplyPrState(execFileAsync, env, {
-    FACTORY_STATUS: "ready_for_review",
+    FACTORY_STATUS: FACTORY_PR_STATUSES.readyForReview,
     FACTORY_CI_STATUS: "success",
     FACTORY_READY_FOR_REVIEW: "true",
     FACTORY_REMOVE_LABELS: "factory:blocked",

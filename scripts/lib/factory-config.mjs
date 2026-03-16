@@ -7,6 +7,54 @@ export const FACTORY_LABELS = {
   paused: "factory:paused"
 };
 
+export const FACTORY_STAGE_MODES = Object.freeze({
+  plan: "plan",
+  implement: "implement",
+  repair: "repair",
+  review: "review"
+});
+
+export const FACTORY_STAGE_MODE_VALUES = Object.freeze(
+  Object.values(FACTORY_STAGE_MODES)
+);
+
+export const FACTORY_PR_STATUSES = Object.freeze({
+  planning: "planning",
+  planReady: "plan_ready",
+  implementing: "implementing",
+  repairing: "repairing",
+  reviewing: "reviewing",
+  readyForReview: "ready_for_review",
+  blocked: "blocked"
+});
+
+export const FACTORY_IMPLEMENT_TRIGGER_STATUSES = Object.freeze([
+  FACTORY_PR_STATUSES.planReady,
+  FACTORY_PR_STATUSES.implementing
+]);
+
+export const FACTORY_REVIEW_REPAIRABLE_STATUSES = Object.freeze([
+  FACTORY_PR_STATUSES.implementing,
+  FACTORY_PR_STATUSES.repairing,
+  FACTORY_PR_STATUSES.reviewing,
+  FACTORY_PR_STATUSES.readyForReview
+]);
+
+export const FACTORY_ACTIVE_CI_STATUSES = Object.freeze([
+  FACTORY_PR_STATUSES.implementing,
+  FACTORY_PR_STATUSES.repairing
+]);
+
+export const FACTORY_RESETTABLE_PR_STATUSES = Object.freeze([
+  FACTORY_PR_STATUSES.planning,
+  FACTORY_PR_STATUSES.planReady,
+  FACTORY_PR_STATUSES.implementing,
+  FACTORY_PR_STATUSES.repairing,
+  FACTORY_PR_STATUSES.reviewing,
+  FACTORY_PR_STATUSES.blocked,
+  FACTORY_PR_STATUSES.readyForReview
+]);
+
 export const LABEL_DEFINITIONS = [
   {
     name: FACTORY_LABELS.start,

@@ -17,6 +17,7 @@ on:
           - plan_ready
           - implementing
           - repairing
+          - reviewing
           - blocked
           - ready_for_review
       convert_to_draft:

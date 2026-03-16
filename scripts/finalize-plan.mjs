@@ -1,6 +1,7 @@
 import {
   FACTORY_LABELS,
-  DEFAULT_MAX_REPAIR_ATTEMPTS
+  DEFAULT_MAX_REPAIR_ATTEMPTS,
+  FACTORY_PR_STATUSES
 } from "./lib/factory-config.mjs";
 import { defaultPrMetadata, extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
 import {
@@ -36,7 +37,7 @@ const body = renderPrBody({
     ...metadata,
     issueNumber,
     artifactsPath,
-    status: "plan_ready",
+    status: FACTORY_PR_STATUSES.planReady,
     maxRepairAttempts:
       metadata.maxRepairAttempts || DEFAULT_MAX_REPAIR_ATTEMPTS
   }
