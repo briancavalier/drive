@@ -10,6 +10,10 @@ const REQUIREMENT_TYPE_LABELS = Object.freeze({
   plan_deliverable: "Plan Deliverables"
 });
 
+export function normalizeNewlines(value) {
+  return `${value || ""}`.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+}
+
 function groupRequirementChecks(requirementChecks = []) {
   return REQUIREMENT_TYPE_ORDER.map((type) => ({
     type,
@@ -42,7 +46,7 @@ export function renderCanonicalTraceabilityMarkdown(requirementChecks = []) {
   const groups = groupRequirementChecks(requirementChecks).map((group) =>
     [
       "<details>",
-      `<summary>Traceability: ${group.label}</summary>`,
+      `<summary>🧭 Traceability: ${group.label}</summary>`,
       "",
       group.checks.map(renderRequirementCheckItem).join("\n"),
       "",
@@ -50,7 +54,7 @@ export function renderCanonicalTraceabilityMarkdown(requirementChecks = []) {
     ].join("\n")
   );
 
-  return ["## Traceability", "", groups.join("\n\n")].join("\n");
+  return ["## 🧭 Traceability", "", groups.join("\n\n")].join("\n");
 }
 
 export function renderBlockingFindingsSummary(findings = []) {

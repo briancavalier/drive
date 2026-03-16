@@ -4,10 +4,10 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildReviewConversationBody,
   renderIntakeRejectedComment,
   renderPlanReadyIssueComment,
-  renderRequestChangesReviewBody,
-  renderReviewPassComment
+  MAX_REVIEW_BODY_CHARS
 } from "../scripts/lib/github-messages.mjs";
 import { extractPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 
@@ -168,146 +168,95 @@ test("renderIntakeRejectedComment uses valid override templates", () => {
   assert.equal(message, "Missing sections: Goals, Risk");
 });
 
-test("renderReviewPassComment keeps the no-findings default copy", () => {
-  const message = renderReviewPassComment({
-    methodology: "default",
-    summary: "All checks passed.",
-    blockingFindingsCount: 0,
-    artifactsPath: ".factory/runs/9"
+function sampleReviewMarkdown({ decision = "pass" } = {}) {
+  const decisionEmoji = decision === "pass" ? "✅" : "❌";
+  const decisionLabel = decision === "pass" ? "PASS" : "REQUEST_CHANGES";
+
+  return [
+    `# ${decisionEmoji} Autonomous Review Decision: ${decisionLabel}`,
+    "",
+    "## 📝 Summary",
+    "Everything looks good.",
+    "",
+    "## 🧭 Traceability",
+    "",
+    "<details>",
+    "<summary>🧭 Traceability: Acceptance Criteria</summary>",
+    "",
+    "- Requirement: Ensure quality",
+    "  - Status: `satisfied`",
+    "  - Evidence: Tests cover expectations.",
+    "",
+    "</details>"
+  ].join("\n");
+}
+
+test("buildReviewConversationBody posts full review plus footer within limit", () => {
+  const reviewMarkdown = sampleReviewMarkdown();
+  const artifactsPath = ".factory/runs/11";
+  const body = buildReviewConversationBody({
+    reviewMarkdown,
+    artifactsPath
   });
 
-  assert.match(message, /^✅ Autonomous review completed with decision \*\*PASS\*\*/);
-  assert.match(message, /No blocking findings recorded\./);
-  assert.match(message, /review\.md/);
+  const expectedFooter = "\n\n—\nArtifacts: `.factory/runs/11/review.md`";
+
+  assert.equal(body, `${reviewMarkdown}${expectedFooter}`);
+  assert.match(body, /✅ Autonomous Review Decision: PASS/);
+  assert.match(body, /## 📝 Summary/);
+  assert.match(body, /## 🧭 Traceability/);
 });
 
-test("renderRequestChangesReviewBody keeps repair-critical content above collapsible details", () => {
-  const body = renderRequestChangesReviewBody({
-    methodology: "default",
-    summary: "Needs more tests.",
-    findings: [
-      {
-        level: "blocking",
-        title: "Missing tests",
-        details: "Negative-path coverage is missing.",
-        scope: "tests/new-feature.test.js",
-        recommendation: "Add negative-path coverage."
-      }
-    ],
-    requirementChecks: [
-      {
-        type: "acceptance_criterion",
-        requirement: "Acceptance criteria are fully covered by tests.",
-        status: "not_satisfied",
-        evidence: "Negative-path coverage is missing."
-      }
-    ],
-    reviewMarkdown: "# Autonomous Review\n\nLong-form review content",
-    artifactsPath: ".factory/runs/11"
+test("buildReviewConversationBody retains traceability section when truncated", () => {
+  const traceabilitySection = [
+    "## 🧭 Traceability",
+    "",
+    "<details>",
+    "<summary>🧭 Traceability: Acceptance Criteria</summary>",
+    "",
+    "- Requirement: Ensure quality",
+    "  - Status: `satisfied`",
+    "  - Evidence: Tests cover expectations.",
+    "",
+    "</details>"
+  ].join("\n");
+  const longPreview = `# ❌ Autonomous Review Decision: REQUEST_CHANGES\n\n## 📝 Summary\n${"A".repeat(1000)}\n\n${traceabilitySection}\n\n${"Z".repeat(5000)}`;
+  const body = buildReviewConversationBody({
+    reviewMarkdown: longPreview,
+    artifactsPath: ".factory/runs/44",
+    maxBodyChars: 900
   });
 
-  assert.match(body, /Blocking findings:/);
-  assert.match(body, /Unmet requirement checks:/);
-  assert.match(body, /Artifacts:/);
-  assert.match(body, /<details>/);
-  assert.ok(body.indexOf("Blocking findings:") < body.indexOf("<details>"));
+  assert.match(body, /❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(body, /## 🧭 Traceability/);
+  assert.match(body, /Review truncated after traceability details/);
+  assert.match(body, /Artifacts: `.factory\/runs\/44\/review\.md`/);
+  assert.ok(body.length <= 900);
 });
 
-test("renderRequestChangesReviewBody uses new override tokens", () => {
-  const overridesRoot = makeOverrides({
-    "review-request-changes.md": [
-      "Summary: {{REVIEW_SUMMARY}}",
-      "",
-      "{{BLOCKING_FINDINGS_SUMMARY}}",
-      "",
-      "{{TRACEABILITY_DETAILS}}"
-    ].join("\n")
-  });
-  const body = renderRequestChangesReviewBody({
-    methodology: "default",
-    summary: "Needs more tests.",
-    findings: [
-      {
-        level: "blocking",
-        title: "Missing tests",
-        details: "Negative-path coverage is missing.",
-        scope: "tests/new-feature.test.js",
-        recommendation: "Add negative-path coverage."
-      }
-    ],
-    requirementChecks: [
-      {
-        type: "plan_deliverable",
-        requirement: "Add tests for changed behavior.",
-        status: "not_satisfied",
-        evidence: "No new tests were added."
-      }
-    ],
-    reviewMarkdown: "# Autonomous Review",
-    artifactsPath: ".factory/runs/11"
-  }, {
-    overridesRoot
+test("buildReviewConversationBody falls back to raw slice when traceability still too long", () => {
+  const reviewMarkdown = [
+    "# ✅ Autonomous Review Decision: PASS",
+    "",
+    "Intro",
+    "",
+    "## 📝 Summary",
+    "",
+    "Line 1",
+    "Line 2",
+    "Line 3",
+    "",
+    `${"Extended context ".repeat(20)}`
+  ].join("\n");
+  const body = buildReviewConversationBody({
+    reviewMarkdown,
+    artifactsPath: ".factory/runs/55",
+    maxBodyChars: 220
   });
 
-  assert.match(body, /Summary: Needs more tests\./);
-  assert.match(body, /Missing tests/);
-  assert.match(body, /<summary>Traceability<\/summary>/);
-});
-
-test("renderRequestChangesReviewBody preserves legacy REVIEW_MARKDOWN overrides", () => {
-  const overridesRoot = makeOverrides({
-    "review-request-changes.md": [
-      "Requested changes via {{REVIEW_METHOD}}",
-      "",
-      "{{REVIEW_MARKDOWN}}"
-    ].join("\n")
-  });
-  const body = renderRequestChangesReviewBody(
-    {
-      methodology: "default",
-      summary: "Needs more tests.",
-      findings: [],
-      requirementChecks: [],
-      reviewMarkdown: "A".repeat(120),
-      artifactsPath: ".factory/runs/11",
-      maxBodyChars: 80
-    },
-    { overridesRoot }
-  );
-
-  assert.match(body, /Requested changes via default/);
-  assert.match(body, /\*\(Review truncated\. See `.factory\/runs\/11\/review\.md` for the full report\.\)\*/);
-});
-
-test("renderRequestChangesReviewBody truncates verbose tail while keeping summary first", () => {
-  const body = renderRequestChangesReviewBody({
-    methodology: "default",
-    summary: "Needs more tests.",
-    findings: [
-      {
-        level: "blocking",
-        title: "Missing tests",
-        details: "Negative-path coverage is missing.",
-        scope: "tests/new-feature.test.js",
-        recommendation: "Add negative-path coverage."
-      }
-    ],
-    requirementChecks: [
-      {
-        type: "acceptance_criterion",
-        requirement: "Acceptance criteria are fully covered by tests.",
-        status: "not_satisfied",
-        evidence: "Negative-path coverage is missing."
-      }
-    ],
-    reviewMarkdown: "X".repeat(61000),
-    artifactsPath: ".factory/runs/11",
-    maxBodyChars: 500
-  });
-
-  assert.match(body, /Autonomous review decision: REQUEST_CHANGES/);
-  assert.match(body, /Blocking findings:/);
-  assert.match(body, /Unmet requirement checks:/);
-  assert.match(body, /Review truncated\./);
-  assert.ok(body.indexOf("Blocking findings:") < body.indexOf("<details>"));
+  assert.match(body, /Review truncated after traceability details/);
+  assert.match(body, /Artifacts: `.factory\/runs\/55\/review\.md`/);
+  assert.match(body, /# ✅ Autonomous Review Decision: PASS/);
+  assert.match(body, /## 📝 Summary/);
+  assert.ok(body.length <= 220);
 });

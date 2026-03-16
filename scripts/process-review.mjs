@@ -10,8 +10,8 @@ import {
 } from "./lib/github.mjs";
 import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import {
-  renderRequestChangesReviewBody,
-  renderReviewPassComment
+  buildReviewConversationBody,
+  MAX_REVIEW_BODY_CHARS
 } from "./lib/github-messages.mjs";
 import {
   countBlockingFindings,
@@ -22,7 +22,6 @@ import { renderCanonicalTraceabilityMarkdown } from "./lib/review-output.mjs";
 
 const REVIEW_JSON_NAME = "review.json";
 const REVIEW_MD_NAME = "review.md";
-const MAX_REVIEW_BODY_CHARS = 60000;
 
 function gitRevParse(ref = "HEAD") {
   return execFileSync("git", ["rev-parse", ref], {
@@ -240,11 +239,11 @@ async function runApplyPrState(execFileAsync, env, envOverrides) {
 async function handlePass({
   review,
   artifactsPath,
+  reviewMarkdown,
   prNumber,
   env,
   execFileAsync,
-  githubClient,
-  githubMessageOptions
+  githubClient
 }) {
   let currentHead = "";
 
@@ -268,15 +267,12 @@ async function handlePass({
     FACTORY_CLEAR_IMPLEMENT_LABEL: "false"
   });
 
-  const comment = renderReviewPassComment(
-    {
-      methodology: review.methodology,
-      summary: review.summary,
-      blockingFindingsCount: review.blocking_findings_count,
-      artifactsPath
-    },
-    githubMessageOptions
-  );
+  const comment = buildReviewConversationBody({
+    reviewMarkdown,
+    artifactsPath,
+    decision: review.decision,
+    maxBodyChars: MAX_REVIEW_BODY_CHARS
+  });
   await githubClient.commentOnIssue(prNumber, comment);
 }
 
@@ -285,21 +281,14 @@ async function handleRequestChanges({
   reviewMarkdown,
   artifactsPath,
   prNumber,
-  githubClient,
-  githubMessageOptions
+  githubClient
 }) {
-  const body = renderRequestChangesReviewBody(
-    {
-      methodology: review.methodology,
-      summary: review.summary,
-      findings: review.findings,
-      requirementChecks: review.requirement_checks,
-      reviewMarkdown,
-      artifactsPath,
-      maxBodyChars: MAX_REVIEW_BODY_CHARS
-    },
-    githubMessageOptions
-  );
+  const body = buildReviewConversationBody({
+    reviewMarkdown,
+    artifactsPath,
+    decision: review.decision,
+    maxBodyChars: MAX_REVIEW_BODY_CHARS
+  });
 
   await githubClient.submitPullRequestReview({
     prNumber,
@@ -314,8 +303,7 @@ export async function processReview({
     commentOnIssue,
     submitPullRequestReview
   },
-  execFileImpl = execFile,
-  githubMessageOptions = {}
+  execFileImpl = execFile
 } = {}) {
   const execFileAsync = promisify(execFileImpl);
   const prNumber = Number(requiredEnv(env, "FACTORY_PR_NUMBER"));
@@ -348,11 +336,11 @@ export async function processReview({
     await handlePass({
       review,
       artifactsPath,
+      reviewMarkdown,
       prNumber,
       env,
       execFileAsync,
-      githubClient,
-      githubMessageOptions
+      githubClient
     });
     console.log("Autonomous review passed. PR marked ready for human review.");
     return;
@@ -363,8 +351,7 @@ export async function processReview({
     reviewMarkdown,
     artifactsPath,
     prNumber,
-    githubClient,
-    githubMessageOptions
+    githubClient
   });
   console.log("Autonomous review requested changes. Submitted REQUEST_CHANGES review to trigger repair.");
 }
