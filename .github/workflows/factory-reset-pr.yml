@@ -70,6 +70,10 @@ jobs:
           FACTORY_REPAIR_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '' }}
           FACTORY_REPEATED_FAILURE_COUNT: ${{ inputs.clear_repair_state && '0' || '' }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_LAST_FAILURE_TYPE: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '' }}
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_LAST_READY_SHA: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_CI_STATUS: pending
           FACTORY_ADD_LABELS: ${{ inputs.add_plan_ready_label && 'factory:plan-ready' || '' }}
           FACTORY_REMOVE_LABELS: ${{ inputs.remove_pause_label && 'factory:implement,factory:blocked,factory:paused' || 'factory:implement,factory:blocked' }}

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   commentOnIssue,
@@ -16,6 +16,12 @@ import {
 const REVIEW_JSON_NAME = "review.json";
 const REVIEW_MD_NAME = "review.md";
 const MAX_REVIEW_BODY_CHARS = 60000;
+
+function gitRevParse(ref = "HEAD") {
+  return execFileSync("git", ["rev-parse", ref], {
+    encoding: "utf8"
+  }).trim();
+}
 
 function requiredEnv(env, name) {
   const value = env[name];
@@ -197,11 +203,18 @@ async function handlePass({
   execFileAsync,
   githubClient
 }) {
+  const currentHead = gitRevParse("HEAD");
+
   await runApplyPrState(execFileAsync, env, {
     FACTORY_STATUS: "ready_for_review",
     FACTORY_CI_STATUS: "success",
     FACTORY_READY_FOR_REVIEW: "true",
     FACTORY_REMOVE_LABELS: "factory:blocked",
+    FACTORY_LAST_READY_SHA: currentHead,
+    FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: env.FACTORY_CI_RUN_ID || "",
+    FACTORY_LAST_FAILURE_TYPE: "",
+    FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0",
+    FACTORY_LAST_REFRESHED_SHA: env.FACTORY_LAST_REFRESHED_SHA || "",
     FACTORY_COMMENT: "",
     FACTORY_CLEAR_IMPLEMENT_LABEL: "false"
   });

@@ -9,6 +9,11 @@ export function defaultPrMetadata(overrides = {}) {
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
     lastFailureSignature: null,
     repeatedFailureCount: 0,
+    lastReadySha: null,
+    lastProcessedWorkflowRunId: null,
+    lastFailureType: null,
+    transientRetryAttempts: 0,
+    lastRefreshedSha: null,
     ...overrides
   };
 }
@@ -39,7 +44,9 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     spec: `${base}/spec.md`,
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
-    repairLog: `${base}/repair-log.md`
+    repairLog: `${base}/repair-log.md`,
+    review: `${base}/review.md`,
+    reviewJson: `${base}/review.json`
   };
 }
 
@@ -67,12 +74,18 @@ export function renderPrBody({
     `- Stage: ${state.status}`,
     `- CI: ${ciStatus}`,
     `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
+    state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
+    state.transientRetryAttempts
+      ? `- Transient retries used: ${state.transientRetryAttempts}`
+      : null,
     "",
     "## Artifacts",
     `- [spec.md](${links.spec})`,
     `- [plan.md](${links.plan})`,
     `- [acceptance-tests.md](${links.acceptanceTests})`,
     `- [repair-log.md](${links.repairLog})`,
+    `- [review.md](${links.review})`,
+    `- [review.json](${links.reviewJson})`,
     "",
     "## Operator Notes",
     "- Apply `factory:implement` to start coding after plan review.",
@@ -82,5 +95,7 @@ export function renderPrBody({
     `<!-- ${PR_STATE_MARKER}`,
     JSON.stringify(state, null, 2),
     "-->"
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

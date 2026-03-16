@@ -1,5 +1,20 @@
 const DEFAULT_API_URL = "https://api.github.com";
 const DEFAULT_SERVER_URL = "https://github.com";
+const MAX_TRANSIENT_RETRIES = 2;
+
+function isTransientStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+function isTransientErrorMessage(message) {
+  return /fetch failed|econnreset|etimedout|enotfound|eai_again|timed out/i.test(
+    `${message || ""}`
+  );
+}
+
+async function delay(milliseconds) {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 export function getRepoContext() {
   const [owner, repo] = `${process.env.GITHUB_REPOSITORY || ""}`.split("/");
@@ -24,32 +39,52 @@ export function getRepoContext() {
 
 export async function githubRequest(path, options = {}) {
   const context = getRepoContext();
-  const response = await fetch(`${context.apiUrl}${path}`, {
-    method: options.method || "GET",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${context.token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "github-native-autonomous-factory",
-      ...(options.headers || {})
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  let attempt = 0;
 
-  if (response.status === 204) {
-    return null;
+  while (true) {
+    try {
+      const response = await fetch(`${context.apiUrl}${path}`, {
+        method: options.method || "GET",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${context.token}`,
+          "Content-Type": "application/json",
+          "User-Agent": "github-native-autonomous-factory",
+          ...(options.headers || {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      if (!response.ok) {
+        if (isTransientStatus(response.status) && attempt < MAX_TRANSIENT_RETRIES) {
+          attempt += 1;
+          await delay(500 * attempt);
+          continue;
+        }
+
+        throw new Error(`GitHub API ${response.status}: ${JSON.stringify(payload)}`);
+      }
+
+      return payload;
+    } catch (error) {
+      if (attempt < MAX_TRANSIENT_RETRIES && isTransientErrorMessage(error.message)) {
+        attempt += 1;
+        await delay(500 * attempt);
+        continue;
+      }
+
+      throw error;
+    }
   }
-
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
-
-  if (!response.ok) {
-    throw new Error(`GitHub API ${response.status}: ${JSON.stringify(payload)}`);
-  }
-
-  return payload;
 }
 
 export async function githubGraphql(query, variables = {}) {
