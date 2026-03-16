@@ -40,3 +40,12 @@ test("factory PR loop concurrency prefers linked PR numbers for workflow_run eve
     /github\.event\.workflow_run\.pull_requests\[0\]\.number/
   );
 });
+
+test("factory stage workflow creates the stage artifacts path before Codex runs", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Ensure artifacts path exists[\s\S]*mkdir -p "\$\{\{\s*inputs\.artifacts_path\s*\}\}"/
+  );
+});
