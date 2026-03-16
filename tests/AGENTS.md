@@ -12,6 +12,7 @@ This directory verifies factory control-plane behavior. Tests and fixtures here 
 
 - Routing changes belong in `tests/event-router.test.mjs`.
 - Prompt assembly or budget changes belong in `tests/build-stage-prompt.test.mjs` and `tests/fixtures/prompt/*`.
+- GitHub message renderer or template-contract changes belong in `tests/github-messages.test.mjs`.
 - PR metadata or state rendering changes belong in `tests/pr-metadata.test.mjs`.
 - Artifact guard changes belong in `tests/factory-artifact-guard.test.mjs`.
 - Issue form changes belong in `tests/issue-form.test.mjs` and related fixtures.

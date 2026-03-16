@@ -11,15 +11,18 @@ This directory contains the shared contracts for factory behavior. Changes here 
 - Supported prompt modes live in `scripts/lib/factory-config.mjs` and are consumed by `scripts/build-stage-prompt.mjs`.
 - Valid PR statuses and transition allowlists live in `scripts/lib/factory-config.mjs` and are consumed by routing/state code such as `event-router.mjs`, `pr-metadata.mjs`, and `apply-pr-state.mjs`.
 - Repair-attempt tracking and repeated-failure accounting must remain consistent across routing and PR metadata updates.
+- GitHub message ids, placeholder contracts, required-token rules, and fallback behavior are defined centrally in `scripts/lib/github-messages.mjs` and rendered from defaults in `scripts/templates/github-messages/`.
 
 ## Design Rules
 
 - Treat these modules as shared contracts, not isolated helpers.
 - Prefer pure, testable functions for parsing, routing, metadata rendering, prompt construction, and policy checks.
 - Preserve existing wire formats unless the task explicitly requires a contract change.
+- Keep `.factory/messages/*.md` as an override surface only. If the template contract changes, update `github-messages.mjs` first and let docs/tests point back to that source of truth.
 - If you change a shared contract, update every dependent caller, workflow assumption, fixture, and test in the same change.
 
 ## Validation
 
 - Review downstream entrypoints in `scripts/` and targeted coverage in `tests/` before finalizing shared-library changes.
 - Be especially careful with metadata shape, branch naming, and routing logic because small changes can break the control plane.
+- For GitHub message changes, verify `README.md`, `.factory/messages/*.md` expectations, and `tests/github-messages.test.mjs` all still match the renderer contract.
