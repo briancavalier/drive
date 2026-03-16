@@ -6,6 +6,13 @@ import {
   FACTORY_LABELS,
   PR_STATE_MARKER
 } from "./factory-config.mjs";
+import {
+  renderBlockingFindingsSummary,
+  renderFullBlockingFindingsDetails,
+  renderFullReviewDetails,
+  renderTraceabilityDetails,
+  renderUnmetRequirementChecksSummary
+} from "./review-output.mjs";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TEMPLATES_ROOT = path.resolve(
@@ -36,7 +43,7 @@ const MESSAGE_SPECS = Object.freeze({
   },
   "review-request-changes": {
     fileName: "review-request-changes.md",
-    requiredTokens: ["REVIEW_MARKDOWN"]
+    requiredTokens: []
   }
 });
 
@@ -321,18 +328,33 @@ export function renderReviewPassComment(
 }
 
 export function renderRequestChangesReviewBody(
-  { methodology, summary, reviewMarkdown, artifactsPath, maxBodyChars = MAX_REVIEW_BODY_CHARS },
+  {
+    methodology,
+    summary,
+    findings = [],
+    requirementChecks = [],
+    reviewMarkdown,
+    artifactsPath,
+    maxBodyChars = MAX_REVIEW_BODY_CHARS
+  },
   options = {}
 ) {
   const reviewMarkdownPath = path.join(artifactsPath, "review.md");
+  const reviewJsonPath = path.join(artifactsPath, "review.json");
   const body = `${renderMessage(
     "review-request-changes",
     {
       REVIEW_METHOD: methodology,
       REVIEW_SUMMARY: summary,
+      BLOCKING_FINDINGS_SUMMARY: renderBlockingFindingsSummary(findings),
+      UNMET_REQUIREMENT_CHECKS_SUMMARY: renderUnmetRequirementChecksSummary(requirementChecks),
+      FULL_BLOCKING_FINDINGS_DETAILS: renderFullBlockingFindingsDetails(findings),
+      TRACEABILITY_DETAILS: renderTraceabilityDetails(requirementChecks),
+      FULL_REVIEW_DETAILS: renderFullReviewDetails(`${reviewMarkdown || ""}`.trim()),
       REVIEW_MARKDOWN: `${reviewMarkdown || ""}`.trim(),
       ARTIFACTS_PATH: artifactsPath,
-      REVIEW_MARKDOWN_PATH: reviewMarkdownPath
+      REVIEW_MARKDOWN_PATH: reviewMarkdownPath,
+      REVIEW_JSON_PATH: reviewJsonPath
     },
     options
   )}\n`;

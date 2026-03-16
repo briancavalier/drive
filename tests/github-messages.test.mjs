@@ -135,7 +135,80 @@ test("renderReviewPassComment keeps the no-findings default copy", () => {
   assert.match(message, /review\.md/);
 });
 
-test("renderRequestChangesReviewBody uses overrides and still truncates", () => {
+test("renderRequestChangesReviewBody keeps repair-critical content above collapsible details", () => {
+  const body = renderRequestChangesReviewBody({
+    methodology: "default",
+    summary: "Needs more tests.",
+    findings: [
+      {
+        level: "blocking",
+        title: "Missing tests",
+        details: "Negative-path coverage is missing.",
+        scope: "tests/new-feature.test.js",
+        recommendation: "Add negative-path coverage."
+      }
+    ],
+    requirementChecks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Acceptance criteria are fully covered by tests.",
+        status: "not_satisfied",
+        evidence: "Negative-path coverage is missing."
+      }
+    ],
+    reviewMarkdown: "# Autonomous Review\n\nLong-form review content",
+    artifactsPath: ".factory/runs/11"
+  });
+
+  assert.match(body, /Blocking findings:/);
+  assert.match(body, /Unmet requirement checks:/);
+  assert.match(body, /Artifacts:/);
+  assert.match(body, /<details>/);
+  assert.ok(body.indexOf("Blocking findings:") < body.indexOf("<details>"));
+});
+
+test("renderRequestChangesReviewBody uses new override tokens", () => {
+  const overridesRoot = makeOverrides({
+    "review-request-changes.md": [
+      "Summary: {{REVIEW_SUMMARY}}",
+      "",
+      "{{BLOCKING_FINDINGS_SUMMARY}}",
+      "",
+      "{{TRACEABILITY_DETAILS}}"
+    ].join("\n")
+  });
+  const body = renderRequestChangesReviewBody({
+    methodology: "default",
+    summary: "Needs more tests.",
+    findings: [
+      {
+        level: "blocking",
+        title: "Missing tests",
+        details: "Negative-path coverage is missing.",
+        scope: "tests/new-feature.test.js",
+        recommendation: "Add negative-path coverage."
+      }
+    ],
+    requirementChecks: [
+      {
+        type: "plan_deliverable",
+        requirement: "Add tests for changed behavior.",
+        status: "not_satisfied",
+        evidence: "No new tests were added."
+      }
+    ],
+    reviewMarkdown: "# Autonomous Review",
+    artifactsPath: ".factory/runs/11"
+  }, {
+    overridesRoot
+  });
+
+  assert.match(body, /Summary: Needs more tests\./);
+  assert.match(body, /Missing tests/);
+  assert.match(body, /<summary>Traceability<\/summary>/);
+});
+
+test("renderRequestChangesReviewBody preserves legacy REVIEW_MARKDOWN overrides", () => {
   const overridesRoot = makeOverrides({
     "review-request-changes.md": [
       "Requested changes via {{REVIEW_METHOD}}",
@@ -147,6 +220,8 @@ test("renderRequestChangesReviewBody uses overrides and still truncates", () => 
     {
       methodology: "default",
       summary: "Needs more tests.",
+      findings: [],
+      requirementChecks: [],
       reviewMarkdown: "A".repeat(120),
       artifactsPath: ".factory/runs/11",
       maxBodyChars: 80
@@ -156,4 +231,37 @@ test("renderRequestChangesReviewBody uses overrides and still truncates", () => 
 
   assert.match(body, /Requested changes via default/);
   assert.match(body, /\*\(Review truncated\. See `.factory\/runs\/11\/review\.md` for the full report\.\)\*/);
+});
+
+test("renderRequestChangesReviewBody truncates verbose tail while keeping summary first", () => {
+  const body = renderRequestChangesReviewBody({
+    methodology: "default",
+    summary: "Needs more tests.",
+    findings: [
+      {
+        level: "blocking",
+        title: "Missing tests",
+        details: "Negative-path coverage is missing.",
+        scope: "tests/new-feature.test.js",
+        recommendation: "Add negative-path coverage."
+      }
+    ],
+    requirementChecks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Acceptance criteria are fully covered by tests.",
+        status: "not_satisfied",
+        evidence: "Negative-path coverage is missing."
+      }
+    ],
+    reviewMarkdown: "X".repeat(61000),
+    artifactsPath: ".factory/runs/11",
+    maxBodyChars: 500
+  });
+
+  assert.match(body, /Autonomous review decision: REQUEST_CHANGES/);
+  assert.match(body, /Blocking findings:/);
+  assert.match(body, /Unmet requirement checks:/);
+  assert.match(body, /Review truncated\./);
+  assert.ok(body.indexOf("Blocking findings:") < body.indexOf("<details>"));
 });

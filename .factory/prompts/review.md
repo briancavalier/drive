@@ -16,9 +16,24 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
 1. `review.md` — human-readable summary that includes:
    - Overall decision and short summary.
-   - Blocking findings (if any) with affected scope and recommendations.
+   - Blocking findings first, outside any collapsible sections.
    - Non-blocking findings or notes.
+   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections.
    - Methodology used (`{{METHODOLOGY_NAME}}`).
+   - Use this exact traceability structure, omitting empty groups:
+
+   ```md
+   ## Traceability
+
+   <details>
+   <summary>Traceability: Acceptance Criteria</summary>
+
+   - Requirement: <requirement text>
+     - Status: `<status>`
+     - Evidence: <files, tests, CI jobs, or artifact evidence>
+
+   </details>
+   ```
 2. `review.json` — machine-readable artifact that MUST follow this schema:
 
    ```json
@@ -27,6 +42,14 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
      "decision": "pass" | "request_changes",
      "summary": "<plain language overview>",
      "blocking_findings_count": <integer>,
+     "requirement_checks": [
+       {
+         "type": "acceptance_criterion" | "spec_commitment" | "plan_deliverable",
+         "requirement": "<requirement text>",
+         "status": "satisfied" | "partially_satisfied" | "not_satisfied" | "not_applicable",
+         "evidence": "<files, tests, CI jobs, or artifact evidence>"
+       }
+     ],
      "findings": [
        {
          "level": "blocking" | "non_blocking",
@@ -39,14 +62,16 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
    }
    ```
 
-   Additional optional fields are allowed, but the required keys and value types must be present. `blocking_findings_count` must equal the number of findings whose `level` is `"blocking"`.
+   Additional optional fields are allowed, but the required keys and value types must be present. `blocking_findings_count` must equal the number of findings whose `level` is `"blocking"`. `requirement_checks` must be populated, and a `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
 
 Review guidance:
 
 - Validate correctness against the spec, plan deliverables, and acceptance tests.
+- Build explicit traceability between requirements and evidence before deciding.
 - Confirm test coverage and CI evidence are sufficient.
 - Assess regression risk, security/safety implications, and scope control.
 - Flag missing artifacts, weak evidence, or deviations from plan/spec.
+- Keep blocking findings and unmet requirements visible outside collapsible sections.
 - When requesting changes, clearly document actionable recommendations.
 
 Context:

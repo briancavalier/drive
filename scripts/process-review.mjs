@@ -17,6 +17,7 @@ import {
   resolveReviewMethodology,
   sanitizeReviewDecision
 } from "./lib/review-methods.mjs";
+import { renderCanonicalTraceabilityMarkdown } from "./lib/review-output.mjs";
 
 const REVIEW_JSON_NAME = "review.json";
 const REVIEW_MD_NAME = "review.md";
@@ -81,7 +82,7 @@ function validateFindings(findings) {
     throw new Error("findings must be an array");
   }
 
-  findings.forEach((finding, index) => {
+  return findings.map((finding, index) => {
     if (typeof finding !== "object" || finding === null) {
       throw new Error(`finding at index ${index} must be an object`);
     }
@@ -94,13 +95,56 @@ function validateFindings(findings) {
       );
     }
 
-    ensureString(finding.title, `findings[${index}].title`);
-    ensureString(finding.details, `findings[${index}].details`);
-    ensureString(finding.scope, `findings[${index}].scope`);
-    ensureString(finding.recommendation, `findings[${index}].recommendation`);
+    return {
+      ...finding,
+      level,
+      title: ensureString(finding.title, `findings[${index}].title`),
+      details: ensureString(finding.details, `findings[${index}].details`),
+      scope: ensureString(finding.scope, `findings[${index}].scope`),
+      recommendation: ensureString(finding.recommendation, `findings[${index}].recommendation`)
+    };
   });
+}
 
-  return findings;
+function validateRequirementChecks(requirementChecks) {
+  if (!Array.isArray(requirementChecks) || requirementChecks.length === 0) {
+    throw new Error("requirement_checks must be a non-empty array");
+  }
+
+  return requirementChecks.map((check, index) => {
+    if (typeof check !== "object" || check === null) {
+      throw new Error(`requirement_checks[${index}] must be an object`);
+    }
+
+    const type = sanitizeReviewDecision(
+      ensureString(check.type, `requirement_checks[${index}].type`)
+    );
+    const status = sanitizeReviewDecision(
+      ensureString(check.status, `requirement_checks[${index}].status`)
+    );
+
+    if (!["acceptance_criterion", "spec_commitment", "plan_deliverable"].includes(type)) {
+      throw new Error(
+        `requirement_checks[${index}].type must be "acceptance_criterion", "spec_commitment", or "plan_deliverable", received "${check.type}"`
+      );
+    }
+
+    if (
+      !["satisfied", "partially_satisfied", "not_satisfied", "not_applicable"].includes(status)
+    ) {
+      throw new Error(
+        `requirement_checks[${index}].status must be "satisfied", "partially_satisfied", "not_satisfied", or "not_applicable", received "${check.status}"`
+      );
+    }
+
+    return {
+      ...check,
+      type,
+      status,
+      requirement: ensureString(check.requirement, `requirement_checks[${index}].requirement`),
+      evidence: ensureString(check.evidence, `requirement_checks[${index}].evidence`)
+    };
+  });
 }
 
 function validateReviewPayload(payload, expectedMethodology) {
@@ -124,6 +168,7 @@ function validateReviewPayload(payload, expectedMethodology) {
 
   const summary = ensureString(payload.summary, "summary");
   const blockingCount = ensureInteger(payload.blocking_findings_count, "blocking_findings_count");
+  const requirementChecks = validateRequirementChecks(payload.requirement_checks);
   const findings = validateFindings(payload.findings);
   const computedBlocking = countBlockingFindings(findings);
 
@@ -139,13 +184,44 @@ function validateReviewPayload(payload, expectedMethodology) {
     );
   }
 
+  if (
+    decision === "pass" &&
+    requirementChecks.some((check) =>
+      ["partially_satisfied", "not_satisfied"].includes(
+        sanitizeReviewDecision(check.status)
+      )
+    )
+  ) {
+    throw new Error(
+      "decision \"pass\" is not allowed when review.json includes unmet requirement_checks"
+    );
+  }
+
   return {
     methodology,
     decision,
     summary,
     blocking_findings_count: blockingCount,
+    requirement_checks: requirementChecks,
     findings
   };
+}
+
+function normalizeMarkdown(markdown) {
+  return `${markdown || ""}`.replaceAll("\r\n", "\n").trim();
+}
+
+function validateReviewMarkdown(reviewMarkdown, review) {
+  const canonicalTraceability = normalizeMarkdown(
+    renderCanonicalTraceabilityMarkdown(review.requirement_checks)
+  );
+  const normalizedReviewMarkdown = normalizeMarkdown(reviewMarkdown);
+
+  if (!normalizedReviewMarkdown.includes(canonicalTraceability)) {
+    throw new Error(
+      "review.md must include the canonical Traceability section derived from review.json"
+    );
+  }
 }
 
 async function runApplyPrState(execFileAsync, env, envOverrides) {
@@ -209,6 +285,8 @@ async function handleRequestChanges({
     {
       methodology: review.methodology,
       summary: review.summary,
+      findings: review.findings,
+      requirementChecks: review.requirement_checks,
       reviewMarkdown,
       artifactsPath,
       maxBodyChars: MAX_REVIEW_BODY_CHARS
@@ -253,6 +331,7 @@ export async function processReview({
   const reviewMarkdown = readMarkdown(reviewMarkdownPath);
   const parsed = parseJsonFile(reviewJsonPath);
   const review = validateReviewPayload(parsed, methodology.name);
+  validateReviewMarkdown(reviewMarkdown, review);
 
   console.log(
     `Processing autonomous review for PR #${prNumber} on branch ${branch} (methodology: ${review.methodology}, decision: ${review.decision})`
