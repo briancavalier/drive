@@ -246,7 +246,13 @@ async function handlePass({
   githubClient,
   githubMessageOptions
 }) {
-  const currentHead = gitRevParse("HEAD");
+  let currentHead = "";
+
+  try {
+    currentHead = gitRevParse("HEAD");
+  } catch (error) {
+    currentHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+  }
 
   await runApplyPrState(execFileAsync, env, {
     FACTORY_STATUS: FACTORY_PR_STATUSES.readyForReview,

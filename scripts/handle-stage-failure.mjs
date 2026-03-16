@@ -18,46 +18,41 @@ function requiredEnv(name, env = process.env) {
   return value;
 }
 
-function buildFailureComment({ action, failureType, retryAttempts, failureMessage }) {
+export function buildFailureComment({
+  action,
+  failureType,
+  retryAttempts,
+  failureMessage
+}) {
+  let message;
+
   if (failureType === FAILURE_TYPES.staleBranchConflict) {
-    return (
+    message =
       "Factory could not merge `origin/main` into this factory branch automatically. " +
-      "Resolve the merge conflict on the branch, then re-run the factory stage."
-    );
-  }
-
-  if (failureType === FAILURE_TYPES.transientInfra) {
-    return (
+      "Resolve the merge conflict on the branch, then re-run the factory stage.";
+  } else if (failureType === FAILURE_TYPES.transientInfra) {
+    message =
       `Factory exhausted ${retryAttempts} transient retry attempt(s) for this stage and is now blocked. ` +
-      "Review the failed run for infrastructure details, then reset the PR to retry."
-    );
-  }
-
-  if (failureType === FAILURE_TYPES.configuration) {
-    return (
+      "Review the failed run for infrastructure details, then reset the PR to retry.";
+  } else if (failureType === FAILURE_TYPES.configuration) {
+    message =
       "Factory encountered a configuration error and is blocked pending operator intervention. " +
-      `${failureMessage || "Review the failed run for details."}`
-    ).trim();
-  }
-
-  if (action === "implement") {
-    return (
+      `${failureMessage || "Review the failed run for details."}`;
+  } else if (action === "implement") {
+    message =
       "Factory implementation failed before producing a usable branch update. " +
-      "Review the failed run and re-apply `factory:implement` after addressing the issue."
-    );
-  }
-
-  if (action === "review") {
-    return (
+      "Review the failed run and re-apply `factory:implement` after addressing the issue.";
+  } else if (action === "review") {
+    message =
       "Factory review stage failed before producing a decision. " +
-      "Investigate the review artifacts and re-trigger the workflow after addressing the issue."
-    );
+      "Investigate the review artifacts and re-trigger the workflow after addressing the issue.";
+  } else {
+    message =
+      "Factory repair failed before producing a usable branch update. " +
+      "Human intervention is required.";
   }
 
-  return (
-    "Factory repair failed before producing a usable branch update. " +
-    "Human intervention is required."
-  );
+  return `⚠️ ${message.trim()}`;
 }
 
 export function buildStateUpdate(action, failureType) {

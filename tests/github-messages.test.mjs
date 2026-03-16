@@ -75,6 +75,51 @@ test("renderPrBody falls back to default template when required tokens are missi
   assert.match(warnings[0], /missing required tokens: STATUS_SECTION/);
 });
 
+test("renderPrBody includes emoji-enhanced status lines and operator notes", () => {
+  const body = renderPrBody(prBodyInput());
+  const lines = body.split("\n");
+  const stageLine = lines.find((line) => line.startsWith("- Stage:"));
+  const ciLine = lines.find((line) => line.startsWith("- CI:"));
+
+  assert.equal(stageLine, "- Stage: 👀 plan_ready");
+  assert.equal(ciLine, "- CI: ⏳ pending");
+  assert.ok(
+    lines.includes(
+      "- ▶️ Apply `factory:implement` to start coding after plan review."
+    )
+  );
+  assert.ok(
+    lines.includes("- ⏸️ Apply `factory:paused` to pause autonomous work.")
+  );
+  assert.ok(
+    lines.includes(
+      "- ▶️ Remove `factory:paused` and re-apply `factory:implement` to resume."
+    )
+  );
+
+  const successBody = renderPrBody(
+    {
+      ...prBodyInput(),
+      ciStatus: "success"
+    }
+  );
+  const successCiLine = successBody.split("\n").find((line) => line.startsWith("- CI:"));
+
+  assert.equal(successCiLine, "- CI: ✅ success");
+});
+
+test("renderPrBody falls back to raw status when emoji mapping is missing", () => {
+  const fallbackInput = prBodyInput();
+  fallbackInput.metadata = {
+    ...fallbackInput.metadata,
+    status: "reviewing"
+  };
+  const body = renderPrBody(fallbackInput);
+  const stageLine = body.split("\n").find((line) => line.startsWith("- Stage:"));
+
+  assert.equal(stageLine, "- Stage: reviewing");
+});
+
 test("renderPlanReadyIssueComment falls back to default when override contains unknown tokens", () => {
   const overridesRoot = makeOverrides({
     "plan-ready-issue-comment.md": "PR #{{PR_NUMBER}} {{UNKNOWN_TOKEN}}"
@@ -92,7 +137,7 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
   );
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /unknown tokens: UNKNOWN_TOKEN/);
@@ -107,7 +152,7 @@ test("renderPlanReadyIssueComment uses built-in default when override file is ab
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
   );
 });
 
@@ -131,6 +176,7 @@ test("renderReviewPassComment keeps the no-findings default copy", () => {
     artifactsPath: ".factory/runs/9"
   });
 
+  assert.match(message, /^✅ Autonomous review completed with decision \*\*PASS\*\*/);
   assert.match(message, /No blocking findings recorded\./);
   assert.match(message, /review\.md/);
 });
