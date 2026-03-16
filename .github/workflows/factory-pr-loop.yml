@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,7 +50,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   mark-in-progress:
-    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair'
+    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
     needs: route
     runs-on: ubuntu-latest
     steps:
@@ -65,7 +67,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || 'repairing' }}
+          FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || needs.route.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
           FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
@@ -73,7 +75,7 @@ jobs:
           FACTORY_CLEAR_IMPLEMENT_LABEL: ${{ needs.route.outputs.action == 'implement' && 'true' || 'false' }}
 
   stage:
-    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair'
+    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
     needs:
       - route
       - mark-in-progress
@@ -92,7 +94,7 @@ jobs:
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   stage-failed:
-    if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair') && needs.stage.result == 'failure'
+    if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review') && needs.stage.result == 'failure'
     needs:
       - route
       - stage
@@ -129,6 +131,16 @@ jobs:
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_COMMENT: Factory repair failed before producing a usable branch update. Human intervention is required.
 
+      - name: Mark PR as blocked after review failure
+        if: needs.route.outputs.action == 'review'
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: blocked
+          FACTORY_ADD_LABELS: factory:blocked
+          FACTORY_COMMENT: Factory review stage failed. Investigate the run artifacts and re-trigger the workflow after addressing the issue.
+
   block:
     if: needs.route.outputs.action == 'blocked'
     needs: route
@@ -154,26 +166,33 @@ jobs:
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
-  ready:
-    if: needs.route.outputs.action == 'ci-success'
-    needs: route
+  process-review:
+    if: needs.route.outputs.action == 'review'
+    needs:
+      - route
+      - mark-in-progress
+      - stage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Mark PR ready for review
-        run: node scripts/apply-pr-state.mjs
+      - name: Process autonomous review artifacts
+        run: node scripts/process-review.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_STATUS: ready_for_review
-          FACTORY_CI_STATUS: success
-          FACTORY_READY_FOR_REVIEW: true
-          FACTORY_REMOVE_LABELS: factory:blocked
-          FACTORY_COMMENT: CI is green for this factory-managed branch. The PR is ready for human review.
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_REVIEW_METHOD: ${{ needs.stage.outputs.review_methodology || vars.FACTORY_REVIEW_METHOD || '' }}
+          FACTORY_REVIEW_METHOD_REQUESTED: ${{ needs.stage.outputs.review_methodology_requested }}
+          FACTORY_REVIEW_METHOD_FALLBACK: ${{ needs.stage.outputs.review_methodology_fallback }}

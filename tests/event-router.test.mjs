@@ -81,7 +81,23 @@ test("routePullRequestReview triggers repair on changes requested", () => {
   assert.equal(result.repairState.repairAttempts, 1);
 });
 
-test("routeWorkflowRun marks successful CI as ready", () => {
+test("routePullRequestReview also handles reviewing status", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    review: { id: 56, state: "CHANGES_REQUESTED" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "repair");
+  assert.equal(result.reviewId, 56);
+});
+
+test("routeWorkflowRun routes successful CI to review stage", () => {
   const result = routeWorkflowRun({
     workflowRun: {
       id: 77,
@@ -97,7 +113,7 @@ test("routeWorkflowRun marks successful CI as ready", () => {
     }
   });
 
-  assert.equal(result.action, "ci-success");
+  assert.equal(result.action, "review");
 });
 
 test("routeWorkflowRun blocks after exceeding repair limit", () => {

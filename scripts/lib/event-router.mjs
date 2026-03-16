@@ -45,7 +45,7 @@ export function routePullRequestReview(payload) {
   if (
     payload.action !== "submitted" ||
     payload.review?.state?.toLowerCase() !== "changes_requested" ||
-    !["implementing", "repairing", "ready_for_review"].includes(metadata?.status) ||
+    !["implementing", "repairing", "reviewing", "ready_for_review"].includes(metadata?.status) ||
     !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
   ) {
     return { action: "noop" };
@@ -85,11 +85,12 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
 
   if (workflowRun.conclusion === "success") {
     return {
-      action: "ci-success",
+      action: "review",
       prNumber: pullRequest.number,
       issueNumber: metadata.issueNumber,
       branch: workflowRun.head_branch,
-      artifactsPath: metadata.artifactsPath
+      artifactsPath: metadata.artifactsPath,
+      ciRunId: workflowRun.id
     };
   }
 

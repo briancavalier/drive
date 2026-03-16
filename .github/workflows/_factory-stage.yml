@@ -31,6 +31,16 @@ on:
         required: false
         type: string
         default: ""
+    outputs:
+      review_methodology:
+        description: Resolved review methodology used for the stage run.
+        value: ${{ jobs.run.outputs.review_methodology }}
+      review_methodology_fallback:
+        description: Indicates whether the review methodology defaulted due to fallback.
+        value: ${{ jobs.run.outputs.review_methodology_fallback }}
+      review_methodology_requested:
+        description: Requested review methodology before fallback resolution.
+        value: ${{ jobs.run.outputs.review_methodology_requested }}
     secrets:
       OPENAI_API_KEY:
         required: true
@@ -40,6 +50,10 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    outputs:
+      review_methodology: ${{ steps.build.outputs.review_methodology }}
+      review_methodology_fallback: ${{ steps.build.outputs.review_methodology_fallback }}
+      review_methodology_requested: ${{ steps.build.outputs.review_methodology_requested }}
     permissions:
       contents: write
       pull-requests: write
@@ -63,6 +77,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Build stage prompt
+        id: build
         run: node scripts/build-stage-prompt.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
@@ -78,6 +93,8 @@ jobs:
           FACTORY_IMPLEMENT_PROMPT_MAX_CHARS: ${{ vars.FACTORY_IMPLEMENT_PROMPT_MAX_CHARS || '' }}
           FACTORY_REPAIR_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REPAIR_PROMPT_MAX_CHARS || '' }}
           FACTORY_PROMPT_HARD_MAX_CHARS: ${{ vars.FACTORY_PROMPT_HARD_MAX_CHARS || '' }}
+          FACTORY_REVIEW_PROMPT_MAX_CHARS: ${{ vars.FACTORY_REVIEW_PROMPT_MAX_CHARS || '' }}
+          FACTORY_REVIEW_METHOD: ${{ vars.FACTORY_REVIEW_METHOD || '' }}
 
       - name: Run Codex
         uses: openai/codex-action@v1
