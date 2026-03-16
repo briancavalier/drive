@@ -2,6 +2,7 @@ import {
   FACTORY_ACTIVE_CI_STATUSES,
   FACTORY_IMPLEMENT_TRIGGER_STATUSES,
   FACTORY_LABELS,
+  FACTORY_PR_STATUSES,
   FACTORY_REVIEW_REPAIRABLE_STATUSES,
   isFactoryBranch
 } from "./factory-config.mjs";
@@ -98,6 +99,15 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
   }
 
   if (!FACTORY_ACTIVE_CI_STATUSES.includes(metadata?.status)) {
+    return { action: "noop" };
+  }
+
+  if (
+    workflowRun.conclusion === "success" &&
+    metadata?.status === FACTORY_PR_STATUSES.reviewing &&
+    `${metadata.pendingReviewSha || ""}`.trim() &&
+    metadata.pendingReviewSha === workflowRun.head_sha
+  ) {
     return { action: "noop" };
   }
 

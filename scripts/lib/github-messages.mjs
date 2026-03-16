@@ -204,6 +204,7 @@ function defaultPrMetadata(overrides = {}) {
     lastFailureType: null,
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
+    pendingReviewSha: null,
     ...overrides
   };
 }
