@@ -58,6 +58,57 @@ test("renderPrBody uses valid override templates and preserves parseable metadat
   assert.equal(metadata.status, "plan_ready");
 });
 
+test("renderPrBody prefixes mapped stage and CI statuses with emoji", () => {
+  const input = prBodyInput();
+  const body = renderPrBody(
+    {
+      ...input,
+      metadata: {
+        ...input.metadata,
+        status: "implementing"
+      },
+      ciStatus: "success"
+    },
+    {}
+  );
+
+  assert.match(body, /- Stage: 🏗️ implementing/);
+  assert.match(body, /- CI: ✅ success/);
+});
+
+test("renderPrBody leaves unmapped stage values without emoji", () => {
+  const input = prBodyInput();
+  const body = renderPrBody(
+    {
+      ...input,
+      metadata: {
+        ...input.metadata,
+        status: "reviewing"
+      }
+    },
+    {}
+  );
+
+  assert.match(body, /- Stage: reviewing/);
+});
+
+test("renderPrBody operator notes include start and pause cues", () => {
+  const body = renderPrBody(prBodyInput());
+
+  assert.match(
+    body,
+    /- ▶️ Apply `factory:implement` to start coding after plan review\./
+  );
+  assert.match(
+    body,
+    /- ⏸️ Apply `factory:paused` to pause autonomous work\./
+  );
+  assert.match(
+    body,
+    /- ▶️ Remove `factory:paused` and re-apply `factory:implement` to resume\./
+  );
+});
+
 test("renderPrBody falls back to default template when required tokens are missing", () => {
   const overridesRoot = makeOverrides({
     "pr-body.md": "# Broken PR Body\n\n{{ARTIFACTS_SECTION}}"
@@ -92,7 +143,7 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
   );
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /unknown tokens: UNKNOWN_TOKEN/);
@@ -107,7 +158,7 @@ test("renderPlanReadyIssueComment uses built-in default when override file is ab
 
   assert.equal(
     message,
-    "Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
   );
 });
 
@@ -131,6 +182,7 @@ test("renderReviewPassComment keeps the no-findings default copy", () => {
     artifactsPath: ".factory/runs/9"
   });
 
+  assert.match(message, /^✅ Autonomous review completed/);
   assert.match(message, /No blocking findings recorded\./);
   assert.match(message, /review\.md/);
 });

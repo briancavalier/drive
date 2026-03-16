@@ -18,9 +18,17 @@ function requiredEnv(name, env = process.env) {
   return value;
 }
 
-function buildFailureComment({ action, failureType, retryAttempts, failureMessage }) {
+export function buildFailureComment({
+  action,
+  failureType,
+  retryAttempts,
+  failureMessage
+}) {
+  const prefix = "⚠️ ";
+
   if (failureType === FAILURE_TYPES.staleBranchConflict) {
     return (
+      prefix +
       "Factory could not merge `origin/main` into this factory branch automatically. " +
       "Resolve the merge conflict on the branch, then re-run the factory stage."
     );
@@ -28,6 +36,7 @@ function buildFailureComment({ action, failureType, retryAttempts, failureMessag
 
   if (failureType === FAILURE_TYPES.transientInfra) {
     return (
+      prefix +
       `Factory exhausted ${retryAttempts} transient retry attempt(s) for this stage and is now blocked. ` +
       "Review the failed run for infrastructure details, then reset the PR to retry."
     );
@@ -35,6 +44,7 @@ function buildFailureComment({ action, failureType, retryAttempts, failureMessag
 
   if (failureType === FAILURE_TYPES.configuration) {
     return (
+      prefix +
       "Factory encountered a configuration error and is blocked pending operator intervention. " +
       `${failureMessage || "Review the failed run for details."}`
     ).trim();
@@ -42,6 +52,7 @@ function buildFailureComment({ action, failureType, retryAttempts, failureMessag
 
   if (action === "implement") {
     return (
+      prefix +
       "Factory implementation failed before producing a usable branch update. " +
       "Review the failed run and re-apply `factory:implement` after addressing the issue."
     );
@@ -49,12 +60,14 @@ function buildFailureComment({ action, failureType, retryAttempts, failureMessag
 
   if (action === "review") {
     return (
+      prefix +
       "Factory review stage failed before producing a decision. " +
       "Investigate the review artifacts and re-trigger the workflow after addressing the issue."
     );
   }
 
   return (
+    prefix +
     "Factory repair failed before producing a usable branch update. " +
     "Human intervention is required."
   );

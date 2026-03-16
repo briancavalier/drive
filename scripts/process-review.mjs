@@ -24,9 +24,22 @@ const REVIEW_MD_NAME = "review.md";
 const MAX_REVIEW_BODY_CHARS = 60000;
 
 function gitRevParse(ref = "HEAD") {
-  return execFileSync("git", ["rev-parse", ref], {
-    encoding: "utf8"
-  }).trim();
+  try {
+    return execFileSync("git", ["rev-parse", ref], {
+      encoding: "utf8"
+    }).trim();
+  } catch (error) {
+    const fallback = `${error?.stdout || ""}`.trim();
+
+    if (fallback) {
+      console.warn(
+        `git rev-parse ${ref} reported ${error?.code || "unknown error"} but produced stdout; using fallback SHA.`
+      );
+      return fallback;
+    }
+
+    throw error;
+  }
 }
 
 function requiredEnv(env, name) {
