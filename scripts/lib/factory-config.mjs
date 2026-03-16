@@ -28,6 +28,10 @@ export const FACTORY_PR_STATUSES = Object.freeze({
   blocked: "blocked"
 });
 
+export const FACTORY_PR_STATUS_VALUES = Object.freeze(
+  Object.values(FACTORY_PR_STATUSES)
+);
+
 export const FACTORY_IMPLEMENT_TRIGGER_STATUSES = Object.freeze([
   FACTORY_PR_STATUSES.planReady,
   FACTORY_PR_STATUSES.implementing
@@ -98,4 +102,20 @@ export function isFactoryBranch(branchName) {
 
 export function issueArtifactsPath(issueNumber) {
   return `.factory/runs/${issueNumber}`;
+}
+
+export function isFactoryPrStatus(value) {
+  return FACTORY_PR_STATUS_VALUES.includes(`${value || ""}`.trim());
+}
+
+export function assertFactoryPrStatus(value, context = "factory PR status") {
+  const normalized = `${value || ""}`.trim();
+
+  if (!isFactoryPrStatus(normalized)) {
+    throw new Error(
+      `Invalid ${context}: "${normalized || "(empty)"}". Expected one of ${FACTORY_PR_STATUS_VALUES.join(", ")}`
+    );
+  }
+
+  return normalized;
 }
