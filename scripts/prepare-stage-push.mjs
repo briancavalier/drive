@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { setOutputs } from "./lib/actions-output.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
+import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 
 function git(args, { allowFailure = false } = {}) {
   try {
@@ -59,6 +60,8 @@ function main(env = process.env) {
     factoryToken: env.FACTORY_GITHUB_TOKEN,
     githubToken: env.GITHUB_TOKEN
   });
+
+  pruneFactoryTempArtifacts();
 
   commitStageOutput(mode, issueNumber);
 
