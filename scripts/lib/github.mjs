@@ -36,14 +36,15 @@ export function shouldRetryRequest({ method, retryPolicy = RETRY_POLICY.safe }) 
 
 export function getRepoContext() {
   const [owner, repo] = `${process.env.GITHUB_REPOSITORY || ""}`.split("/");
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+  const token =
+    process.env.FACTORY_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 
   if (!owner || !repo) {
     throw new Error("GITHUB_REPOSITORY is required");
   }
 
   if (!token) {
-    throw new Error("GITHUB_TOKEN is required");
+    throw new Error("FACTORY_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN is required");
   }
 
   return {

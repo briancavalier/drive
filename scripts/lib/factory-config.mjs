@@ -46,7 +46,8 @@ export const FACTORY_REVIEW_REPAIRABLE_STATUSES = Object.freeze([
 
 export const FACTORY_ACTIVE_CI_STATUSES = Object.freeze([
   FACTORY_PR_STATUSES.implementing,
-  FACTORY_PR_STATUSES.repairing
+  FACTORY_PR_STATUSES.repairing,
+  FACTORY_PR_STATUSES.reviewing
 ]);
 
 export const FACTORY_RESETTABLE_PR_STATUSES = Object.freeze([

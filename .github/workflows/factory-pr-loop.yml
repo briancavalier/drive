@@ -47,6 +47,7 @@ jobs:
         id: route
         run: node scripts/route-pr-loop.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
 
   mark-in-progress:
@@ -65,6 +66,7 @@ jobs:
       - name: Update PR status before stage run
         run: node scripts/apply-pr-state.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || needs.route.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
@@ -112,6 +114,7 @@ jobs:
       - name: Record successful stage metadata
         run: node scripts/apply-pr-state.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_LAST_FAILURE_TYPE: ""
@@ -136,6 +139,7 @@ jobs:
       - name: Handle classified stage failure
         run: node scripts/handle-stage-failure.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
@@ -163,6 +167,7 @@ jobs:
       - name: Mark PR as blocked
         run: node scripts/apply-pr-state.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: blocked
@@ -181,6 +186,8 @@ jobs:
       - mark-in-progress
       - stage
     runs-on: ubuntu-latest
+    outputs:
+      failure_message: ${{ steps.process_review.outputs.failure_message }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -194,8 +201,11 @@ jobs:
           node-version: 24
 
       - name: Process autonomous review artifacts
+        id: process_review
+        continue-on-error: true
         run: node scripts/process-review.mjs
         env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
@@ -206,3 +216,49 @@ jobs:
           FACTORY_REVIEW_METHOD: ${{ needs.stage.outputs.review_methodology || vars.FACTORY_REVIEW_METHOD || '' }}
           FACTORY_REVIEW_METHOD_REQUESTED: ${{ needs.stage.outputs.review_methodology_requested }}
           FACTORY_REVIEW_METHOD_FALLBACK: ${{ needs.stage.outputs.review_methodology_fallback }}
+
+      - name: Stop on review processing failure
+        if: steps.process_review.outcome == 'failure'
+        run: exit 1
+
+  review-processing-failed:
+    if: needs.route.outputs.action == 'review' && needs['process-review'].result == 'failure'
+    needs:
+      - route
+      - process-review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build review delivery failure comment
+        id: message
+        run: |
+          {
+            echo "comment<<__EOF__"
+            echo "Autonomous review artifacts were generated, but the GitHub review could not be delivered. The PR is blocked until this is fixed."
+            if [ -n "${FAILURE_MESSAGE}" ]; then
+              echo
+              echo "Failure detail: ${FAILURE_MESSAGE}"
+            fi
+            echo
+            echo "Please inspect the review artifacts on the branch and retry once the delivery issue is resolved."
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
+
+      - name: Mark PR as blocked after review delivery failure
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: blocked
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_LAST_FAILURE_TYPE: configuration
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_ADD_LABELS: factory:blocked
+          FACTORY_COMMENT: ${{ steps.message.outputs.comment }}

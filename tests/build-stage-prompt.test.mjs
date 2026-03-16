@@ -150,6 +150,13 @@ test("resolvePromptBudgets honors overrides and hard ceiling", () => {
   });
 });
 
+test("stage prompts delegate commit and push to the workflow", () => {
+  for (const template of [planTemplate, implementTemplate, repairTemplate]) {
+    assert.match(template, /Do not run `git commit` or `git push`/);
+    assert.doesNotMatch(template, /Use the commit message `factory\(/);
+  }
+});
+
 test("plan prompt trims oversized issue sections and stays within budget", () => {
   const artifactsDir = makeArtifactsDir();
   const result = buildStagePrompt({
