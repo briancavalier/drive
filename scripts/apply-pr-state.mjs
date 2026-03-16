@@ -68,9 +68,11 @@ if (process.env.FACTORY_LAST_FAILURE_TYPE !== undefined) {
 }
 
 if (process.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS !== undefined) {
-  nextMetadata.transientRetryAttempts = Number(
-    process.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS
-  );
+  const transientRetryAttempts = `${process.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS || ""}`.trim();
+
+  if (transientRetryAttempts && transientRetryAttempts !== "__UNCHANGED__") {
+    nextMetadata.transientRetryAttempts = Number(transientRetryAttempts);
+  }
 }
 
 if (process.env.FACTORY_LAST_REFRESHED_SHA !== undefined) {
