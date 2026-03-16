@@ -12,6 +12,14 @@ function makeArtifacts(overrides = {}) {
     decision: "pass",
     summary: "All acceptance criteria are satisfied.",
     blocking_findings_count: 0,
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "A factory-managed PR that reaches green CI enters review.",
+        status: "satisfied",
+        evidence: "Verified by CI routing and review stage tests."
+      }
+    ],
     findings: [],
     ...overrides.reviewJson
   };
@@ -21,6 +29,10 @@ function makeArtifacts(overrides = {}) {
       "# Autonomous Review",
       "",
       "Decision: pass",
+      "",
+      "## Traceability",
+      "",
+      "- acceptance_criterion | A factory-managed PR that reaches green CI enters review. | satisfied | Verified by CI routing and review stage tests.",
       "",
       "No blocking findings."
     ].join("\n");
@@ -143,11 +155,49 @@ test("processReview rejects pass decision when blocking findings present", async
   );
 });
 
+test("processReview rejects pass decision when requirement checks are partially satisfied", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Review artifacts are generated.",
+          status: "partially_satisfied",
+          evidence: "review.md exists but acceptance coverage is incomplete."
+        }
+      ]
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /includes unmet requirement_checks/
+  );
+});
+
 test("processReview submits REQUEST_CHANGES review when decision requests changes", async () => {
   const { dir } = makeArtifacts({
     reviewJson: {
       decision: "request_changes",
       blocking_findings_count: 1,
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are fully covered by tests.",
+          status: "not_satisfied",
+          evidence: "Negative-path coverage is missing."
+        }
+      ],
       findings: [
         {
           level: "blocking",
@@ -189,6 +239,14 @@ test("processReview uses configured request-changes overrides and preserves trun
     reviewJson: {
       decision: "request_changes",
       blocking_findings_count: 1,
+      requirement_checks: [
+        {
+          type: "plan_deliverable",
+          requirement: "Add tests for changed behavior.",
+          status: "not_satisfied",
+          evidence: "No new tests were added for the changed code path."
+        }
+      ],
       findings: [
         {
           level: "blocking",
@@ -226,6 +284,89 @@ test("processReview uses configured request-changes overrides and preserves trun
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /OVERRIDE default/);
   assert.match(reviewPayload.body, /Review truncated\./);
+});
+
+test("processReview rejects missing requirement checks", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: undefined
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /requirement_checks must be a non-empty array/
+  );
+});
+
+test("processReview rejects invalid requirement check type or status", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance",
+          requirement: "Review writes artifacts.",
+          status: "done",
+          evidence: "review.md was generated."
+        }
+      ]
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /requirement_checks\[0\]\.type must be/
+  );
+});
+
+test("processReview rejects empty requirement or evidence", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "spec_commitment",
+          requirement: " ",
+          status: "satisfied",
+          evidence: ""
+        }
+      ]
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /requirement_checks\[0\]\.requirement must not be empty/
+  );
 });
 
 test("processReview rejects invalid methodology", async () => {

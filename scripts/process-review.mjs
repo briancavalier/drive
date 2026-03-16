@@ -103,6 +103,44 @@ function validateFindings(findings) {
   return findings;
 }
 
+function validateRequirementChecks(requirementChecks) {
+  if (!Array.isArray(requirementChecks) || requirementChecks.length === 0) {
+    throw new Error("requirement_checks must be a non-empty array");
+  }
+
+  requirementChecks.forEach((check, index) => {
+    if (typeof check !== "object" || check === null) {
+      throw new Error(`requirement_checks[${index}] must be an object`);
+    }
+
+    const type = sanitizeReviewDecision(
+      ensureString(check.type, `requirement_checks[${index}].type`)
+    );
+    const status = sanitizeReviewDecision(
+      ensureString(check.status, `requirement_checks[${index}].status`)
+    );
+
+    if (!["acceptance_criterion", "spec_commitment", "plan_deliverable"].includes(type)) {
+      throw new Error(
+        `requirement_checks[${index}].type must be "acceptance_criterion", "spec_commitment", or "plan_deliverable", received "${check.type}"`
+      );
+    }
+
+    if (
+      !["satisfied", "partially_satisfied", "not_satisfied", "not_applicable"].includes(status)
+    ) {
+      throw new Error(
+        `requirement_checks[${index}].status must be "satisfied", "partially_satisfied", "not_satisfied", or "not_applicable", received "${check.status}"`
+      );
+    }
+
+    ensureString(check.requirement, `requirement_checks[${index}].requirement`);
+    ensureString(check.evidence, `requirement_checks[${index}].evidence`);
+  });
+
+  return requirementChecks;
+}
+
 function validateReviewPayload(payload, expectedMethodology) {
   if (typeof payload !== "object" || payload === null) {
     throw new Error("review.json must contain an object");
@@ -124,6 +162,7 @@ function validateReviewPayload(payload, expectedMethodology) {
 
   const summary = ensureString(payload.summary, "summary");
   const blockingCount = ensureInteger(payload.blocking_findings_count, "blocking_findings_count");
+  const requirementChecks = validateRequirementChecks(payload.requirement_checks);
   const findings = validateFindings(payload.findings);
   const computedBlocking = countBlockingFindings(findings);
 
@@ -139,11 +178,25 @@ function validateReviewPayload(payload, expectedMethodology) {
     );
   }
 
+  if (
+    decision === "pass" &&
+    requirementChecks.some((check) =>
+      ["partially_satisfied", "not_satisfied"].includes(
+        sanitizeReviewDecision(check.status)
+      )
+    )
+  ) {
+    throw new Error(
+      "decision \"pass\" is not allowed when review.json includes unmet requirement_checks"
+    );
+  }
+
   return {
     methodology,
     decision,
     summary,
     blocking_findings_count: blockingCount,
+    requirement_checks: requirementChecks,
     findings
   };
 }

@@ -66,14 +66,20 @@ After CI succeeds on a factory-managed pull request, the loop enters a dedicated
 `FACTORY_REVIEW_METHOD` Actions variable (falling back to `default`) and
 instructs the agent to produce two durable artifacts inside the run directory:
 
-- `review.md` — human-readable summary with decisions and findings.
-- `review.json` — machine-readable decision payload with severity-classified findings.
+- `review.md` — human-readable summary with a traceability section, decision,
+  and findings.
+- `review.json` — machine-readable decision payload with severity-classified
+  findings plus required `requirement_checks` linking requirements to evidence.
 
 If the autonomous review issues a `pass` decision, the workflow promotes the PR
 to `ready_for_review`, clears `factory:blocked`, marks the PR ready, and posts a
 summary comment referencing the artifacts. When the decision is
 `request_changes`, the workflow submits a GitHub `REQUEST_CHANGES` review using
 the generated markdown so the existing repair loop can act on the feedback automatically.
+
+A passing review now means every traced requirement is either `satisfied` or
+explicitly `not_applicable`; partial or unmet requirement checks must request
+changes.
 
 ## Artifact contract
 
