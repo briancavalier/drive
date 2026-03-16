@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { setOutputs } from "./lib/actions-output.mjs";
+import { buildCommitMessage } from "./lib/commit-message.mjs";
 import { classifyFailure } from "./lib/failure-classification.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
@@ -37,14 +38,25 @@ function getChangedFiles(remoteHead, localHead) {
     .filter(Boolean);
 }
 
-function commitStageOutput(mode, issueNumber) {
+function commitStageOutput({ mode, issueNumber, branch, issueTitle }) {
   git(["add", "-A"]);
 
   if (!hasStagedChanges()) {
     return false;
   }
 
-  git(["commit", "-m", `factory(${mode}): issue #${issueNumber}`]);
+  const stagedDiff = git(["diff", "--cached", "--name-status"]);
+  const commitSubject = buildCommitMessage({
+    mode,
+    issueNumber,
+    branch,
+    issueTitle,
+    stagedDiff
+  });
+
+  console.log(`Factory commit summary: ${commitSubject}`);
+
+  git(["commit", "-m", commitSubject]);
   return true;
 }
 
@@ -52,6 +64,7 @@ function main(env = process.env) {
   const branch = env.FACTORY_BRANCH;
   const mode = env.FACTORY_MODE || "stage";
   const issueNumber = env.FACTORY_ISSUE_NUMBER || "0";
+  const issueTitle = env.FACTORY_ISSUE_TITLE || "";
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -64,7 +77,7 @@ function main(env = process.env) {
 
   pruneFactoryTempArtifacts();
 
-  commitStageOutput(mode, issueNumber);
+  commitStageOutput({ mode, issueNumber, branch, issueTitle });
 
   const localHead = git(["rev-parse", "HEAD"]);
   const remoteHead = git(["rev-parse", `origin/${branch}`], { allowFailure: true });
