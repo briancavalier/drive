@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildPlanReadyPrMetadata,
   defaultPrMetadata,
   extractPrMetadata,
   renderPrBody
@@ -31,4 +32,31 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.match(body, /Closes #7/);
   assert.match(body, /\[spec\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
   assert.match(body, /\[review\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
+});
+
+test("buildPlanReadyPrMetadata uses prepared max repair attempts when metadata is absent", () => {
+  const metadata = buildPlanReadyPrMetadata({
+    metadata: {},
+    issueNumber: 7,
+    artifactsPath: ".factory/runs/7",
+    preparedMaxRepairAttempts: 5
+  });
+
+  assert.equal(metadata.issueNumber, 7);
+  assert.equal(metadata.artifactsPath, ".factory/runs/7");
+  assert.equal(metadata.status, "plan_ready");
+  assert.equal(metadata.maxRepairAttempts, 5);
+});
+
+test("buildPlanReadyPrMetadata preserves existing max repair attempts", () => {
+  const metadata = buildPlanReadyPrMetadata({
+    metadata: defaultPrMetadata({
+      maxRepairAttempts: 7
+    }),
+    issueNumber: 7,
+    artifactsPath: ".factory/runs/7",
+    preparedMaxRepairAttempts: 5
+  });
+
+  assert.equal(metadata.maxRepairAttempts, 7);
 });

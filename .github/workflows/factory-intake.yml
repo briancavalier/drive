@@ -79,3 +79,4 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           FACTORY_BRANCH: ${{ needs.prepare.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.prepare.outputs.artifacts_path }}
+          FACTORY_MAX_REPAIR_ATTEMPTS: ${{ needs.prepare.outputs.max_repair_attempts }}

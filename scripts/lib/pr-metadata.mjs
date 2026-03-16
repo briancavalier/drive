@@ -55,6 +55,26 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   };
 }
 
+export function buildPlanReadyPrMetadata({
+  metadata = {},
+  issueNumber,
+  artifactsPath,
+  preparedMaxRepairAttempts
+}) {
+  const nextMetadata = defaultPrMetadata({
+    ...metadata,
+    issueNumber,
+    artifactsPath,
+    status: FACTORY_PR_STATUSES.planReady
+  });
+
+  if (metadata.maxRepairAttempts == null && preparedMaxRepairAttempts != null) {
+    nextMetadata.maxRepairAttempts = preparedMaxRepairAttempts;
+  }
+
+  return nextMetadata;
+}
+
 export function renderPrBody({
   issueNumber,
   branch,
