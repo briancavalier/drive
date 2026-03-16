@@ -28,6 +28,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.lastProcessedWorkflowRunId, null);
   assert.equal(metadata.lastFailureType, null);
   assert.equal(metadata.transientRetryAttempts, 0);
+  assert.match(body, /Closes #7/);
   assert.match(body, /\[spec\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
   assert.match(body, /\[review\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
 });

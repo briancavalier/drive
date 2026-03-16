@@ -68,7 +68,7 @@ export function renderPrBody({
   return [
     "# Factory Run",
     "",
-    `Linked issue: #${issueNumber}`,
+    `Closes #${issueNumber}`,
     "",
     "## Status",
     `- Stage: ${state.status}`,
