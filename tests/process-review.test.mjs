@@ -227,6 +227,107 @@ test("processReview rejects pass decision when requirement checks are partially 
   );
 });
 
+test("processReview normalizes mixed-case enums before rendering request changes", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      decision: "request_changes",
+      blocking_findings_count: 1,
+      requirement_checks: [
+        {
+          type: "ACCEPTANCE_CRITERION",
+          requirement: "Acceptance criteria are fully covered by tests.",
+          status: "NOT_SATISFIED",
+          evidence: "Negative-path coverage is missing."
+        }
+      ],
+      findings: [
+        {
+          level: "BLOCKING",
+          title: "Missing tests",
+          details: "Acceptance criteria are not fully covered.",
+          scope: "tests/new-feature.test.js",
+          recommendation: "Add tests covering negative paths."
+        }
+      ]
+    },
+    reviewMd: renderReviewMarkdown({
+      methodology: "default",
+      decision: "request_changes",
+      summary: "All acceptance criteria are satisfied.",
+      blocking_findings_count: 1,
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are fully covered by tests.",
+          status: "not_satisfied",
+          evidence: "Negative-path coverage is missing."
+        }
+      ],
+      findings: [
+        {
+          level: "blocking",
+          title: "Missing tests",
+          details: "Acceptance criteria are not fully covered.",
+          scope: "tests/new-feature.test.js",
+          recommendation: "Add tests covering negative paths."
+        }
+      ]
+    })
+  });
+  const env = baseEnv({ artifactsPath: dir });
+  let reviewPayload = null;
+
+  await processReview({
+    env,
+    execFileImpl: (_file, _args, _options, callback) => {
+      callback(null, "", "");
+    },
+    githubClient: {
+      commentOnIssue: async () => {
+        throw new Error("commentOnIssue should not be called for request_changes decision");
+      },
+      submitPullRequestReview: async (payload) => {
+        reviewPayload = payload;
+      }
+    }
+  });
+
+  assert.equal(reviewPayload.event, "REQUEST_CHANGES");
+  assert.match(reviewPayload.body, /\*\*Missing tests\*\*/);
+  assert.match(reviewPayload.body, /\[acceptance_criterion\] `not_satisfied`/);
+  assert.match(reviewPayload.body, /Traceability: Acceptance Criteria/);
+});
+
+test("processReview rejects pass decision when mixed-case unmet requirement checks exist", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "ACCEPTANCE_CRITERION",
+          requirement: "Review artifacts are generated.",
+          status: "PARTIALLY_SATISFIED",
+          evidence: "review.md exists but acceptance coverage is incomplete."
+        }
+      ]
+    }
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /includes unmet requirement_checks/
+  );
+});
+
 test("processReview submits REQUEST_CHANGES review when decision requests changes", async () => {
   const { dir } = makeArtifacts({
     reviewJson: {

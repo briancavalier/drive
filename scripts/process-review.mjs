@@ -82,7 +82,7 @@ function validateFindings(findings) {
     throw new Error("findings must be an array");
   }
 
-  findings.forEach((finding, index) => {
+  return findings.map((finding, index) => {
     if (typeof finding !== "object" || finding === null) {
       throw new Error(`finding at index ${index} must be an object`);
     }
@@ -95,13 +95,15 @@ function validateFindings(findings) {
       );
     }
 
-    ensureString(finding.title, `findings[${index}].title`);
-    ensureString(finding.details, `findings[${index}].details`);
-    ensureString(finding.scope, `findings[${index}].scope`);
-    ensureString(finding.recommendation, `findings[${index}].recommendation`);
+    return {
+      ...finding,
+      level,
+      title: ensureString(finding.title, `findings[${index}].title`),
+      details: ensureString(finding.details, `findings[${index}].details`),
+      scope: ensureString(finding.scope, `findings[${index}].scope`),
+      recommendation: ensureString(finding.recommendation, `findings[${index}].recommendation`)
+    };
   });
-
-  return findings;
 }
 
 function validateRequirementChecks(requirementChecks) {
@@ -109,7 +111,7 @@ function validateRequirementChecks(requirementChecks) {
     throw new Error("requirement_checks must be a non-empty array");
   }
 
-  requirementChecks.forEach((check, index) => {
+  return requirementChecks.map((check, index) => {
     if (typeof check !== "object" || check === null) {
       throw new Error(`requirement_checks[${index}] must be an object`);
     }
@@ -135,11 +137,14 @@ function validateRequirementChecks(requirementChecks) {
       );
     }
 
-    ensureString(check.requirement, `requirement_checks[${index}].requirement`);
-    ensureString(check.evidence, `requirement_checks[${index}].evidence`);
+    return {
+      ...check,
+      type,
+      status,
+      requirement: ensureString(check.requirement, `requirement_checks[${index}].requirement`),
+      evidence: ensureString(check.evidence, `requirement_checks[${index}].evidence`)
+    };
   });
-
-  return requirementChecks;
 }
 
 function validateReviewPayload(payload, expectedMethodology) {
