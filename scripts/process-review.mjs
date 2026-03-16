@@ -3,6 +3,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { setOutputs } from "./lib/actions-output.mjs";
 import {
   commentOnIssue,
   submitPullRequestReview
@@ -362,10 +363,16 @@ export async function processReview({
   console.log("Autonomous review requested changes. Submitted REQUEST_CHANGES review to trigger repair.");
 }
 
-async function main() {
+export async function main(options = {}) {
   try {
-    await processReview();
+    await processReview(options);
+    setOutputs({
+      failure_message: ""
+    });
   } catch (error) {
+    setOutputs({
+      failure_message: `${error.message || ""}`.trim()
+    });
     console.error(error.message);
     process.exitCode = 1;
   }

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { processReview } from "../scripts/process-review.mjs";
+import { main as processReviewMain, processReview } from "../scripts/process-review.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function renderReviewMarkdown(reviewJson, extras = {}) {
@@ -377,6 +377,61 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.match(reviewPayload.body, /Unmet requirement checks:/);
   assert.match(reviewPayload.body, /Missing tests/);
   assert.match(reviewPayload.body, /<details>/);
+});
+
+test("processReview main writes failure message output for workflow follow-up", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      decision: "request_changes",
+      blocking_findings_count: 1,
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are fully covered by tests.",
+          status: "not_satisfied",
+          evidence: "Negative-path coverage is missing."
+        }
+      ],
+      findings: [
+        {
+          level: "blocking",
+          title: "Missing tests",
+          details: "Acceptance criteria are not fully covered.",
+          scope: "tests/new-feature.test.js",
+          recommendation: "Add tests covering negative paths."
+        }
+      ]
+    }
+  });
+  const outputPath = path.join(os.tmpdir(), `factory-review-output-${Date.now()}.txt`);
+  const previousOutput = process.env.GITHUB_OUTPUT;
+  const previousExitCode = process.exitCode;
+  const env = baseEnv({ artifactsPath: dir });
+  process.env.GITHUB_OUTPUT = outputPath;
+
+  try {
+    await processReviewMain({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {
+          throw new Error("commentOnIssue should not be called for request_changes decision");
+        },
+        submitPullRequestReview: async () => {
+          throw new Error("Review delivery failed");
+        }
+      }
+    });
+
+    const outputs = fs.readFileSync(outputPath, "utf8");
+    assert.match(outputs, /failure_message<<__EOF__/);
+    assert.match(outputs, /Review delivery failed/);
+  } finally {
+    process.env.GITHUB_OUTPUT = previousOutput;
+    process.exitCode = previousExitCode;
+  }
 });
 
 test("processReview uses configured request-changes overrides and preserves truncation", async () => {

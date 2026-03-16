@@ -17,9 +17,9 @@ Repair rules:
 
 Git rules:
 
-- Commit your changes to the current branch.
-- Use the commit message `factory(repair): issue #{{ISSUE_NUMBER}}`.
-- Push the branch before exiting.
+- Do not run `git commit` or `git push`.
+- Leave your repository changes in the working tree; the workflow will create
+  the stage-output commit after you exit.
 
 Context:
 

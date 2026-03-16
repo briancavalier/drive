@@ -19,15 +19,21 @@ function jsonResponse(status, payload) {
 function withRepoEnv(fn) {
   const previousRepository = process.env.GITHUB_REPOSITORY;
   const previousToken = process.env.GITHUB_TOKEN;
+  const previousFactoryToken = process.env.FACTORY_GITHUB_TOKEN;
+  const previousGhToken = process.env.GH_TOKEN;
 
   process.env.GITHUB_REPOSITORY = "example/repo";
   process.env.GITHUB_TOKEN = "test-token";
+  delete process.env.FACTORY_GITHUB_TOKEN;
+  delete process.env.GH_TOKEN;
 
   return Promise.resolve()
     .then(fn)
     .finally(() => {
       process.env.GITHUB_REPOSITORY = previousRepository;
       process.env.GITHUB_TOKEN = previousToken;
+      process.env.FACTORY_GITHUB_TOKEN = previousFactoryToken;
+      process.env.GH_TOKEN = previousGhToken;
     });
 }
 
@@ -64,6 +70,45 @@ test("githubRequest retries transient GET failures", async () => {
 
   globalThis.fetch = previousFetch;
   assert.equal(calls, 2);
+});
+
+test("githubRequest prefers FACTORY_GITHUB_TOKEN when present", async () => {
+  let authorization = "";
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_url, options = {}) => {
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, { ok: true });
+  };
+
+  await withRepoEnv(async () => {
+    process.env.FACTORY_GITHUB_TOKEN = "factory-token";
+    const response = await githubRequest("/test");
+    assert.deepEqual(response, { ok: true });
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.equal(authorization, "Bearer factory-token");
+});
+
+test("githubRequest falls back to GH_TOKEN when other tokens are absent", async () => {
+  let authorization = "";
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_url, options = {}) => {
+    authorization = options.headers.Authorization;
+    return jsonResponse(200, { ok: true });
+  };
+
+  await withRepoEnv(async () => {
+    delete process.env.GITHUB_TOKEN;
+    process.env.GH_TOKEN = "gh-token";
+    const response = await githubRequest("/test");
+    assert.deepEqual(response, { ok: true });
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.equal(authorization, "Bearer gh-token");
 });
 
 test("githubRequest does not retry transient POST failures", async () => {

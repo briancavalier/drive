@@ -175,6 +175,27 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
   assert.equal(result.action, "review");
 });
 
+test("routeWorkflowRun also reruns review for managed PRs already reviewing", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 177,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "def456"
+    },
+    pullRequest: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "review");
+});
+
 test("routeWorkflowRun ignores push-triggered CI runs for managed PR branches", () => {
   const result = routeWorkflowRun({
     workflowRun: {
