@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   routePullRequestLabeled,
   routePullRequestReview,
@@ -10,35 +12,68 @@ import {
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
 
-const eventName = process.env.GITHUB_EVENT_NAME;
-const payload = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-let route = { action: "noop" };
+export async function routeEvent({
+  eventName,
+  payload,
+  githubClient = {
+    findOpenPullRequestByHead,
+    getPullRequest
+  }
+}) {
+  if (eventName === "pull_request") {
+    const livePullRequest = payload.pull_request?.number
+      ? await githubClient.getPullRequest(payload.pull_request.number)
+      : payload.pull_request;
 
-if (eventName === "pull_request") {
-  route = routePullRequestLabeled(payload);
-} else if (eventName === "pull_request_review") {
-  route = routePullRequestReview(payload);
-} else if (eventName === "workflow_run") {
-  const workflowRun = payload.workflow_run;
-  const linkedPr = workflowRun.pull_requests?.[0];
-  const pullRequest = linkedPr?.number
-    ? await getPullRequest(linkedPr.number)
-    : workflowRun.head_branch
-      ? await findOpenPullRequestByHead(workflowRun.head_branch)
-      : null;
-  route = routeWorkflowRun({ workflowRun, pullRequest });
+    return routePullRequestLabeled({
+      ...payload,
+      pull_request: livePullRequest || payload.pull_request
+    });
+  }
+
+  if (eventName === "pull_request_review") {
+    return routePullRequestReview(payload);
+  }
+
+  if (eventName === "workflow_run") {
+    const workflowRun = payload.workflow_run;
+    const linkedPr = workflowRun.pull_requests?.[0];
+    const pullRequest = linkedPr?.number
+      ? await githubClient.getPullRequest(linkedPr.number)
+      : workflowRun.head_branch
+        ? await githubClient.findOpenPullRequestByHead(workflowRun.head_branch)
+        : null;
+
+    return routeWorkflowRun({ workflowRun, pullRequest });
+  }
+
+  return { action: "noop" };
 }
 
-setOutputs({
-  action: route.action || "noop",
-  pr_number: route.prNumber || "",
-  issue_number: route.issueNumber || "",
-  branch: route.branch || "",
-  artifacts_path: route.artifactsPath || "",
-  ci_run_id: route.ciRunId || "",
-  review_id: route.reviewId || "",
-  review_body: route.reviewBody || "",
-  repair_attempts: route.repairState?.repairAttempts || "",
-  repeated_failure_count: route.repairState?.repeatedFailureCount || "",
-  last_failure_signature: route.repairState?.lastFailureSignature || ""
-});
+export async function main(env = process.env) {
+  const eventName = env.GITHUB_EVENT_NAME;
+  const payload = JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+  const route = await routeEvent({ eventName, payload });
+
+  setOutputs({
+    action: route.action || "noop",
+    pr_number: route.prNumber || "",
+    issue_number: route.issueNumber || "",
+    branch: route.branch || "",
+    artifacts_path: route.artifactsPath || "",
+    ci_run_id: route.ciRunId || "",
+    review_id: route.reviewId || "",
+    review_body: route.reviewBody || "",
+    repair_attempts: route.repairState?.repairAttempts || "",
+    repeated_failure_count: route.repairState?.repeatedFailureCount || "",
+    last_failure_signature: route.repairState?.lastFailureSignature || ""
+  });
+}
+
+const isDirectExecution =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isDirectExecution) {
+  await main();
+}

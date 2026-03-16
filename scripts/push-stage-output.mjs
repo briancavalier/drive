@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import {
   classifyFailure,
@@ -14,13 +16,22 @@ function git(args) {
   }).trim();
 }
 
+function currentHead(gitImpl = git) {
+  return gitImpl(["rev-parse", "HEAD"]);
+}
+
+function fetchRemoteHead(branch, gitImpl = git) {
+  gitImpl(["fetch", "origin", branch]);
+  return gitImpl(["rev-parse", "FETCH_HEAD"]);
+}
+
 function sleep(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-function tryPush(branch) {
+function tryPush(branch, gitImpl = git) {
   try {
-    git(["push", "origin", `HEAD:${branch}`]);
+    gitImpl(["push", "origin", `HEAD:${branch}`]);
     return {
       ok: true,
       message: "",
@@ -36,8 +47,29 @@ function tryPush(branch) {
   }
 }
 
-function main(env = process.env) {
+export function shouldTreatPushRaceAsSuccess({
+  failureType,
+  stageStartHead,
+  localHead,
+  remoteHead
+}) {
+  if (failureType !== FAILURE_TYPES.staleStagePush || !remoteHead) {
+    return false;
+  }
+
+  if (remoteHead === localHead) {
+    return true;
+  }
+
+  return Boolean(stageStartHead) && remoteHead !== stageStartHead;
+}
+
+export function main(
+  env = process.env,
+  { gitImpl = git, setOutputsImpl = setOutputs, logger = console } = {}
+) {
   const branch = `${env.FACTORY_BRANCH || ""}`.trim();
+  const stageStartHead = `${env.FACTORY_REFRESHED_HEAD_SHA || ""}`.trim();
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -51,15 +83,46 @@ function main(env = process.env) {
   };
 
   while (true) {
-    const result = tryPush(branch);
+    const result = tryPush(branch, gitImpl);
 
     if (result.ok) {
-      setOutputs({
+      setOutputsImpl({
         transient_retry_attempts: `${transientRetryAttempts}`,
         failure_type: "",
         failure_message: ""
       });
       return;
+    }
+
+    if (result.failureType === FAILURE_TYPES.staleStagePush) {
+      let localHead = "";
+      let remoteHead = "";
+
+      try {
+        localHead = currentHead(gitImpl);
+        remoteHead = fetchRemoteHead(branch, gitImpl);
+      } catch {
+        remoteHead = "";
+      }
+
+      if (
+        shouldTreatPushRaceAsSuccess({
+          failureType: result.failureType,
+          stageStartHead,
+          localHead,
+          remoteHead
+        })
+      ) {
+        logger.warn(
+          `Remote branch ${branch} advanced during stage execution; treating rejected push as a stale duplicate.`
+        );
+        setOutputsImpl({
+          transient_retry_attempts: `${transientRetryAttempts}`,
+          failure_type: "",
+          failure_message: ""
+        });
+        return;
+      }
     }
 
     lastFailure = {
@@ -68,7 +131,7 @@ function main(env = process.env) {
     };
 
     if (!isTransientFailureType(result.failureType) || transientRetryAttempts >= retryLimit) {
-      setOutputs({
+      setOutputsImpl({
         transient_retry_attempts: `${transientRetryAttempts}`,
         failure_type: result.failureType,
         failure_message: result.message
@@ -77,16 +140,22 @@ function main(env = process.env) {
     }
 
     transientRetryAttempts += 1;
-    console.warn(
+    logger.warn(
       `Transient push failure detected (attempt ${transientRetryAttempts}/${retryLimit}). Retrying...`
     );
     sleep(1000 * transientRetryAttempts);
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`${error.message}`);
-  process.exitCode = 1;
+const isDirectExecution =
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isDirectExecution) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`${error.message}`);
+    process.exitCode = 1;
+  }
 }

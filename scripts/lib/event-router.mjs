@@ -30,6 +30,7 @@ export function routePullRequestLabeled(payload) {
     payload.action !== "labeled" ||
     payload.label?.name !== FACTORY_LABELS.implement ||
     !FACTORY_IMPLEMENT_TRIGGER_STATUSES.includes(metadata?.status) ||
+    !hasLabel(pullRequest.labels, FACTORY_LABELS.implement) ||
     !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
   ) {
     return { action: "noop" };
