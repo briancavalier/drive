@@ -3,6 +3,7 @@ import {
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_PR_STATUSES
 } from "./factory-config.mjs";
+import { renderPrBody as renderGithubPrBody } from "./github-messages.mjs";
 
 export function defaultPrMetadata(overrides = {}) {
   return {
@@ -54,6 +55,26 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   };
 }
 
+export function buildPlanReadyPrMetadata({
+  metadata = {},
+  issueNumber,
+  artifactsPath,
+  preparedMaxRepairAttempts
+}) {
+  const nextMetadata = defaultPrMetadata({
+    ...metadata,
+    issueNumber,
+    artifactsPath,
+    status: FACTORY_PR_STATUSES.planReady
+  });
+
+  if (metadata.maxRepairAttempts == null && preparedMaxRepairAttempts != null) {
+    nextMetadata.maxRepairAttempts = preparedMaxRepairAttempts;
+  }
+
+  return nextMetadata;
+}
+
 export function renderPrBody({
   issueNumber,
   branch,
@@ -61,45 +82,13 @@ export function renderPrBody({
   artifactsPath,
   metadata,
   ciStatus = "pending"
-}) {
-  const state = defaultPrMetadata({
+}, options = {}) {
+  return renderGithubPrBody({
     issueNumber,
+    branch,
+    repositoryUrl,
     artifactsPath,
-    ...metadata
-  });
-  const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
-
-  return [
-    "# Factory Run",
-    "",
-    `Closes #${issueNumber}`,
-    "",
-    "## Status",
-    `- Stage: ${state.status}`,
-    `- CI: ${ciStatus}`,
-    `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
-    state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
-    state.transientRetryAttempts
-      ? `- Transient retries used: ${state.transientRetryAttempts}`
-      : null,
-    "",
-    "## Artifacts",
-    `- [spec.md](${links.spec})`,
-    `- [plan.md](${links.plan})`,
-    `- [acceptance-tests.md](${links.acceptanceTests})`,
-    `- [repair-log.md](${links.repairLog})`,
-    `- [review.md](${links.review})`,
-    `- [review.json](${links.reviewJson})`,
-    "",
-    "## Operator Notes",
-    "- Apply `factory:implement` to start coding after plan review.",
-    "- Apply `factory:paused` to pause autonomous work.",
-    "- Remove `factory:paused` and re-apply `factory:implement` to resume.",
-    "",
-    `<!-- ${PR_STATE_MARKER}`,
-    JSON.stringify(state, null, 2),
-    "-->"
-  ]
-    .filter(Boolean)
-    .join("\n");
+    metadata,
+    ciStatus
+  }, options);
 }

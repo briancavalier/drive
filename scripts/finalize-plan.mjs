@@ -1,9 +1,14 @@
 import {
   FACTORY_LABELS,
-  DEFAULT_MAX_REPAIR_ATTEMPTS,
-  FACTORY_PR_STATUSES
+  DEFAULT_MAX_REPAIR_ATTEMPTS
 } from "./lib/factory-config.mjs";
-import { defaultPrMetadata, extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
+import { renderPlanReadyIssueComment } from "./lib/github-messages.mjs";
+import {
+  buildPlanReadyPrMetadata,
+  defaultPrMetadata,
+  extractPrMetadata,
+  renderPrBody
+} from "./lib/pr-metadata.mjs";
 import {
   addLabels,
   commentOnIssue,
@@ -19,6 +24,8 @@ const issueNumber = Number(process.env.FACTORY_ISSUE_NUMBER);
 const inputPrNumber = Number(process.env.FACTORY_PR_NUMBER);
 const branch = process.env.FACTORY_BRANCH;
 const artifactsPath = process.env.FACTORY_ARTIFACTS_PATH;
+const preparedMaxRepairAttempts =
+  Number(process.env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
 const defaultBranch = process.env.GITHUB_REF_NAME || "main";
 const issue = await getIssue(issueNumber);
 const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
@@ -33,14 +40,12 @@ const body = renderPrBody({
   branch,
   repositoryUrl,
   artifactsPath,
-  metadata: {
-    ...metadata,
+  metadata: buildPlanReadyPrMetadata({
+    metadata,
     issueNumber,
     artifactsPath,
-    status: FACTORY_PR_STATUSES.planReady,
-    maxRepairAttempts:
-      metadata.maxRepairAttempts || DEFAULT_MAX_REPAIR_ATTEMPTS
-  }
+    preparedMaxRepairAttempts
+  })
 });
 const pullRequest =
   existingPullRequest ||
@@ -57,5 +62,8 @@ await addLabels(pullRequest.number, [FACTORY_LABELS.managed, FACTORY_LABELS.plan
 await removeLabel(issueNumber, FACTORY_LABELS.start);
 await commentOnIssue(
   issueNumber,
-  `Factory planning is ready in PR #${pullRequest.number}. Review the draft PR and apply \`${FACTORY_LABELS.implement}\` to start coding.`
+  renderPlanReadyIssueComment({
+    prNumber: pullRequest.number,
+    implementLabel: FACTORY_LABELS.implement
+  })
 );

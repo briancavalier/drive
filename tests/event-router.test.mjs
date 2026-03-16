@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   routePullRequestLabeled,
   routePullRequestReview,
@@ -31,6 +34,16 @@ function managedLabels(extra = []) {
   return [{ name: FACTORY_LABELS.managed }, ...extra];
 }
 
+function makeOverrides(files = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-route-messages-"));
+
+  for (const [name, contents] of Object.entries(files)) {
+    fs.writeFileSync(path.join(dir, name), contents);
+  }
+
+  return dir;
+}
+
 test("routePullRequestLabeled starts implementation for approved managed PRs", () => {
   const result = routePullRequestLabeled({
     action: "labeled",
@@ -38,6 +51,49 @@ test("routePullRequestLabeled starts implementation for approved managed PRs", (
     pull_request: {
       number: 33,
       body: managedPrBody(),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "implement");
+  assert.equal(result.issueNumber, 12);
+  assert.equal(result.prNumber, 33);
+});
+
+test("routePullRequestLabeled still parses metadata from custom PR body templates", () => {
+  const overridesRoot = makeOverrides({
+    "pr-body.md": [
+      "# Custom",
+      "",
+      "{{ARTIFACTS_SECTION}}",
+      "",
+      "{{STATUS_SECTION}}"
+    ].join("\n")
+  });
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    pull_request: {
+      number: 33,
+      body: renderPrBody(
+        {
+          issueNumber: 12,
+          branch: "factory/12-sample",
+          repositoryUrl: "https://github.com/example/repo",
+          artifactsPath: ".factory/runs/12",
+          metadata: {
+            issueNumber: 12,
+            artifactsPath: ".factory/runs/12",
+            status: "plan_ready",
+            repairAttempts: 0,
+            maxRepairAttempts: 3,
+            lastFailureSignature: null,
+            repeatedFailureCount: 0
+          }
+        },
+        { overridesRoot }
+      ),
       labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
       head: { ref: "factory/12-sample" }
     }

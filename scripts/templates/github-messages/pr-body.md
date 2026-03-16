@@ -1,0 +1,9 @@
+# Factory Run
+
+Closes #{{ISSUE_NUMBER}}
+
+{{STATUS_SECTION}}
+
+{{ARTIFACTS_SECTION}}
+
+{{OPERATOR_NOTES_SECTION}}
