@@ -67,6 +67,9 @@ test("valid Codex advisory is merged into the failure comment", () => {
   assert.match(comment, /control-plane workflow drift/);
   assert.match(comment, /Scope: `control_plane`/);
   assert.match(comment, /Confidence: `high`/);
+  assert.match(comment, /## Suggested recovery/);
+  assert.match(comment, /Fix the delivery or configuration issue; if it lives in factory workflows or scripts, merge the fix to `main` first\./);
+  assert.match(comment, /## Codex recovery guidance/);
   assert.match(comment, /Merge the control-plane fix to `main` before retrying/);
 });
 

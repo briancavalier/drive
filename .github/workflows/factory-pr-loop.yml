@@ -40,6 +40,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
+        with:
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -223,6 +226,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       failure_message: ${{ steps.process_review.outputs.failure_message }}
+      failure_type: ${{ steps.process_review.outputs.failure_type }}
+      failure_phase: ${{ steps.process_review.outputs.failure_phase }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -265,6 +270,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -275,9 +283,9 @@ jobs:
         id: diagnosis_prompt
         run: node scripts/build-failure-diagnosis-prompt.mjs
         env:
-          FACTORY_FAILURE_PHASE: review_delivery
+          FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review_delivery' }}
           FACTORY_FAILED_ACTION: review
-          FACTORY_FAILURE_TYPE: configuration
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
@@ -302,10 +310,10 @@ jobs:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_FAILURE_PHASE: review_delivery
+          FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review_delivery' }}
           FACTORY_FAILED_ACTION: review
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_FAILURE_TYPE: configuration
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}

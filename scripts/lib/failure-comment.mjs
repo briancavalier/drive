@@ -124,8 +124,7 @@ export function buildFailureComment({
   const lines = [`⚠️ ${buildHeadline({ action, phase, failureType, retryAttempts })}`, ""];
   const artifacts = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const ciRunUrl = repositoryUrl && ciRunId ? `${repositoryUrl}/actions/runs/${ciRunId}` : "";
-  const recoverySteps =
-    advisory?.recovery_steps || buildDeterministicRecoverySteps({ action, phase, failureType });
+  const recoverySteps = buildDeterministicRecoverySteps({ action, phase, failureType });
 
   lines.push("## Where to look");
 
@@ -168,6 +167,14 @@ export function buildFailureComment({
 
   for (const step of recoverySteps) {
     lines.push(`1. ${step}`);
+  }
+
+  if (advisory?.recovery_steps?.length) {
+    lines.push("", "## Codex recovery guidance", "");
+
+    for (const step of advisory.recovery_steps) {
+      lines.push(`1. ${step}`);
+    }
   }
 
   return lines.join("\n").trim();

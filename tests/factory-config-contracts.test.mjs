@@ -64,10 +64,21 @@ test("factory PR loop failure jobs build diagnosis prompts under RUNNER_TEMP and
     /name:\s+Build failure diagnosis prompt[\s\S]*node scripts\/build-failure-diagnosis-prompt\.mjs/
   );
   assert.match(workflowText, /FACTORY_FAILURE_PHASE:\s*stage/);
-  assert.match(workflowText, /FACTORY_FAILURE_PHASE:\s*review_delivery/);
+  assert.match(
+    workflowText,
+    /FACTORY_FAILURE_PHASE:\s*\$\{\{\s*needs\['process-review'\]\.outputs\.failure_phase \|\| 'review_delivery'\s*\}\}/
+  );
   assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
   assert.match(workflowText, /prompt-file:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.prompt_path\s*\}\}/);
   assert.match(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.advisory_path\s*\}\}/);
+  assert.match(
+    workflowText,
+    /failure_type:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_type\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /failure_phase:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_phase\s*\}\}/
+  );
 });
 
 test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of repo-tracked temp paths", () => {
@@ -81,4 +92,14 @@ test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of r
 
   assert.doesNotMatch(workflowText, /prompt-file:\s*\.factory\/tmp\//);
   assert.doesNotMatch(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\.factory\/tmp\//);
+});
+
+test("factory PR loop failure jobs check out the failing branch before diagnosis", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const checkoutBlocks =
+    workflowText.match(
+      /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/g
+    ) || [];
+
+  assert.ok(checkoutBlocks.length >= 3);
 });
