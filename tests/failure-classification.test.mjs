@@ -41,6 +41,10 @@ test("classifyFailure detects configuration failures", () => {
     classifyFailure("Factory stage output modifies .github/workflows/** but FACTORY_GITHUB_TOKEN is not configured."),
     FAILURE_TYPES.configuration
   );
+  assert.equal(
+    classifyFailure("FACTORY_ARTIFACTS_PATH is required when FACTORY_MODE is \"review\"."),
+    FAILURE_TYPES.configuration
+  );
 });
 
 test("classifyFailure falls back to content_or_logic", () => {

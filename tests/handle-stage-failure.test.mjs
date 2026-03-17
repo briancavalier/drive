@@ -25,14 +25,17 @@ test("buildFailureComment prefixes transient infra failures with ⚠️", () => 
     action: "implement",
     failureType: FAILURE_TYPES.transientInfra,
     retryAttempts: 3,
-    failureMessage: ""
+    failureMessage: "",
+    runUrl: "https://github.com/example/repo/actions/runs/123",
+    branch: "factory/12-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/12",
+    ciRunId: "456"
   });
 
-  assert.ok(
-    comment.startsWith(
-      "⚠️ Factory exhausted 3 transient retry attempt(s) for this stage and is now blocked."
-    )
-  );
+  assert.ok(comment.startsWith("⚠️ Factory exhausted 3 transient retry attempt(s) and is now blocked."));
+  assert.match(comment, /## Where to look/);
+  assert.match(comment, /\[CI run 456\]/);
 });
 
 test("buildFailureComment prefixes configuration failures with ⚠️ and keeps context", () => {
@@ -40,9 +43,32 @@ test("buildFailureComment prefixes configuration failures with ⚠️ and keeps 
     action: "review",
     failureType: FAILURE_TYPES.configuration,
     retryAttempts: 0,
-    failureMessage: "Review workflow tokens."
+    failureMessage: "Review workflow tokens.",
+    runUrl: "https://github.com/example/repo/actions/runs/123",
+    branch: "factory/12-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/12",
+    ciRunId: "456"
   });
 
   assert.ok(comment.startsWith("⚠️ Factory encountered a configuration error"));
   assert.match(comment, /Review workflow tokens\./);
+  assert.match(comment, /## Suggested recovery/);
+});
+
+test("buildFailureComment renders deterministic review recovery guidance without advisory input", () => {
+  const comment = buildFailureComment({
+    action: "review",
+    failureType: FAILURE_TYPES.contentOrLogic,
+    retryAttempts: 0,
+    failureMessage: "review.md must include the canonical Traceability section derived from review.json",
+    runUrl: "https://github.com/example/repo/actions/runs/123",
+    branch: "factory/34-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/34",
+    ciRunId: "456"
+  });
+
+  assert.match(comment, /Inspect the failing review-stage run and the durable review artifacts on the branch/);
+  assert.doesNotMatch(comment, /## Codex diagnosis/);
 });

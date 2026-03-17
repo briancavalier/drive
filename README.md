@@ -47,7 +47,10 @@ Configure these before using the scaffold in a live repository:
 10. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
     methodology under `.factory/review-methods/<method>/instructions.md`.
     Missing or invalid values fall back to the built-in `default` rubric.
-11. Factory branches are refreshed from `origin/main` automatically before
+11. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
+    Codex model used to draft advisory failure guidance comments. Missing values
+    fall back to `codex-mini-latest`.
+12. Factory branches are refreshed from `origin/main` automatically before
     implement/repair runs. If the merge conflicts, the PR is blocked and needs
     a human to resolve the conflict before retrying.
 
@@ -112,6 +115,12 @@ The stage runner automatically retries known transient infrastructure failures
 such as GitHub API/network push errors before blocking the PR. Exhausted
 transient retries are recorded in the PR metadata as `lastFailureType` and
 `transientRetryAttempts`.
+
+When stage/review failures block a PR, the failure comment now includes a
+stable "Where to look" section with the failing Factory PR Loop run, branch,
+relevant artifact links, and deterministic recovery guidance. When available, a
+lightweight Codex advisory is appended to explain likely scope and next steps
+without changing the underlying state-transition rules.
 
 ## Labels
 

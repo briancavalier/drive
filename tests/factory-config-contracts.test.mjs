@@ -55,3 +55,30 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
 
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
 });
+
+test("factory PR loop failure jobs build diagnosis prompts under RUNNER_TEMP and run Codex advisories", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Build failure diagnosis prompt[\s\S]*node scripts\/build-failure-diagnosis-prompt\.mjs/
+  );
+  assert.match(workflowText, /FACTORY_FAILURE_PHASE:\s*stage/);
+  assert.match(workflowText, /FACTORY_FAILURE_PHASE:\s*review_delivery/);
+  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
+  assert.match(workflowText, /prompt-file:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.prompt_path\s*\}\}/);
+  assert.match(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.advisory_path\s*\}\}/);
+});
+
+test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of repo-tracked temp paths", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  const codexSteps = workflowText.match(/name:\s+Run Codex failure diagnosis[\s\S]*?codex-args:\s+--full-auto/g) || [];
+  assert.equal(codexSteps.length, 2);
+  for (const step of codexSteps) {
+    assert.match(step, /continue-on-error:\s*true/);
+  }
+
+  assert.doesNotMatch(workflowText, /prompt-file:\s*\.factory\/tmp\//);
+  assert.doesNotMatch(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\.factory\/tmp\//);
+});
