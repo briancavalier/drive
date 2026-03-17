@@ -25,6 +25,17 @@ function readWorkflowText(fileName) {
   );
 }
 
+function extractJobBlock(workflowText, jobName) {
+  const start = workflowText.indexOf(`  ${jobName}:\n`);
+  assert.notEqual(start, -1, `${jobName} job must exist in factory-pr-loop workflow`);
+
+  const remainder = workflowText.slice(start + 1);
+  const nextJobMatch = remainder.match(/\n  [a-z0-9-]+:\n/);
+  const end = nextJobMatch ? start + 1 + nextJobMatch.index : workflowText.length;
+
+  return workflowText.slice(start, end);
+}
+
 test("factory reset workflow status options stay in sync with shared config", () => {
   const workflowText = readWorkflowText("factory-reset-pr.yml");
   const options = extractResetWorkflowStatusOptions(workflowText);
@@ -96,10 +107,17 @@ test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of r
 
 test("factory PR loop failure jobs check out the failing branch before diagnosis", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
-  const checkoutBlocks =
-    workflowText.match(
-      /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/g
-    ) || [];
+  const routeJob = extractJobBlock(workflowText, "route");
+  const stageFailedJob = extractJobBlock(workflowText, "stage-failed");
+  const reviewProcessingFailedJob = extractJobBlock(workflowText, "review-processing-failed");
 
-  assert.ok(checkoutBlocks.length >= 3);
+  assert.doesNotMatch(routeJob, /needs\.route\.outputs\.branch/);
+  assert.match(
+    stageFailedJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+  assert.match(
+    reviewProcessingFailedJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
 });

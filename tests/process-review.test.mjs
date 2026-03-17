@@ -4,10 +4,10 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  classifyReviewArtifactsFailure,
   classifyProcessReviewFailure,
   main as processReviewMain,
-  processReview,
-  ReviewArtifactsError
+  processReview
 } from "../scripts/process-review.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
@@ -488,9 +488,10 @@ test("processReview main writes failure message output for workflow follow-up", 
 
 test("classifyProcessReviewFailure marks review artifact validation failures as review content issues", () => {
   const failure = classifyProcessReviewFailure(
-    new ReviewArtifactsError(
-      "review.md must include the canonical Traceability section derived from review.json"
-    )
+    {
+      factoryFailureType: "content_or_logic",
+      factoryFailurePhase: "review"
+    }
   );
 
   assert.deepEqual(failure, {
@@ -505,6 +506,28 @@ test("classifyProcessReviewFailure marks delivery failures as review delivery is
   assert.deepEqual(failure, {
     failureType: "configuration",
     failurePhase: "review_delivery"
+  });
+});
+
+test("classifyReviewArtifactsFailure keeps invalid methodology failures in review_delivery", () => {
+  const failure = classifyReviewArtifactsFailure(
+    'Unable to resolve review methodology "does-not-exist". Expected instructions at .factory/review-methods/does-not-exist/instructions.md'
+  );
+
+  assert.deepEqual(failure, {
+    failureType: "configuration",
+    failurePhase: "review_delivery"
+  });
+});
+
+test("classifyReviewArtifactsFailure treats review artifact content failures as review-phase content issues", () => {
+  const failure = classifyReviewArtifactsFailure(
+    "review.md must include the canonical Traceability section derived from review.json"
+  );
+
+  assert.deepEqual(failure, {
+    failureType: "content_or_logic",
+    failurePhase: "review"
   });
 });
 

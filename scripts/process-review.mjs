@@ -124,18 +124,34 @@ async function handleRequestChanges({
   });
 }
 
-export class ReviewArtifactsError extends Error {
-  constructor(message, options = {}) {
-    super(message, options);
-    this.name = "ReviewArtifactsError";
+function markProcessReviewFailure(error, classification) {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  failure.factoryFailureType = classification.failureType;
+  failure.factoryFailurePhase = classification.failurePhase;
+  return failure;
+}
+
+export function classifyReviewArtifactsFailure(message) {
+  const normalized = `${message || ""}`.trim();
+
+  if (/unable to resolve review methodology/i.test(normalized)) {
+    return {
+      failureType: FAILURE_TYPES.configuration,
+      failurePhase: "review_delivery"
+    };
   }
+
+  return {
+    failureType: FAILURE_TYPES.contentOrLogic,
+    failurePhase: "review"
+  };
 }
 
 export function classifyProcessReviewFailure(error) {
-  if (error instanceof ReviewArtifactsError) {
+  if (error?.factoryFailureType && error?.factoryFailurePhase) {
     return {
-      failureType: FAILURE_TYPES.contentOrLogic,
-      failurePhase: "review"
+      failureType: error.factoryFailureType,
+      failurePhase: error.factoryFailurePhase
     };
   }
 
@@ -177,7 +193,10 @@ export async function processReview({
         requestedMethodology: requestedMethod
       }));
     } catch (error) {
-      throw new ReviewArtifactsError(error.message, { cause: error });
+      throw markProcessReviewFailure(
+        error,
+        classifyReviewArtifactsFailure(error?.message || "")
+      );
     }
 
     console.log(
