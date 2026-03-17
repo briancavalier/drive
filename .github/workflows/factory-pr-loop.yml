@@ -43,6 +43,9 @@ jobs:
           ref: ${{ needs.route.outputs.branch }}
           fetch-depth: 0
         with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
+        with:
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -304,7 +307,7 @@ jobs:
           codex-version: 0.114.0
           codex-args: --full-auto
 
-      - name: Mark PR as blocked after review delivery failure
+      - name: Mark PR as blocked after review processing failure
         run: node scripts/handle-stage-failure.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
