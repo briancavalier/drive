@@ -12,6 +12,10 @@ import {
   buildReviewConversationBody,
   MAX_REVIEW_BODY_CHARS
 } from "./lib/github-messages.mjs";
+import {
+  classifyFailure,
+  FAILURE_TYPES
+} from "./lib/failure-classification.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
 
 function gitRevParse(ref = "HEAD") {
@@ -120,6 +124,43 @@ async function handleRequestChanges({
   });
 }
 
+function markProcessReviewFailure(error, classification) {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  failure.factoryFailureType = classification.failureType;
+  failure.factoryFailurePhase = classification.failurePhase;
+  return failure;
+}
+
+export function classifyReviewArtifactsFailure(message) {
+  const normalized = `${message || ""}`.trim();
+
+  if (/unable to resolve review methodology/i.test(normalized)) {
+    return {
+      failureType: FAILURE_TYPES.configuration,
+      failurePhase: "review_delivery"
+    };
+  }
+
+  return {
+    failureType: FAILURE_TYPES.contentOrLogic,
+    failurePhase: "review"
+  };
+}
+
+export function classifyProcessReviewFailure(error) {
+  if (error?.factoryFailureType && error?.factoryFailurePhase) {
+    return {
+      failureType: error.factoryFailureType,
+      failurePhase: error.factoryFailurePhase
+    };
+  }
+
+  return {
+    failureType: classifyFailure(error?.message || ""),
+    failurePhase: "review_delivery"
+  };
+}
+
 export async function processReview({
   env = process.env,
   githubClient = {
@@ -146,10 +187,17 @@ export async function processReview({
   let review;
   let reviewMarkdown;
   try {
-    ({ review, reviewMarkdown } = loadValidatedReviewArtifacts({
-      artifactsPath,
-      requestedMethodology: requestedMethod
-    }));
+    try {
+      ({ review, reviewMarkdown } = loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: requestedMethod
+      }));
+    } catch (error) {
+      throw markProcessReviewFailure(
+        error,
+        classifyReviewArtifactsFailure(error?.message || "")
+      );
+    }
 
     console.log(
       `Processing autonomous review for PR #${prNumber} on branch ${branch} (methodology: ${review.methodology}, decision: ${review.decision})`
@@ -196,11 +244,16 @@ export async function main(options = {}) {
   try {
     await processReview(options);
     setOutputs({
-      failure_message: ""
+      failure_message: "",
+      failure_type: "",
+      failure_phase: ""
     });
   } catch (error) {
+    const { failureType, failurePhase } = classifyProcessReviewFailure(error);
     setOutputs({
-      failure_message: `${error.message || ""}`.trim()
+      failure_message: `${error.message || ""}`.trim(),
+      failure_type: failureType,
+      failure_phase: failurePhase
     });
     console.error(error.message);
     process.exitCode = 1;

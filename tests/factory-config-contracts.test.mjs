@@ -25,6 +25,17 @@ function readWorkflowText(fileName) {
   );
 }
 
+function extractJobBlock(workflowText, jobName) {
+  const start = workflowText.indexOf(`  ${jobName}:\n`);
+  assert.notEqual(start, -1, `${jobName} job must exist in factory-pr-loop workflow`);
+
+  const remainder = workflowText.slice(start + 1);
+  const nextJobMatch = remainder.match(/\n  [a-z0-9-]+:\n/);
+  const end = nextJobMatch ? start + 1 + nextJobMatch.index : workflowText.length;
+
+  return workflowText.slice(start, end);
+}
+
 test("factory reset workflow status options stay in sync with shared config", () => {
   const workflowText = readWorkflowText("factory-reset-pr.yml");
   const options = extractResetWorkflowStatusOptions(workflowText);
@@ -54,4 +65,59 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
   const workflowText = readWorkflowText("_factory-stage.yml");
 
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
+});
+
+test("factory PR loop failure jobs build diagnosis prompts under RUNNER_TEMP and run Codex advisories", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Build failure diagnosis prompt[\s\S]*node scripts\/build-failure-diagnosis-prompt\.mjs/
+  );
+  assert.match(workflowText, /FACTORY_FAILURE_PHASE:\s*stage/);
+  assert.match(
+    workflowText,
+    /FACTORY_FAILURE_PHASE:\s*\$\{\{\s*needs\['process-review'\]\.outputs\.failure_phase \|\| 'review_delivery'\s*\}\}/
+  );
+  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
+  assert.match(workflowText, /prompt-file:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.prompt_path\s*\}\}/);
+  assert.match(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.advisory_path\s*\}\}/);
+  assert.match(
+    workflowText,
+    /failure_type:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_type\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /failure_phase:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_phase\s*\}\}/
+  );
+});
+
+test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of repo-tracked temp paths", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  const codexSteps = workflowText.match(/name:\s+Run Codex failure diagnosis[\s\S]*?codex-args:\s+--full-auto/g) || [];
+  assert.equal(codexSteps.length, 2);
+  for (const step of codexSteps) {
+    assert.match(step, /continue-on-error:\s*true/);
+  }
+
+  assert.doesNotMatch(workflowText, /prompt-file:\s*\.factory\/tmp\//);
+  assert.doesNotMatch(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\.factory\/tmp\//);
+});
+
+test("factory PR loop failure jobs check out the failing branch before diagnosis", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const routeJob = extractJobBlock(workflowText, "route");
+  const stageFailedJob = extractJobBlock(workflowText, "stage-failed");
+  const reviewProcessingFailedJob = extractJobBlock(workflowText, "review-processing-failed");
+
+  assert.doesNotMatch(routeJob, /needs\.route\.outputs\.branch/);
+  assert.match(
+    stageFailedJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+  assert.match(
+    reviewProcessingFailedJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
 });

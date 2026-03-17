@@ -134,11 +134,39 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Build failure diagnosis prompt
+        id: diagnosis_prompt
+        run: node scripts/build-failure-diagnosis-prompt.mjs
+        env:
+          FACTORY_FAILURE_PHASE: stage
+          FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
+          FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+
+      - name: Run Codex failure diagnosis
+        id: diagnosis
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          sandbox: workspace-write
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          codex-version: 0.114.0
+          codex-args: --full-auto
 
       - name: Handle classified stage failure
         run: node scripts/handle-stage-failure.mjs
@@ -146,6 +174,7 @@ jobs:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_FAILURE_PHASE: stage
           FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
           FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
@@ -154,6 +183,11 @@ jobs:
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.stage.outputs.transient_retry_attempts || '0' }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
+          FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
 
   block:
     if: needs.route.outputs.action == 'blocked'
@@ -192,6 +226,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       failure_message: ${{ steps.process_review.outputs.failure_message }}
+      failure_type: ${{ steps.process_review.outputs.failure_type }}
+      failure_phase: ${{ steps.process_review.outputs.failure_phase }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -234,38 +270,54 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Build review delivery failure comment
-        id: message
-        run: |
-          {
-            echo "comment<<__EOF__"
-            echo "Autonomous review artifacts were generated, but the GitHub review could not be delivered. The PR is blocked until this is fixed."
-            if [ -n "${FAILURE_MESSAGE}" ]; then
-              echo
-              echo "Failure detail: ${FAILURE_MESSAGE}"
-            fi
-            echo
-            echo "Please inspect the review artifacts on the branch and retry once the delivery issue is resolved."
-            echo "__EOF__"
-          } >> "$GITHUB_OUTPUT"
+      - name: Build failure diagnosis prompt
+        id: diagnosis_prompt
+        run: node scripts/build-failure-diagnosis-prompt.mjs
         env:
-          FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
+          FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review_delivery' }}
+          FACTORY_FAILED_ACTION: review
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
 
-      - name: Mark PR as blocked after review delivery failure
-        run: node scripts/apply-pr-state.mjs
+      - name: Run Codex failure diagnosis
+        id: diagnosis
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          sandbox: workspace-write
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          codex-version: 0.114.0
+          codex-args: --full-auto
+
+      - name: Mark PR as blocked after review processing failure
+        run: node scripts/handle-stage-failure.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_STATUS: blocked
+          FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review_delivery' }}
+          FACTORY_FAILED_ACTION: review
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_LAST_FAILURE_TYPE: configuration
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
-          FACTORY_ADD_LABELS: factory:blocked
-          FACTORY_COMMENT: ${{ steps.message.outputs.comment }}
+          FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}

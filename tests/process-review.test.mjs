@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { main as processReviewMain, processReview } from "../scripts/process-review.mjs";
+import {
+  classifyReviewArtifactsFailure,
+  classifyProcessReviewFailure,
+  main as processReviewMain,
+  processReview
+} from "../scripts/process-review.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function renderReviewMarkdown(reviewJson, extras = {}) {
@@ -473,10 +478,57 @@ test("processReview main writes failure message output for workflow follow-up", 
     const outputs = fs.readFileSync(outputPath, "utf8");
     assert.match(outputs, /failure_message<<__EOF__/);
     assert.match(outputs, /Review delivery failed/);
+    assert.match(outputs, /failure_type<<__EOF__\ncontent_or_logic\n__EOF__/);
+    assert.match(outputs, /failure_phase<<__EOF__\nreview_delivery\n__EOF__/);
   } finally {
     process.env.GITHUB_OUTPUT = previousOutput;
     process.exitCode = previousExitCode;
   }
+});
+
+test("classifyProcessReviewFailure marks review artifact validation failures as review content issues", () => {
+  const failure = classifyProcessReviewFailure(
+    {
+      factoryFailureType: "content_or_logic",
+      factoryFailurePhase: "review"
+    }
+  );
+
+  assert.deepEqual(failure, {
+    failureType: "content_or_logic",
+    failurePhase: "review"
+  });
+});
+
+test("classifyProcessReviewFailure marks delivery failures as review delivery issues", () => {
+  const failure = classifyProcessReviewFailure(new Error("FACTORY_GITHUB_TOKEN is required"));
+
+  assert.deepEqual(failure, {
+    failureType: "configuration",
+    failurePhase: "review_delivery"
+  });
+});
+
+test("classifyReviewArtifactsFailure keeps invalid methodology failures in review_delivery", () => {
+  const failure = classifyReviewArtifactsFailure(
+    'Unable to resolve review methodology "does-not-exist". Expected instructions at .factory/review-methods/does-not-exist/instructions.md'
+  );
+
+  assert.deepEqual(failure, {
+    failureType: "configuration",
+    failurePhase: "review_delivery"
+  });
+});
+
+test("classifyReviewArtifactsFailure treats review artifact content failures as review-phase content issues", () => {
+  const failure = classifyReviewArtifactsFailure(
+    "review.md must include the canonical Traceability section derived from review.json"
+  );
+
+  assert.deepEqual(failure, {
+    failureType: "content_or_logic",
+    failurePhase: "review"
+  });
 });
 
 test("processReview uses configured request-changes overrides and preserves truncation", async () => {

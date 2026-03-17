@@ -29,6 +29,7 @@ const STALE_STAGE_PUSH_PATTERNS = [
 
 const CONFIGURATION_PATTERNS = [
   /factory_github_token/i,
+  /factory_[a-z0-9_]+\s+is required/i,
   /openai_api_key/i,
   /model_not_found/i,
   /quota exceeded/i,
