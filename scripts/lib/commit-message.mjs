@@ -225,6 +225,10 @@ function resolveArtifactDescriptor(path, issueNumber) {
     return "repair log";
   }
 
+  if (path.endsWith("cost-summary.json")) {
+    return "cost summary";
+  }
+
   return "";
 }
 

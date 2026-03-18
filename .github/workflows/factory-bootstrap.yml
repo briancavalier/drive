@@ -29,7 +29,7 @@ jobs:
           {
             echo "## Factory Bootstrap"
             echo ""
-            echo "Factory labels are now ensured for this repository."
+            echo "Factory labels, including the advisory cost-band labels, are now ensured for this repository."
             echo ""
             echo "Required repository setup:"
             echo "- Add the \`OPENAI_API_KEY\` repository secret."
@@ -37,4 +37,5 @@ jobs:
             echo "- Allow GitHub Actions to create pull requests."
             echo "- Keep the CI workflow named \`CI\`, or update the workflow_run trigger in \`factory-pr-loop.yml\`."
             echo "- Protect the default branch and require human review for merges."
+            echo "- Optional: set \`FACTORY_COST_WARN_USD\` and \`FACTORY_COST_HIGH_USD\` to tune advisory cost bands."
           } >> "$GITHUB_STEP_SUMMARY"

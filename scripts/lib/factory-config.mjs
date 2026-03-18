@@ -4,7 +4,10 @@ export const FACTORY_LABELS = {
   planReady: "factory:plan-ready",
   implement: "factory:implement",
   blocked: "factory:blocked",
-  paused: "factory:paused"
+  paused: "factory:paused",
+  costLow: "factory:cost-low",
+  costMedium: "factory:cost-medium",
+  costHigh: "factory:cost-high"
 };
 
 export const FACTORY_STAGE_MODES = Object.freeze({
@@ -90,6 +93,21 @@ export const LABEL_DEFINITIONS = [
     name: FACTORY_LABELS.paused,
     color: "BFD4F2",
     description: "Pause autonomous activity for this pull request"
+  },
+  {
+    name: FACTORY_LABELS.costLow,
+    color: "0E8A16",
+    description: "Estimated factory cost is in the low advisory band"
+  },
+  {
+    name: FACTORY_LABELS.costMedium,
+    color: "FBCA04",
+    description: "Estimated factory cost is in the medium advisory band"
+  },
+  {
+    name: FACTORY_LABELS.costHigh,
+    color: "D93F0B",
+    description: "Estimated factory cost is in the high advisory band"
   }
 ];
 
@@ -110,6 +128,21 @@ export const DEFAULT_FACTORY_STAGE_MODELS = Object.freeze({
   [FACTORY_STAGE_MODES.repair]: DEFAULT_FACTORY_CODEX_MODEL,
   [FACTORY_STAGE_MODES.review]: DEFAULT_FACTORY_REVIEW_MODEL
 });
+export const FACTORY_COST_BANDS = Object.freeze({
+  low: "low",
+  medium: "medium",
+  high: "high"
+});
+export const FACTORY_COST_LABEL_BY_BAND = Object.freeze({
+  [FACTORY_COST_BANDS.low]: FACTORY_LABELS.costLow,
+  [FACTORY_COST_BANDS.medium]: FACTORY_LABELS.costMedium,
+  [FACTORY_COST_BANDS.high]: FACTORY_LABELS.costHigh
+});
+export const FACTORY_COST_LABELS = Object.freeze(
+  Object.values(FACTORY_COST_LABEL_BY_BAND)
+);
+export const DEFAULT_FACTORY_COST_WARN_USD = 0.25;
+export const DEFAULT_FACTORY_COST_HIGH_USD = 1.0;
 
 export function isFactoryBranch(branchName) {
   return typeof branchName === "string" && branchName.startsWith("factory/");
@@ -183,4 +216,8 @@ export function assertFactoryPrStatus(value, context = "factory PR status") {
   }
 
   return normalized;
+}
+
+export function labelForCostBand(band) {
+  return FACTORY_COST_LABEL_BY_BAND[`${band || ""}`.trim()] || "";
 }

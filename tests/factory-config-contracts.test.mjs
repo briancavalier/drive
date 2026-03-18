@@ -100,6 +100,21 @@ test("factory stage workflow resolves per-stage models before running Codex", ()
   );
 });
 
+test("factory stage workflow estimates costs and updates PR labels before Codex runs", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Estimate stage cost[\s\S]*node scripts\/estimate-stage-cost\.mjs/
+  );
+  assert.match(workflowText, /FACTORY_COST_WARN_USD:\s*\$\{\{\s*vars\.FACTORY_COST_WARN_USD \|\| ''\s*\}\}/);
+  assert.match(workflowText, /FACTORY_COST_HIGH_USD:\s*\$\{\{\s*vars\.FACTORY_COST_HIGH_USD \|\| ''\s*\}\}/);
+  assert.match(
+    workflowText,
+    /name:\s+Record cost estimate on pull request[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
+  );
+});
+
 test("factory PR loop failure jobs build diagnosis prompts and gate Codex advisories", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 

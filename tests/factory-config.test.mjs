@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_FACTORY_CODEX_MODEL,
   DEFAULT_FACTORY_REVIEW_MODEL,
+  FACTORY_COST_LABELS,
+  FACTORY_LABELS,
   FACTORY_STAGE_MODES,
+  LABEL_DEFINITIONS,
   resolveFactoryStageModel
 } from "../scripts/lib/factory-config.mjs";
 
@@ -66,4 +69,17 @@ test("resolveFactoryStageModel uses stage defaults when no overrides are provide
     resolveFactoryStageModel({ mode: FACTORY_STAGE_MODES.review, variables: {} }),
     DEFAULT_FACTORY_REVIEW_MODEL
   );
+});
+
+test("label definitions include advisory cost labels", () => {
+  const labels = LABEL_DEFINITIONS.map((definition) => definition.name);
+
+  assert.ok(labels.includes(FACTORY_LABELS.costLow));
+  assert.ok(labels.includes(FACTORY_LABELS.costMedium));
+  assert.ok(labels.includes(FACTORY_LABELS.costHigh));
+  assert.deepEqual([...FACTORY_COST_LABELS].sort(), [
+    FACTORY_LABELS.costHigh,
+    FACTORY_LABELS.costLow,
+    FACTORY_LABELS.costMedium
+  ]);
 });

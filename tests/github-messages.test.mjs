@@ -32,7 +32,13 @@ function prBodyInput() {
       artifactsPath: ".factory/runs/7",
       status: "plan_ready",
       repairAttempts: 1,
-      maxRepairAttempts: 3
+      maxRepairAttempts: 3,
+      costEstimateUsd: 0.2234,
+      costEstimateBand: "medium",
+      costEstimateEmoji: "🟡",
+      lastEstimatedStage: "plan",
+      lastEstimatedModel: "gpt-5-codex",
+      lastStageCostEstimateUsd: 0.2234
     }
   };
 }
@@ -80,9 +86,13 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   const lines = body.split("\n");
   const stageLine = lines.find((line) => line.startsWith("- Stage:"));
   const ciLine = lines.find((line) => line.startsWith("- CI:"));
+  const costLine = lines.find((line) => line.startsWith("- Estimated cost:"));
+  const latestCostLine = lines.find((line) => line.startsWith("- Latest stage estimate:"));
 
   assert.equal(stageLine, "- Stage: 👀 plan_ready");
   assert.equal(ciLine, "- CI: ⏳ pending");
+  assert.equal(costLine, "- Estimated cost: 🟡 $0.223 total (medium)");
+  assert.equal(latestCostLine, "- Latest stage estimate: $0.223 using gpt-5-codex");
   assert.ok(
     lines.includes(
       "- ▶️ Apply `factory:implement` to start coding after plan review."
@@ -95,6 +105,9 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
     lines.includes(
       "- ▶️ Remove `factory:paused` and re-apply `factory:implement` to resume."
     )
+  );
+  assert.ok(
+    lines.includes("- 💸 Cost values are advisory estimates, not billed usage.")
   );
 
   const successBody = renderPrBody(

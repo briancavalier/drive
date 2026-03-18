@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyCostEstimateMetadata,
   applyPendingReviewSha,
   applyTransientRetryAttempts,
   resolveNextStatus
@@ -116,4 +117,29 @@ test("applyPendingReviewSha sets pending SHA when provided", () => {
   const nextMetadata = applyPendingReviewSha(metadata, "deadbeef");
 
   assert.equal(nextMetadata.pendingReviewSha, "deadbeef");
+});
+
+test("applyCostEstimateMetadata updates advisory cost fields", () => {
+  const metadata = defaultPrMetadata();
+  const nextMetadata = applyCostEstimateMetadata(metadata, {
+    FACTORY_COST_ESTIMATE_USD: "0.42",
+    FACTORY_COST_ESTIMATE_BAND: "medium",
+    FACTORY_COST_ESTIMATE_EMOJI: "🟡",
+    FACTORY_COST_WARN_USD: "0.25",
+    FACTORY_COST_HIGH_USD: "1",
+    FACTORY_COST_PRICING_SOURCE: "model",
+    FACTORY_LAST_ESTIMATED_STAGE: "plan",
+    FACTORY_LAST_ESTIMATED_MODEL: "gpt-5-codex",
+    FACTORY_LAST_STAGE_COST_ESTIMATE_USD: "0.42"
+  });
+
+  assert.equal(nextMetadata.costEstimateUsd, 0.42);
+  assert.equal(nextMetadata.costEstimateBand, "medium");
+  assert.equal(nextMetadata.costEstimateEmoji, "🟡");
+  assert.equal(nextMetadata.costWarnUsd, 0.25);
+  assert.equal(nextMetadata.costHighUsd, 1);
+  assert.equal(nextMetadata.costPricingSource, "model");
+  assert.equal(nextMetadata.lastEstimatedStage, "plan");
+  assert.equal(nextMetadata.lastEstimatedModel, "gpt-5-codex");
+  assert.equal(nextMetadata.lastStageCostEstimateUsd, 0.42);
 });

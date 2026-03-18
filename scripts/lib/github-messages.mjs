@@ -6,6 +6,7 @@ import {
   FACTORY_LABELS,
   PR_STATE_MARKER
 } from "./factory-config.mjs";
+import { formatEstimatedUsd } from "./cost-estimation.mjs";
 import { normalizeNewlines } from "./review-output.mjs";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -185,6 +186,7 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
     repairLog: `${base}/repair-log.md`,
+    costSummary: `${base}/cost-summary.json`,
     review: `${base}/review.md`,
     reviewJson: `${base}/review.json`
   };
@@ -205,6 +207,15 @@ function defaultPrMetadata(overrides = {}) {
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
+    costEstimateUsd: 0,
+    costEstimateBand: "",
+    costEstimateEmoji: "",
+    costWarnUsd: 0,
+    costHighUsd: 0,
+    costPricingSource: "",
+    lastEstimatedStage: null,
+    lastEstimatedModel: null,
+    lastStageCostEstimateUsd: 0,
     ...overrides
   };
 }
@@ -249,6 +260,15 @@ export function renderPrBody(
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const stageStatusDisplay = formatWithEmoji(STAGE_STATUS_EMOJI, state.status, "unknown");
   const ciStatusDisplay = formatWithEmoji(CI_STATUS_EMOJI, ciStatus, "pending");
+  const hasCostEstimate = Number.isFinite(Number(state.costEstimateUsd)) && Number(state.costEstimateUsd) > 0;
+  const estimatedCostLine = hasCostEstimate
+    ? `- Estimated cost: ${state.costEstimateEmoji || ""} $${formatEstimatedUsd(state.costEstimateUsd)} total (${state.costEstimateBand || "unknown"})`
+        .replace(":  ", ": ")
+    : null;
+  const latestStageCostLine =
+    hasCostEstimate && state.lastEstimatedStage && state.lastEstimatedModel
+      ? `- Latest stage estimate: $${formatEstimatedUsd(state.lastStageCostEstimateUsd)} using ${state.lastEstimatedModel}`
+      : null;
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
     BRANCH: branch,
@@ -262,6 +282,7 @@ export function renderPrBody(
     PLAN_URL: links.plan,
     ACCEPTANCE_TESTS_URL: links.acceptanceTests,
     REPAIR_LOG_URL: links.repairLog,
+    COST_SUMMARY_URL: links.costSummary,
     REVIEW_URL: links.review,
     REVIEW_JSON_URL: links.reviewJson,
     IMPLEMENT_LABEL: FACTORY_LABELS.implement,
@@ -273,6 +294,8 @@ export function renderPrBody(
       `- Stage: ${stageStatusDisplay}`,
       `- CI: ${ciStatusDisplay}`,
       `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
+      estimatedCostLine,
+      latestStageCostLine,
       state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
       state.transientRetryAttempts
         ? `- Transient retries used: ${state.transientRetryAttempts}`
@@ -286,6 +309,7 @@ export function renderPrBody(
       `- [plan.md](${links.plan})`,
       `- [acceptance-tests.md](${links.acceptanceTests})`,
       `- [repair-log.md](${links.repairLog})`,
+      `- [cost-summary.json](${links.costSummary})`,
       `- [review.md](${links.review})`,
       `- [review.json](${links.reviewJson})`
     ].join("\n"),
@@ -293,7 +317,8 @@ export function renderPrBody(
       "## Operator Notes",
       `- ▶️ Apply \`${FACTORY_LABELS.implement}\` to start coding after plan review.`,
       `- ⏸️ Apply \`${FACTORY_LABELS.paused}\` to pause autonomous work.`,
-      `- ▶️ Remove \`${FACTORY_LABELS.paused}\` and re-apply \`${FACTORY_LABELS.implement}\` to resume.`
+      `- ▶️ Remove \`${FACTORY_LABELS.paused}\` and re-apply \`${FACTORY_LABELS.implement}\` to resume.`,
+      "- 💸 Cost values are advisory estimates, not billed usage."
     ].join("\n")
   };
   const body = renderMessage("pr-body", variables, options);

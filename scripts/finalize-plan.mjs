@@ -1,7 +1,13 @@
 import {
   FACTORY_LABELS,
+  FACTORY_COST_LABELS,
   DEFAULT_MAX_REPAIR_ATTEMPTS
 } from "./lib/factory-config.mjs";
+import {
+  buildCostLabelUpdate,
+  buildCostMetadataFromSummary,
+  loadExistingCostSummary
+} from "./lib/cost-estimation.mjs";
 import { renderPlanReadyIssueComment } from "./lib/github-messages.mjs";
 import {
   buildPlanReadyPrMetadata,
@@ -34,6 +40,8 @@ const existingPullRequest =
     ? await getPullRequest(inputPrNumber)
     : await findOpenPullRequestByHead(branch);
 const metadata = extractPrMetadata(existingPullRequest?.body) || defaultPrMetadata();
+const costSummary = loadExistingCostSummary(artifactsPath);
+const costMetadata = costSummary ? buildCostMetadataFromSummary(costSummary) : {};
 const title = `Factory: ${`${issue.title || ""}`.replace(/^\[factory\]\s*/i, "").trim() || issue.title}`;
 const body = renderPrBody({
   issueNumber,
@@ -41,7 +49,10 @@ const body = renderPrBody({
   repositoryUrl,
   artifactsPath,
   metadata: buildPlanReadyPrMetadata({
-    metadata,
+    metadata: {
+      ...metadata,
+      ...costMetadata
+    },
     issueNumber,
     artifactsPath,
     preparedMaxRepairAttempts
@@ -58,7 +69,18 @@ const pullRequest =
   }));
 
 await updatePullRequest({ prNumber: pullRequest.number, body });
-await addLabels(pullRequest.number, [FACTORY_LABELS.managed, FACTORY_LABELS.planReady]);
+const nextCostLabel = costSummary ? buildCostLabelUpdate(costSummary).addLabel : "";
+
+for (const label of FACTORY_COST_LABELS) {
+  if (label !== nextCostLabel) {
+    await removeLabel(pullRequest.number, label);
+  }
+}
+
+await addLabels(
+  pullRequest.number,
+  [FACTORY_LABELS.managed, FACTORY_LABELS.planReady, nextCostLabel].filter(Boolean)
+);
 await removeLabel(issueNumber, FACTORY_LABELS.start);
 await commentOnIssue(
   issueNumber,
