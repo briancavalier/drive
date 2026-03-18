@@ -1,0 +1,56 @@
+{
+  "issueNumber": 45,
+  "branch": "factory/45-label-rejected-intake-issues-for-visibility-and-",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0036,
+    "totalEstimatedUsd": 0.0091,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "fallback"
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 4338,
+      "estimatedInputTokens": 1085,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.002,
+      "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2767,
+      "estimatedInputTokens": 692,
+      "multiplier": 4,
+      "estimatedUsd": 0.0035,
+      "pricingSource": "model"
+    },
+    "review": {
+      "mode": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 5685,
+      "estimatedInputTokens": 1422,
+      "multiplier": 2,
+      "estimatedUsd": 0.0036,
+      "pricingSource": "fallback"
+    }
+  }
+}

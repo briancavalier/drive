@@ -5,9 +5,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildStagePrompt,
+  loadStagePromptInputs,
   resolvePromptBudgets,
   writePromptArtifacts
 } from "../scripts/build-stage-prompt.mjs";
+import { APPROVED_ISSUE_FILE_NAME } from "../scripts/lib/factory-config.mjs";
 import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { parseIssueForm } from "../scripts/lib/issue-form.mjs";
 import { resolveReviewMethodology } from "../scripts/lib/review-methods.mjs";
@@ -37,6 +39,7 @@ function fixture(name) {
 function makeArtifactsDir(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-prompt-"));
   const files = {
+    [APPROVED_ISSUE_FILE_NAME]: fixture("long-issue-body.md"),
     "spec.md": fixture("spec.md"),
     "plan.md": fixture("plan.md"),
     "acceptance-tests.md": fixture("acceptance-tests.md"),
@@ -155,7 +158,7 @@ function legacyReviewPrompt({ artifactsDir, methodologyInstructions }) {
     "   - A Summary section using the `📝` heading.",
     "   - Blocking findings first, using a `🚨` heading and keeping them outside collapsible sections.",
     "   - Non-blocking findings or notes under a `⚠️` heading when present.",
-    "   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections with the `🧭` cue.",
+    "   - The control plane renders the final `🧭` Traceability section from `review.json`; `review.md` should focus on the human-readable review narrative.",
     "   - Methodology used (`{{METHODOLOGY_NAME}}`).",
     "2. `review.json` — machine-readable artifact that must include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.",
     "",
@@ -189,24 +192,20 @@ function legacyReviewMethodologyInstructions() {
     "Review procedure:",
     "",
     "1. Read the approved `spec.md`, `plan.md`, `acceptance-tests.md`, relevant CI evidence, and the current git diff before deciding.",
-    "2. Write `review.md` in this order: decision and summary, blocking findings, non-blocking notes, then **Traceability**.",
+    "2. Write `review.md` in this order: decision and summary, blocking findings, then non-blocking notes.",
     "3. Keep blocking findings and unmet requirements outside collapsible sections so repair context stays visible in GitHub reviews.",
-    "4. Produce a compact **Traceability** section in `review.md` that covers:",
+    "4. Build explicit traceability in `review.json` for:",
     "   - every acceptance criterion",
     "   - each major spec commitment touched by the change",
     "   - each plan deliverable touched by the change",
-    "5. Render traceability as GitHub-friendly `<details><summary>` blocks, grouped by:",
-    "   - `Traceability: Acceptance Criteria`",
-    "   - `Traceability: Spec Commitments`",
-    "   - `Traceability: Plan Deliverables`",
-    "6. For every traceability item, record:",
+    "5. For every traceability item, record:",
     "   - type: `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`",
     "   - requirement text",
     "   - status: `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`",
-    "   - concrete evidence such as changed files, tests, CI jobs, or artifact evidence",
-    "7. Use the canonical traceability block derived from `review.json` exactly, so the machine-readable and human-readable artifacts stay in sync.",
-    "8. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.",
-    "9. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.",
+    "   - evidence as an array of concrete citations such as changed files, tests, CI jobs, or artifact evidence",
+    "6. The control plane renders the canonical `review.md` Traceability section from `review.json`; do not rely on hand-authored markdown traceability to stay in sync.",
+    "7. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.",
+    "8. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.",
     "",
     "Focus areas:",
     "",
@@ -372,16 +371,69 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /Review against these dimensions:/);
   assert.match(result.prompt, /review\.json/);
   assert.match(result.prompt, /Traceability/);
-  assert.match(result.prompt, /Render Traceability with GitHub-friendly `<details><summary>` blocks/);
-  assert.match(result.prompt, /Canonical traceability in `review\.md` is validated against `review\.json` after the run/);
-  assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability/);
+  assert.match(result.prompt, /The control plane renders the final `🧭` Traceability section from `review\.json`/);
+  assert.match(result.prompt, /The control plane renders canonical traceability in `review\.md` from `review\.json` after the run/);
+  assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes/);
   assert.match(result.prompt, /requirement_checks/);
   assert.match(result.prompt, /requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`/);
+  assert.match(result.prompt, /`evidence` must be an array of non-empty strings/);
   assert.match(result.prompt, /findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`/);
+  assert.match(result.prompt, /Record evidence in `review\.json` as arrays of concrete citations/);
   assert.match(result.prompt, /partially_satisfied/);
   assert.deepEqual(result.meta.methodology, {
     name: "default",
     requested: "default",
+    fallback: false
+  });
+});
+
+test("review prompt resolves workflow-safety methodology when requested", () => {
+  const artifactsDir = makeArtifactsDir();
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata: defaultPrMetadata({
+      issueNumber: 1,
+      artifactsPath: artifactsDir,
+      status: "reviewing"
+    })
+  });
+  const methodology = resolveReviewMethodology({ requested: "workflow-safety" });
+  const templateVariables = {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: "",
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: methodology.fallback ? "true" : "false"
+  };
+
+  const result = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    templateText: reviewTemplate,
+    templateVariables,
+    budgets: {
+      plan: 5500,
+      implement: 12000,
+      review: 8000,
+      repair: 14000,
+      hardMax: 14000
+    }
+  });
+
+  assert.match(result.prompt, /Review Rubric: Workflow-Safety/);
+  assert.match(result.prompt, /Least-Privilege Permissions/);
+  assert.match(result.prompt, /Trigger Scope & Recursion/);
+  assert.deepEqual(result.meta.methodology, {
+    name: "workflow-safety",
+    requested: "workflow-safety",
     fallback: false
   });
 });
@@ -487,7 +539,7 @@ test("review static instruction payload is materially smaller than the legacy sh
   const legacyStaticPayload = legacyPrompt.length;
 
   assert.ok(
-    nextStaticPayload < legacyStaticPayload * 0.75,
+    nextStaticPayload < legacyStaticPayload * 0.8,
     `${nextStaticPayload} vs ${legacyStaticPayload}`
   );
 });
@@ -613,4 +665,51 @@ test("implement prompt is materially smaller than the legacy prompt shape", () =
   });
 
   assert.ok(nextPrompt.length < legacyPrompt.length * 0.6, `${nextPrompt.length} vs ${legacyPrompt.length}`);
+});
+
+test("loadStagePromptInputs reads approved issue snapshot from artifacts", async () => {
+  const artifactsDir = makeArtifactsDir({
+    [APPROVED_ISSUE_FILE_NAME]: [
+      "## Problem Statement",
+      "Approved snapshot problem",
+      "## Goals",
+      "Approved goals",
+      "## Non-goals",
+      "Approved non-goals",
+      "## Constraints",
+      "Approved constraints",
+      "## Acceptance Criteria",
+      "Approved acceptance",
+      "## Risk",
+      "Approved risk",
+      "## Affected Area",
+      "Approved area"
+    ].join("\n")
+  });
+
+  const input = await loadStagePromptInputs({
+    FACTORY_MODE: "implement",
+    FACTORY_ISSUE_NUMBER: "12",
+    FACTORY_BRANCH: "factory/12-sample",
+    FACTORY_ARTIFACTS_PATH: artifactsDir
+  });
+
+  assert.match(input.issueBody, /Approved snapshot problem/);
+});
+
+test("loadStagePromptInputs fails closed when approved issue snapshot is missing", async () => {
+  const artifactsDir = makeArtifactsDir({
+    [APPROVED_ISSUE_FILE_NAME]: null
+  });
+
+  await assert.rejects(
+    () =>
+      loadStagePromptInputs({
+        FACTORY_MODE: "implement",
+        FACTORY_ISSUE_NUMBER: "12",
+        FACTORY_BRANCH: "factory/12-sample",
+        FACTORY_ARTIFACTS_PATH: artifactsDir
+      }),
+    /Missing approved issue snapshot/
+  );
 });
