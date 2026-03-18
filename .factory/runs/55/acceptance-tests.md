@@ -1,0 +1,5 @@
+- `node --test tests/prepare-stage-push.test.mjs` (telemetry entry appended during persist)
+- `node --test tests/cost-estimation.test.mjs` (calibration multiplier applied and metadata preserved)
+- `node --test tests/cost-telemetry.test.mjs` (new helper schema + append behavior)
+- `node --test tests/calibrate-cost-estimates.test.mjs` (calibration aggregation and output file)
+- `npm test -- --test-name-pattern="factory-artifact-guard"` (allows new calibration artifact if applicable)

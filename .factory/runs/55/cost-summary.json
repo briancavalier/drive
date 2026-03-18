@@ -1,0 +1,38 @@
+{
+  "issueNumber": 55,
+  "branch": "factory/55-add-telemetry-and-calibration-loop-for-cost-esti",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "plan",
+    "model": "gpt-5-codex",
+    "stageEstimateUsd": 0.0018,
+    "totalEstimatedUsd": 0.0018,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "model"
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 3885,
+      "estimatedInputTokens": 972,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.0018,
+      "pricingSource": "model"
+    }
+  }
+}
