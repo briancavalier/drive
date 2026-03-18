@@ -188,7 +188,7 @@ function normalizeMarkdown(markdown) {
 
 function findTraceabilityHeadingIndex(lines) {
   return lines.findIndex((line) =>
-    TRACEABILITY_HEADING_TOKENS.some((token) => line.trimStart().startsWith(token))
+    TRACEABILITY_HEADING_TOKENS.some((token) => line.trim() === token)
   );
 }
 
@@ -200,13 +200,25 @@ function findTrailingContentIndex(lines, startIndex) {
   }
 
   while (index < lines.length) {
-    if (lines[index].trim() !== "<details>") {
+    const currentLine = lines[index].trim();
+
+    if (!currentLine.startsWith("<details")) {
       return index;
+    }
+
+    if (currentLine.includes("</details>")) {
+      index += 1;
+
+      while (index < lines.length && !lines[index].trim()) {
+        index += 1;
+      }
+
+      continue;
     }
 
     index += 1;
 
-    while (index < lines.length && lines[index].trim() !== "</details>") {
+    while (index < lines.length && !lines[index].includes("</details>")) {
       index += 1;
     }
 
