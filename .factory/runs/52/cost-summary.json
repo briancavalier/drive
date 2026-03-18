@@ -18,8 +18,8 @@
   "current": {
     "stage": "repair",
     "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.004,
-    "totalEstimatedUsd": 0.0105,
+    "stageEstimateUsd": 0.0041,
+    "totalEstimatedUsd": 0.0106,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model"
@@ -55,10 +55,10 @@
     "repair": {
       "mode": "repair",
       "model": "gpt-5-codex",
-      "promptChars": 4278,
-      "estimatedInputTokens": 1070,
+      "promptChars": 4424,
+      "estimatedInputTokens": 1106,
       "multiplier": 3,
-      "estimatedUsd": 0.004,
+      "estimatedUsd": 0.0041,
       "pricingSource": "model"
     }
   }
