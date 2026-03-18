@@ -25,7 +25,8 @@ export const MODEL_PRICING = Object.freeze({
   "gpt-5-codex": {
     inputPer1M: 1.25
   },
-  "codex-mini-latest": {
+  "gpt-5-mini": {
+    // Matches the prior lightweight tier until official pricing guidance is available.
     inputPer1M: 0.25
   }
 });

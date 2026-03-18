@@ -1,0 +1,56 @@
+{
+  "issueNumber": 48,
+  "branch": "factory/48-replace-invalid-codex-mini-latest-defaults-with-",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0007,
+    "totalEstimatedUsd": 0.0059,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "model"
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 3583,
+      "estimatedInputTokens": 896,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.0017,
+      "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2779,
+      "estimatedInputTokens": 695,
+      "multiplier": 4,
+      "estimatedUsd": 0.0035,
+      "pricingSource": "model"
+    },
+    "review": {
+      "mode": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 5697,
+      "estimatedInputTokens": 1425,
+      "multiplier": 2,
+      "estimatedUsd": 0.0007,
+      "pricingSource": "model"
+    }
+  }
+}

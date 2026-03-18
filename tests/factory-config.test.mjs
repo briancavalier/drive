@@ -10,6 +10,10 @@ import {
   resolveFactoryStageModel
 } from "../scripts/lib/factory-config.mjs";
 
+test("DEFAULT_FACTORY_REVIEW_MODEL falls back to gpt-5-mini", () => {
+  assert.equal(DEFAULT_FACTORY_REVIEW_MODEL, "gpt-5-mini");
+});
+
 test("resolveFactoryStageModel prefers an explicit override", () => {
   const model = resolveFactoryStageModel({
     mode: FACTORY_STAGE_MODES.implement,

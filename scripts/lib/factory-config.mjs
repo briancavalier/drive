@@ -122,7 +122,7 @@ export const PR_STATE_MARKER = "factory-state";
 export const DEFAULT_MAX_REPAIR_ATTEMPTS = 3;
 export const DEFAULT_CI_WORKFLOW_NAME = "CI";
 export const DEFAULT_FACTORY_CODEX_MODEL = "gpt-5-codex";
-export const DEFAULT_FACTORY_REVIEW_MODEL = "codex-mini-latest";
+export const DEFAULT_FACTORY_REVIEW_MODEL = "gpt-5-mini";
 export const FACTORY_STAGE_MODEL_VARIABLES = Object.freeze({
   [FACTORY_STAGE_MODES.plan]: "FACTORY_PLAN_MODEL",
   [FACTORY_STAGE_MODES.implement]: "FACTORY_IMPLEMENT_MODEL",

@@ -201,7 +201,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
 
@@ -369,7 +369,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
 
