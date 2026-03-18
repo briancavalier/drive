@@ -67,12 +67,36 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
 });
 
-test("factory stage workflow uses a dedicated cheaper model for review", () => {
+test("factory stage workflow resolves per-stage models before running Codex", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
   assert.match(
     workflowText,
-    /model:\s*\$\{\{\s*inputs\.mode == 'review' && \(vars\.FACTORY_REVIEW_MODEL \|\| 'codex-mini-latest'\) \|\| \(vars\.FACTORY_CODEX_MODEL \|\| 'gpt-5-codex'\)\s*\}\}/
+    /name:\s+Resolve stage model[\s\S]*node scripts\/resolve-stage-model\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_PLAN_MODEL:\s*\$\{\{\s*vars\.FACTORY_PLAN_MODEL \|\| ''\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_IMPLEMENT_MODEL:\s*\$\{\{\s*vars\.FACTORY_IMPLEMENT_MODEL \|\| ''\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_REPAIR_MODEL:\s*\$\{\{\s*vars\.FACTORY_REPAIR_MODEL \|\| ''\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_REVIEW_MODEL:\s*\$\{\{\s*vars\.FACTORY_REVIEW_MODEL \|\| ''\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODEL_OVERRIDE:\s*\$\{\{\s*inputs\.model\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /model:\s*\$\{\{\s*steps\.model\.outputs\.model\s*\}\}/
   );
 });
 

@@ -19,6 +19,10 @@ on:
       artifacts_path:
         required: true
         type: string
+      model:
+        required: false
+        type: string
+        default: ""
       max_repair_attempts:
         required: false
         type: number
@@ -136,6 +140,18 @@ jobs:
       - name: Ensure artifacts path exists
         run: mkdir -p "${{ inputs.artifacts_path }}"
 
+      - name: Resolve stage model
+        id: model
+        run: node scripts/resolve-stage-model.mjs
+        env:
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_STAGE_MODEL_OVERRIDE: ${{ inputs.model }}
+          FACTORY_CODEX_MODEL: ${{ vars.FACTORY_CODEX_MODEL || '' }}
+          FACTORY_PLAN_MODEL: ${{ vars.FACTORY_PLAN_MODEL || '' }}
+          FACTORY_IMPLEMENT_MODEL: ${{ vars.FACTORY_IMPLEMENT_MODEL || '' }}
+          FACTORY_REPAIR_MODEL: ${{ vars.FACTORY_REPAIR_MODEL || '' }}
+          FACTORY_REVIEW_MODEL: ${{ vars.FACTORY_REVIEW_MODEL || '' }}
+
       - name: Run Codex
         id: codex
         continue-on-error: true
@@ -144,7 +160,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
-          model: ${{ inputs.mode == 'review' && (vars.FACTORY_REVIEW_MODEL || 'codex-mini-latest') || (vars.FACTORY_CODEX_MODEL || 'gpt-5-codex') }}
+          model: ${{ steps.model.outputs.model }}
           codex-version: 0.114.0
           codex-args: --full-auto
 
