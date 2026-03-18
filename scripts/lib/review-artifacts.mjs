@@ -192,44 +192,10 @@ function findTraceabilityHeadingIndex(lines) {
   );
 }
 
-function findTrailingContentIndex(lines, startIndex) {
-  let index = startIndex;
-
-  while (index < lines.length && !lines[index].trim()) {
-    index += 1;
-  }
-
-  while (index < lines.length) {
-    const currentLine = lines[index].trim();
-
-    if (!currentLine.startsWith("<details")) {
+function findNextTopLevelSectionIndex(lines, startIndex) {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    if (/^##(?!#)\s/u.test(lines[index].trim())) {
       return index;
-    }
-
-    if (currentLine.includes("</details>")) {
-      index += 1;
-
-      while (index < lines.length && !lines[index].trim()) {
-        index += 1;
-      }
-
-      continue;
-    }
-
-    index += 1;
-
-    while (index < lines.length && !lines[index].includes("</details>")) {
-      index += 1;
-    }
-
-    if (index >= lines.length) {
-      return lines.length;
-    }
-
-    index += 1;
-
-    while (index < lines.length && !lines[index].trim()) {
-      index += 1;
     }
   }
 
@@ -250,7 +216,7 @@ export function normalizeReviewMarkdownTraceability(reviewMarkdown, requirementC
       : canonicalTraceability;
   }
 
-  const trailingContentIndex = findTrailingContentIndex(lines, traceabilityIndex + 1);
+  const trailingContentIndex = findNextTopLevelSectionIndex(lines, traceabilityIndex + 1);
   const beforeTraceability = lines.slice(0, traceabilityIndex).join("\n").replace(/\s+$/u, "");
   const afterTraceability = lines.slice(trailingContentIndex).join("\n").replace(/^\s+/u, "");
 
