@@ -227,6 +227,51 @@ export async function commentOnIssue(issueNumber, body) {
   });
 }
 
+export async function createIssue({ title, body, labels } = {}) {
+  const { owner, repo } = getRepoContext();
+  const payload = {
+    title,
+    body
+  };
+
+  if (Array.isArray(labels) && labels.length > 0) {
+    payload.labels = labels;
+  }
+
+  return githubRequest(`/repos/${owner}/${repo}/issues`, {
+    method: "POST",
+    body: payload
+  });
+}
+
+export async function searchIssues({ query, sort, order, perPage } = {}) {
+  const { owner, repo } = getRepoContext();
+  const qualifiers = `repo:${owner}/${repo}`;
+  const sanitizedQuery = `${query || ""}`.trim();
+  const finalQuery = sanitizedQuery.includes("repo:") ? sanitizedQuery : `${qualifiers} ${sanitizedQuery}`.trim();
+  const params = new URLSearchParams();
+
+  if (finalQuery) {
+    params.set("q", finalQuery);
+  } else {
+    params.set("q", qualifiers);
+  }
+
+  if (sort) {
+    params.set("sort", sort);
+  }
+
+  if (order) {
+    params.set("order", order);
+  }
+
+  if (perPage) {
+    params.set("per_page", `${perPage}`);
+  }
+
+  return githubRequest(`/search/issues?${params.toString()}`);
+}
+
 export async function submitPullRequestReview({ prNumber, event, body }) {
   const { owner, repo } = getRepoContext();
   const normalizedEvent = `${event || ""}`.toUpperCase();

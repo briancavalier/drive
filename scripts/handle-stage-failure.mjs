@@ -9,6 +9,14 @@ import {
   FAILURE_TYPES,
   parseRetryLimit
 } from "./lib/failure-classification.mjs";
+import {
+  buildFailureSignature,
+  buildFollowupCommentSection,
+  buildFollowupIssue,
+  classifyFollowup,
+  findOpenFollowup
+} from "./lib/failure-followup.mjs";
+import { createIssue, searchIssues } from "./lib/github.mjs";
 
 export { buildFailureComment } from "./lib/failure-comment.mjs";
 
@@ -38,8 +46,9 @@ export function buildStateUpdate(action, failureType) {
   };
 }
 
-export async function main(env = process.env) {
-  const execFileAsync = promisify(execFile);
+export async function main(env = process.env, dependencies = {}) {
+  const execFileAsync =
+    dependencies.execFileAsync || promisify(execFile);
   const action = requiredEnv("FACTORY_FAILED_ACTION", env);
   const phase = `${env.FACTORY_FAILURE_PHASE || "stage"}`.trim() || "stage";
   const failureType = env.FACTORY_FAILURE_TYPE || FAILURE_TYPES.contentOrLogic;
@@ -52,6 +61,10 @@ export async function main(env = process.env) {
     (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
       ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`
       : "");
+  const runUrl = env.FACTORY_RUN_URL || "";
+  const branch = env.FACTORY_BRANCH || "";
+  const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
+  const ciRunId = env.FACTORY_CI_RUN_ID || "";
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -61,13 +74,102 @@ export async function main(env = process.env) {
     failureType,
     retryAttempts,
     failureMessage,
-    runUrl: env.FACTORY_RUN_URL || "",
-    branch: env.FACTORY_BRANCH || "",
+    runUrl,
+    branch,
     repositoryUrl,
-    artifactsPath: env.FACTORY_ARTIFACTS_PATH || "",
-    ciRunId: env.FACTORY_CI_RUN_ID || "",
+    artifactsPath,
+    ciRunId,
     advisory
   });
+  let augmentedComment = comment;
+  const githubClient = {
+    createIssue,
+    searchIssues,
+    ...(dependencies.githubClient || {})
+  };
+  const followup = {
+    classifyFollowup,
+    buildFailureSignature,
+    buildFollowupIssue,
+    findOpenFollowup,
+    buildFollowupCommentSection,
+    ...(dependencies.followup || {})
+  };
+
+  try {
+    const followupAssessment = followup.classifyFollowup({
+      failureType,
+      phase,
+      action,
+      failureMessage,
+      advisory
+    });
+
+    if (followupAssessment.actionable) {
+      const signature = followup.buildFailureSignature({
+        category: followupAssessment.category,
+        failureType,
+        phase,
+        failureMessage,
+        advisory
+      });
+      const existingIssue = await followup.findOpenFollowup({
+        signature,
+        searchIssues: githubClient.searchIssues
+      });
+
+      if (existingIssue) {
+        augmentedComment = `${comment}\n\n${followup.buildFollowupCommentSection({
+          issueNumber: existingIssue.number,
+          signature,
+          created: false
+        })}`;
+        console.info(
+          `Follow-up already tracked in issue #${existingIssue.number} for signature ${signature}.`
+        );
+      } else {
+        const issuePayload = followup.buildFollowupIssue({
+          prNumber,
+          runUrl,
+          branch,
+          artifactsPath,
+          failureType,
+          failureMessage,
+          advisory,
+          category: followupAssessment.category,
+          signature,
+          ciRunId,
+          repositoryUrl
+        });
+        const issue = await githubClient.createIssue({
+          title: issuePayload.title,
+          body: issuePayload.body
+        });
+        const issueNumber = issue?.number;
+
+        if (issueNumber) {
+          augmentedComment = `${comment}\n\n${followup.buildFollowupCommentSection({
+            issueNumber,
+            signature,
+            created: true
+          })}`;
+          console.info(
+            `Created follow-up issue #${issueNumber} for signature ${signature}.`
+          );
+        } else {
+          console.warn("GitHub createIssue response missing issue number; skipping follow-up note.");
+        }
+      }
+    } else {
+      console.info(
+        `Follow-up skipped: ${followupAssessment.reason || "no_actionable_indicators"}.`
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `Follow-up creation failed: ${error?.message || error}. Continuing without follow-up issue.`
+    );
+  }
   const childEnv = {
     ...env,
     FACTORY_PR_NUMBER: prNumber,
@@ -76,7 +178,7 @@ export async function main(env = process.env) {
     FACTORY_REMOVE_LABELS: removeLabels,
     FACTORY_LAST_FAILURE_TYPE: failureType,
     FACTORY_TRANSIENT_RETRY_ATTEMPTS: `${retryAttempts}`,
-    FACTORY_COMMENT: comment,
+    FACTORY_COMMENT: augmentedComment,
     FACTORY_CI_STATUS: env.FACTORY_CI_STATUS || "pending"
   };
 

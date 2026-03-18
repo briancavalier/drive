@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFailureComment, buildStateUpdate } from "../scripts/handle-stage-failure.mjs";
+import { buildFailureComment, buildStateUpdate, main as handleFailure } from "../scripts/handle-stage-failure.mjs";
 import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
 
@@ -71,4 +71,123 @@ test("buildFailureComment renders deterministic review recovery guidance without
 
   assert.match(comment, /Inspect the failing review-stage run and the durable review artifacts on the branch/);
   assert.doesNotMatch(comment, /## Codex diagnosis/);
+});
+
+test("main creates follow-up issue for actionable failure", async () => {
+  let createdIssue = null;
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.configuration,
+      FACTORY_FAILURE_MESSAGE: "Missing FACTORY_GITHUB_TOKEN",
+      FACTORY_PR_NUMBER: "123",
+      FACTORY_RUN_URL: "https://github.com/example/repo/actions/runs/1",
+      FACTORY_BRANCH: "factory/123",
+      FACTORY_ARTIFACTS_PATH: ".factory/runs/52",
+      FACTORY_CI_RUN_ID: "999",
+      FACTORY_REPOSITORY_URL: "https://github.com/example/repo",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({ items: [] }),
+        createIssue: async (payload) => {
+          createdIssue = payload;
+          return { number: 456 };
+        }
+      }
+    }
+  );
+
+  assert.ok(createdIssue, "expected issue payload");
+  assert.match(createdIssue.body, /factory-followup-meta/);
+  assert.ok(execEnv.FACTORY_COMMENT.includes("Factory follow-up opened as #456"), "comment should mention follow-up issue");
+  assert.equal(execEnv.FACTORY_LAST_FAILURE_TYPE, FAILURE_TYPES.configuration);
+});
+
+test("main skips creating follow-up when signature already tracked", async () => {
+  let createCalls = 0;
+  let execEnv = null;
+  const followupModule = await import("../scripts/lib/failure-followup.mjs");
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.configuration,
+      FACTORY_FAILURE_MESSAGE: "Missing review.json artifact",
+      FACTORY_PR_NUMBER: "234",
+      FACTORY_RUN_URL: "https://github.com/example/repo/actions/runs/2",
+      FACTORY_BRANCH: "factory/234",
+      FACTORY_ARTIFACTS_PATH: ".factory/runs/53",
+      FACTORY_CI_RUN_ID: "1000",
+      FACTORY_REPOSITORY_URL: "https://github.com/example/repo",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({
+          items: [{ number: 321, body: '<!-- factory-followup-meta: {"signature":"deadbeef"} -->' }]
+        }),
+        createIssue: async () => {
+          createCalls += 1;
+          return { number: 999 };
+        }
+      },
+      followup: {
+        ...followupModule,
+        buildFailureSignature: () => "deadbeef"
+      }
+    }
+  );
+
+  assert.equal(createCalls, 0, "createIssue should not be called for duplicates");
+  assert.ok(
+    execEnv.FACTORY_COMMENT.includes("Factory follow-up already tracked as #321"),
+    "comment should mention existing follow-up"
+  );
+});
+
+test("main leaves comment unchanged for ineligible failures", async () => {
+  let execEnv = null;
+  let createCalls = 0;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.transientInfra,
+      FACTORY_FAILURE_MESSAGE: "network hiccup",
+      FACTORY_PR_NUMBER: "345",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({ items: [] }),
+        createIssue: async () => {
+          createCalls += 1;
+          return { number: 1 };
+        }
+      }
+    }
+  );
+
+  assert.ok(execEnv.FACTORY_COMMENT.includes("## Suggested recovery"));
+  assert.ok(!execEnv.FACTORY_COMMENT.includes("Factory follow-up"), "comment should not mention follow-up");
+  assert.equal(createCalls, 0);
 });
