@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  isTrustedReviewTrigger,
   routePullRequestLabeled,
   routePullRequestReview,
   routeWorkflowRun
@@ -136,10 +137,28 @@ test("routePullRequestLabeled retries implementation for managed PRs already mar
   assert.equal(result.prNumber, 33);
 });
 
-test("routePullRequestReview triggers repair on changes requested", () => {
+test("isTrustedReviewTrigger trusts maintainers and automation actors", () => {
+  assert.equal(isTrustedReviewTrigger({ reviewerPermission: "write" }), true);
+  assert.equal(isTrustedReviewTrigger({ reviewerPermission: "maintain" }), true);
+  assert.equal(isTrustedReviewTrigger({ reviewerPermission: "admin" }), true);
+  assert.equal(
+    isTrustedReviewTrigger({ reviewerLogin: "github-actions[bot]" }),
+    true
+  );
+  assert.equal(isTrustedReviewTrigger({ reviewerLogin: "app/github-actions" }), true);
+  assert.equal(isTrustedReviewTrigger({ reviewerPermission: "read" }), false);
+});
+
+test("routePullRequestReview triggers repair on trusted maintainer changes requested", () => {
   const result = routePullRequestReview({
     action: "submitted",
-    review: { id: 55, state: "changes_requested", body: "Please tighten the tests." },
+    reviewerPermission: "write",
+    review: {
+      id: 55,
+      state: "changes_requested",
+      body: "Please tighten the tests.",
+      user: { login: "briancavalier" }
+    },
     pull_request: {
       number: 33,
       body: managedPrBody("implementing"),
@@ -156,7 +175,8 @@ test("routePullRequestReview triggers repair on changes requested", () => {
 test("routePullRequestReview also handles reviewing status", () => {
   const result = routePullRequestReview({
     action: "submitted",
-    review: { id: 56, state: "CHANGES_REQUESTED" },
+    reviewerPermission: "maintain",
+    review: { id: 56, state: "CHANGES_REQUESTED", user: { login: "maintainer" } },
     pull_request: {
       number: 33,
       body: managedPrBody("reviewing"),
@@ -167,6 +187,47 @@ test("routePullRequestReview also handles reviewing status", () => {
 
   assert.equal(result.action, "repair");
   assert.equal(result.reviewId, 56);
+});
+
+test("routePullRequestReview ignores untrusted public reviewers", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    reviewerPermission: "read",
+    review: {
+      id: 57,
+      state: "changes_requested",
+      body: "Force a repair run",
+      user: { login: "random-user" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routePullRequestReview trusts automation review actors", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    review: {
+      id: 58,
+      state: "changes_requested",
+      user: { login: "github-actions[bot]" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  });
+
+  assert.equal(result.action, "repair");
+  assert.equal(result.reviewId, 58);
 });
 
 test("routeWorkflowRun routes successful CI to review stage", () => {

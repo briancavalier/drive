@@ -18,13 +18,14 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   route:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       action: ${{ steps.route.outputs.action }}
       pr_number: ${{ steps.route.outputs.pr_number }}
@@ -51,13 +52,16 @@ jobs:
         id: route
         run: node scripts/route-pr-loop.mjs
         env:
-          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
 
   mark-in-progress:
     if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
     needs: route
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -106,6 +110,9 @@ jobs:
       - route
       - stage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -131,6 +138,10 @@ jobs:
       - route
       - stage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -213,6 +224,10 @@ jobs:
     if: needs.route.outputs.action == 'blocked'
     needs: route
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -244,6 +259,10 @@ jobs:
       - mark-in-progress
       - stage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     outputs:
       failure_message: ${{ steps.process_review.outputs.failure_message }}
       failure_type: ${{ steps.process_review.outputs.failure_type }}
@@ -287,6 +306,10 @@ jobs:
       - route
       - process-review
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -1,4 +1,7 @@
+import { APPROVED_ISSUE_FILE_NAME } from "./factory-config.mjs";
+
 const DURABLE_FACTORY_RUN_FILES = new Set([
+  APPROVED_ISSUE_FILE_NAME,
   "spec.md",
   "plan.md",
   "acceptance-tests.md",

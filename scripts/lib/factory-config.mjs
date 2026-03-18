@@ -5,6 +5,7 @@ export const FACTORY_LABELS = {
   implement: "factory:implement",
   blocked: "factory:blocked",
   paused: "factory:paused",
+  intakeRejected: "factory:intake-rejected",
   costLow: "factory:cost-low",
   costMedium: "factory:cost-medium",
   costHigh: "factory:cost-high"
@@ -95,6 +96,12 @@ export const LABEL_DEFINITIONS = [
     description: "Pause autonomous activity for this pull request"
   },
   {
+    name: FACTORY_LABELS.intakeRejected,
+    color: "D73A4A",
+    description:
+      "Factory intake was rejected; issue needs updates before planning can start."
+  },
+  {
     name: FACTORY_LABELS.costLow,
     color: "0E8A16",
     description: "Estimated factory cost is in the low advisory band"
@@ -143,6 +150,7 @@ export const FACTORY_COST_LABELS = Object.freeze(
 );
 export const DEFAULT_FACTORY_COST_WARN_USD = 0.25;
 export const DEFAULT_FACTORY_COST_HIGH_USD = 1.0;
+export const APPROVED_ISSUE_FILE_NAME = "approved-issue.md";
 
 export function isFactoryBranch(branchName) {
   return typeof branchName === "string" && branchName.startsWith("factory/");

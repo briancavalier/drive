@@ -9,6 +9,9 @@ import {
 import { extractPrMetadata } from "./pr-metadata.mjs";
 import { nextRepairState } from "./repair-state.mjs";
 
+const TRUSTED_REVIEW_PERMISSIONS = new Set(["write", "maintain", "admin"]);
+const TRUSTED_AUTOMATION_REVIEWERS = new Set(["github-actions[bot]", "app/github-actions"]);
+
 function hasLabel(labels, labelName) {
   return labels.some((label) => label.name === labelName);
 }
@@ -20,6 +23,16 @@ function isManaged(labels, branchName, metadata) {
     hasLabel(labels, FACTORY_LABELS.managed) &&
     !hasLabel(labels, FACTORY_LABELS.paused) &&
     !hasLabel(labels, FACTORY_LABELS.blocked)
+  );
+}
+
+export function isTrustedReviewTrigger({ reviewerLogin, reviewerPermission } = {}) {
+  const normalizedLogin = `${reviewerLogin || ""}`.trim();
+  const normalizedPermission = `${reviewerPermission || ""}`.trim().toLowerCase();
+
+  return (
+    TRUSTED_AUTOMATION_REVIEWERS.has(normalizedLogin) ||
+    TRUSTED_REVIEW_PERMISSIONS.has(normalizedPermission)
   );
 }
 
@@ -49,12 +62,15 @@ export function routePullRequestLabeled(payload) {
 export function routePullRequestReview(payload) {
   const pullRequest = payload.pull_request;
   const metadata = extractPrMetadata(pullRequest.body);
+  const reviewerLogin = payload.review?.user?.login || "";
+  const reviewerPermission = payload.reviewerPermission;
 
   if (
     payload.action !== "submitted" ||
     payload.review?.state?.toLowerCase() !== "changes_requested" ||
     !FACTORY_REVIEW_REPAIRABLE_STATUSES.includes(metadata?.status) ||
-    !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
+    !isManaged(pullRequest.labels, pullRequest.head.ref, metadata) ||
+    !isTrustedReviewTrigger({ reviewerLogin, reviewerPermission })
   ) {
     return { action: "noop" };
   }

@@ -69,11 +69,13 @@ Configure these before using the scaffold in a live repository:
 
 ## Factory operator flow
 
-1. Open a "Factory Request" issue.
-2. Apply the `factory:start` label.
+1. Open a "Factory Request" issue from a trusted collaborator account with `write`, `maintain`, or `admin` access.
+2. Apply the `factory:start` label from a trusted collaborator account with `write`, `maintain`, or `admin` access.
 3. Review the generated draft PR and its planning artifacts.
 4. Apply the `factory:implement` label to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
+
+For public repositories, maintainers cannot sponsor outsider-authored factory issues into execution. Intake now requires both the issue author and the actor applying `factory:start` to be trusted collaborators.
 
 ## Autonomous review stage
 
@@ -111,6 +113,7 @@ changes.
 The scaffold keeps durable factory history in-repo under `.factory/runs/<issue>/`.
 Only these files are allowed to persist there:
 
+- `approved-issue.md`
 - `spec.md`
 - `plan.md`
 - `acceptance-tests.md`
@@ -122,6 +125,11 @@ Only these files are allowed to persist there:
 All files under `.factory/tmp/**` are scratch space only. Stage push validation
 and CI both reject added or modified temp artifacts, while allowing cleanup
 deletions.
+
+The immutable `approved-issue.md` snapshot is written during intake and becomes
+the authoritative request body for all later plan, implement, repair, and
+review stages. Edits to the live GitHub issue after intake do not affect stage
+prompts.
 
 If a factory run changes `.github/workflows/**` without `FACTORY_GITHUB_TOKEN`,
 the stage will stop before `git push` with a setup error that tells you to add
@@ -156,6 +164,7 @@ The workflows create and manage these labels automatically:
 - `factory:implement`
 - `factory:blocked`
 - `factory:paused`
+- `factory:intake-rejected` (intake was rejected before planning; the issue needs updates)
 - `factory:cost-low`
 - `factory:cost-medium`
 - `factory:cost-high`

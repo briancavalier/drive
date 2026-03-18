@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  APPROVED_ISSUE_FILE_NAME,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_LABELS,
   PR_STATE_MARKER
@@ -182,6 +183,7 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   const base = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
 
   return {
+    approvedIssue: `${base}/${APPROVED_ISSUE_FILE_NAME}`,
     spec: `${base}/spec.md`,
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
@@ -305,6 +307,7 @@ export function renderPrBody(
       .join("\n"),
     ARTIFACTS_SECTION: [
       "## Artifacts",
+      `- [approved-issue.md](${links.approvedIssue})`,
       `- [spec.md](${links.spec})`,
       `- [plan.md](${links.plan})`,
       `- [acceptance-tests.md](${links.acceptanceTests})`,
