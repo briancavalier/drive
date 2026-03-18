@@ -54,3 +54,102 @@ test("routeEvent uses live pull request state for implement label events", async
 
   assert.equal(route.action, "noop");
 });
+
+test("routeEvent uses live pull request state and collaborator permission for review events", async () => {
+  const payload = {
+    action: "submitted",
+    review: {
+      id: 55,
+      state: "changes_requested",
+      body: "Please tighten the tests.",
+      user: { login: "briancavalier" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("plan_ready"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request_review",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody("implementing"),
+        labels: managedLabels(),
+        head: { ref: "factory/12-sample" }
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" }),
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  assert.equal(route.action, "repair");
+  assert.equal(route.reviewId, 55);
+});
+
+test("routeEvent ignores untrusted review triggers", async () => {
+  const payload = {
+    action: "submitted",
+    review: {
+      id: 56,
+      state: "changes_requested",
+      user: { login: "random-user" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request_review",
+    payload,
+    githubClient: {
+      getPullRequest: async () => payload.pull_request,
+      getCollaboratorPermission: async () => ({ permission: "read" }),
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent trusts automation review actors without collaborator lookup", async () => {
+  let collaboratorLookups = 0;
+  const payload = {
+    action: "submitted",
+    review: {
+      id: 57,
+      state: "changes_requested",
+      user: { login: "github-actions[bot]" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: { ref: "factory/12-sample" }
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request_review",
+    payload,
+    githubClient: {
+      getPullRequest: async () => payload.pull_request,
+      getCollaboratorPermission: async () => {
+        collaboratorLookups += 1;
+        return { permission: "read" };
+      },
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  assert.equal(route.action, "repair");
+  assert.equal(collaboratorLookups, 0);
+});
