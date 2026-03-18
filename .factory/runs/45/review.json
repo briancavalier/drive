@@ -1,0 +1,59 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Adds `factory:intake-rejected` label, provisions it on bootstrap, applies it on deterministic intake rejections (missing form or insufficient permissions), and clears it on successful intake. Tests and CI cover the behavior.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Factory label bootstrap defines the rejection label",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/factory-config.mjs:1-12 (FACTORY_LABELS includes intakeRejected) and scripts/lib/factory-config.mjs:98-103 (LABEL_DEFINITIONS entry for FACTORY_LABELS.intakeRejected)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Missing form applies the rejection label",
+      "status": "satisfied",
+      "evidence": [
+        "tests/prepare-intake.test.mjs:29-68 (unit test asserts addLabels called with FACTORY_LABELS.intakeRejected when form is incomplete)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Unauthorized requester applies the rejection label",
+      "status": "satisfied",
+      "evidence": [
+        "tests/prepare-intake.test.mjs:71-105 (unit test asserts addLabels called with FACTORY_LABELS.intakeRejected when permission is read)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Successful intake clears the rejection label",
+      "status": "satisfied",
+      "evidence": [
+        "tests/prepare-intake.test.mjs:107-176 (happy-path unit test asserts removeLabel called) and scripts/prepare-intake.mjs:60-66,87 (clearRejectionLabel calls removeLabel)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Documentation references the new label",
+      "status": "satisfied",
+      "evidence": [
+        "README.md:143-156 (Labels list includes `factory:intake-rejected` and descriptive parenthetical)"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Missing run artifact: repair-log.md",
+      "details": "The artifact contract allows a `repair-log.md` in `.factory/runs/<issue>/`. This run does not include `.factory/runs/45/repair-log.md`. This is informational and does not affect acceptance tests for this change.",
+      "scope": ".factory/runs/45/",
+      "recommendation": "Optionally add an empty `repair-log.md` to the run directory for artifact completeness, or document why it's omitted.",
+      "type": "non_blocking"
+    }
+  ]
+}
+
