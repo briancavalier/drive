@@ -47,11 +47,22 @@ test("classifyFailure detects configuration failures", () => {
   );
 });
 
-test("classifyFailure falls back to content_or_logic", () => {
+test("classifyFailure detects stage no-op runs", () => {
   assert.equal(
-    classifyFailure("Codex completed without producing repository changes."),
-    FAILURE_TYPES.contentOrLogic
+    classifyFailure("Stage run completed without preparing repository changes."),
+    FAILURE_TYPES.stageNoop
   );
+});
+
+test("classifyFailure detects stage setup failures", () => {
+  assert.equal(
+    classifyFailure("Stage setup prerequisites failed: Remote branch origin/factory/example is missing."),
+    FAILURE_TYPES.stageSetup
+  );
+});
+
+test("classifyFailure falls back to content_or_logic", () => {
+  assert.equal(classifyFailure("Unclassified failure text."), FAILURE_TYPES.contentOrLogic);
 });
 
 test("transient helpers honor retry defaults", () => {

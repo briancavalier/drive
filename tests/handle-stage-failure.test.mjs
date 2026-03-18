@@ -20,6 +20,14 @@ test("buildStateUpdate blocks non-retriable failures via shared constants", () =
   assert.equal(result.removeLabels, "factory:implement");
 });
 
+test("buildStateUpdate blocks implement stage_noop after hitting retry limit", () => {
+  const result = buildStateUpdate("implement", FAILURE_TYPES.stageNoop, { stageNoopAttempts: 2 });
+
+  assert.equal(result.status, FACTORY_PR_STATUSES.blocked);
+  assert.equal(result.addLabels, "factory:blocked");
+  assert.equal(result.removeLabels, "factory:implement");
+});
+
 test("buildFailureComment prefixes transient infra failures with ⚠️", () => {
   const comment = buildFailureComment({
     action: "implement",
@@ -110,6 +118,61 @@ test("main creates follow-up issue for actionable failure", async () => {
   assert.match(createdIssue.body, /factory-followup-meta/);
   assert.ok(execEnv.FACTORY_COMMENT.includes("Factory follow-up opened as #456"), "comment should mention follow-up issue");
   assert.equal(execEnv.FACTORY_LAST_FAILURE_TYPE, FAILURE_TYPES.configuration);
+});
+
+test("main increments stage_noop attempts and records retry guidance", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.stageNoop,
+      FACTORY_FAILURE_MESSAGE: "Stage run completed without preparing repository changes.\n\nStage diagnostics:\nbranch: factory/loop\nremote head: abc",
+      FACTORY_PR_NUMBER: "456",
+      FACTORY_BRANCH: "factory/loop",
+      FACTORY_STAGE_NOOP_ATTEMPTS: "0",
+      FACTORY_REPOSITORY_URL: "https://github.com/example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      }
+    }
+  );
+
+  assert.ok(execEnv, "expected apply-pr-state invocation");
+  assert.equal(execEnv.FACTORY_STAGE_NOOP_ATTEMPTS, "1");
+  assert.match(execEnv.FACTORY_COMMENT, /## Stage retry status/);
+  assert.match(execEnv.FACTORY_COMMENT, /Factory will treat the next implement run as the last auto-retry/i);
+  assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.planReady);
+});
+
+test("main blocks stage_noop failures after exhausting retries", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.stageNoop,
+      FACTORY_FAILURE_MESSAGE: "Stage run completed without preparing repository changes.\n\nStage diagnostics:\nbranch: factory/block\nremote head: def",
+      FACTORY_PR_NUMBER: "789",
+      FACTORY_BRANCH: "factory/block",
+      FACTORY_STAGE_NOOP_ATTEMPTS: "1",
+      FACTORY_REPOSITORY_URL: "https://github.com/example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      }
+    }
+  );
+
+  assert.ok(execEnv, "expected apply-pr-state invocation");
+  assert.equal(execEnv.FACTORY_STAGE_NOOP_ATTEMPTS, "2");
+  assert.match(execEnv.FACTORY_COMMENT, /Automated retries are now blocked/i);
+  assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.blocked);
 });
 
 test("main skips creating follow-up when signature already tracked", async () => {

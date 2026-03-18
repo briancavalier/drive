@@ -92,7 +92,9 @@ export async function main(env = process.env) {
     review_body: route.reviewBody || "",
     repair_attempts: route.repairState?.repairAttempts || "",
     repeated_failure_count: route.repairState?.repeatedFailureCount || "",
-    last_failure_signature: route.repairState?.lastFailureSignature || ""
+    last_failure_signature: route.repairState?.lastFailureSignature || "",
+    stage_noop_attempts: route.stageNoopAttempts ?? "",
+    stage_setup_attempts: route.stageSetupAttempts ?? ""
   });
 }
 

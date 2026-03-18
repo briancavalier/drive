@@ -35,6 +35,14 @@ function buildHeadline({ action, phase, failureType, retryAttempts }) {
     return "Factory encountered a configuration error and is now blocked.";
   }
 
+  if (failureType === FAILURE_TYPES.stageNoop) {
+    return "Factory stage completed without any repository updates.";
+  }
+
+  if (failureType === FAILURE_TYPES.stageSetup) {
+    return "Factory stage cannot start until setup prerequisites are satisfied.";
+  }
+
   if (action === "implement") {
     return "Factory implementation failed before producing a usable branch update.";
   }
@@ -78,6 +86,22 @@ function buildDeterministicRecoverySteps({ action, phase, failureType }) {
     ];
   }
 
+  if (failureType === FAILURE_TYPES.stageNoop) {
+    return [
+      "Review the stage diagnostics to confirm the branch remained unchanged and identify the blocked work.",
+      "Update the branch or plan so the next attempt will make substantive repository changes.",
+      "Re-apply the factory stage when the branch is ready for another automated run."
+    ];
+  }
+
+  if (failureType === FAILURE_TYPES.stageSetup) {
+    return [
+      "Read the failure message and diagnostics to identify which prerequisite is missing.",
+      "Fix the setup issue (for example configure `FACTORY_GITHUB_TOKEN` before allowing workflow edits).",
+      "Retry the factory stage after the missing prerequisite is in place."
+    ];
+  }
+
   if (action === "implement") {
     return [
       "Inspect the failing Factory PR Loop run and the current branch contents.",
@@ -109,6 +133,26 @@ function formatArtifactLinks(artifacts) {
   return artifacts.map((artifact) => `[${artifact.label}](${artifact.url})`).join(", ");
 }
 
+function extractDiagnosticsSections(message) {
+  const normalized = `${message || ""}`.trim();
+
+  if (!normalized) {
+    return { detail: "", diagnostics: "" };
+  }
+
+  const marker = "Stage diagnostics:";
+  const markerIndex = normalized.indexOf(marker);
+
+  if (markerIndex === -1) {
+    return { detail: normalized, diagnostics: "" };
+  }
+
+  const detail = normalized.slice(0, markerIndex).trim();
+  const diagnostics = normalized.slice(markerIndex + marker.length).trim();
+
+  return { detail, diagnostics };
+}
+
 export function buildFailureComment({
   action,
   phase = "stage",
@@ -126,6 +170,7 @@ export function buildFailureComment({
   const artifacts = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const ciRunUrl = repositoryUrl && ciRunId ? `${repositoryUrl}/actions/runs/${ciRunId}` : "";
   const recoverySteps = buildDeterministicRecoverySteps({ action, phase, failureType });
+  const { detail, diagnostics } = extractDiagnosticsSections(failureMessage);
 
   lines.push("## Where to look");
 
@@ -147,10 +192,22 @@ export function buildFailureComment({
 
   lines.push("", "## Failure detail", `- Type: \`${failureType}\``);
 
-  if (`${failureMessage || ""}`.trim()) {
-    lines.push("", "```text", `${failureMessage}`.trim(), "```");
+  if (detail) {
+    lines.push("", "```text", detail, "```");
+  } else if (diagnostics) {
+    lines.push("- Message: Stage diagnostics captured below.");
   } else {
     lines.push("- Message: No failure message was captured.");
+  }
+
+  if (diagnostics) {
+    lines.push("", "<details>");
+    lines.push("<summary>Stage diagnostics</summary>");
+    lines.push("");
+    lines.push("```text");
+    lines.push(diagnostics);
+    lines.push("```");
+    lines.push("</details>");
   }
 
   if (advisory) {

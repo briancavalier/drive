@@ -326,6 +326,46 @@ test("implement prompt excludes PR body and full artifact bodies", () => {
   assert.match(result.prompt, /headings: Summary \| Workflow Flow/);
 });
 
+test("implement prompt metadata lists last failure type and stage counters", () => {
+  const artifactsDir = makeArtifactsDir();
+  const metadata = defaultPrMetadata({
+    issueNumber: 1,
+    artifactsPath: artifactsDir,
+    status: "implementing",
+    lastFailureType: "stage_noop",
+    stageNoopAttempts: 1,
+    stageSetupAttempts: 2
+  });
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata
+  });
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.match(result.prompt, /Last failure type: stage_noop/);
+  assert.match(result.prompt, /Stage no-op attempts: 1\/2/);
+  assert.match(result.prompt, /Stage setup attempts: 2/);
+  assert.match(result.prompt, /Previous stage produced no repository changes/);
+});
+
 test("review prompt embeds methodology instructions and metadata", () => {
   const artifactsDir = makeArtifactsDir();
   const pullRequestBody = renderPrBody({

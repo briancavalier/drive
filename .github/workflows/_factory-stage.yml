@@ -198,8 +198,8 @@ jobs:
         id: codex_failure
         if: steps.codex.outcome == 'failure'
         run: |
-          echo "failure_type=configuration" >> "$GITHUB_OUTPUT"
-          echo "failure_message=Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
+          echo "failure_type=stage_setup" >> "$GITHUB_OUTPUT"
+          echo "failure_message=Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
           exit 1
 
       - name: Prepare stage output for push

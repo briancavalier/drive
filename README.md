@@ -183,6 +183,11 @@ Factory Request issue so recurring outages get durable tracking:
 - The failure comment always notes the issue that captured the follow-up, putting operators one click away from the backlog entry.
 - Newly opened issues still require a human to apply `factory:start` when execution is ready to resume.
 
+Stage runs now distinguish between no-op outputs and setup prerequisites:
+
+- `stage_noop` failures capture a clean working tree after Codex runs; the failure comment links a diagnostics block (commit distance, staged/worktree counts, sample file list) and the factory tracks `stageNoopAttempts`. After two consecutive no-op runs the PR is marked `blocked` and automated retries stop.
+- `stage_setup` failures wrap guardrail messages (missing `FACTORY_GITHUB_TOKEN`, absent workflow artifacts, etc.) with the same diagnostics summary so operators can fix the prerequisite without re-running diagnosis. Recovered runs reset both counters to zero.
+
 ## Labels
 
 The workflows create and manage these labels automatically:

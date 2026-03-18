@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   persistCostSummaryForStage,
   resolveStageCommitAction,
@@ -11,6 +12,32 @@ import {
   validateReviewArtifactsForStage,
   main as prepareStagePushMain
 } from "../scripts/prepare-stage-push.mjs";
+
+function git(cwd, args) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  }).trim();
+}
+
+function initTestRepo(branch) {
+  const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-remote-"));
+  git(remoteDir, ["init", "--bare"]);
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-repo-"));
+  git(repoDir, ["init"]);
+  git(repoDir, ["config", "user.name", "Factory CI"]);
+  git(repoDir, ["config", "user.email", "factory@example.com"]);
+  git(repoDir, ["remote", "add", "origin", remoteDir]);
+  fs.writeFileSync(path.join(repoDir, "README.md"), "# Fixture\n");
+  git(repoDir, ["add", "README.md"]);
+  git(repoDir, ["commit", "-m", "initial"]);
+  git(repoDir, ["branch", "-M", "main"]);
+  git(repoDir, ["checkout", "-b", branch]);
+  git(repoDir, ["commit", "--allow-empty", "-m", "stage start"]);
+  git(repoDir, ["push", "-u", "origin", branch]);
+  return { repoDir, remoteDir };
+}
 
 test("resolveStageCommitAction commits staged changes with generated summary", () => {
   const result = resolveStageCommitAction({
@@ -324,4 +351,71 @@ test("prepare-stage-push normalizes drifted review traceability before git", () 
   assert.match(normalizedReviewMarkdown, /- Requirement: Validation runs before push\./);
   assert.match(normalizedReviewMarkdown, /  - Status: `satisfied`/);
   assert.doesNotMatch(normalizedReviewMarkdown, /Methodology used: default\./);
+});
+
+test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged", () => {
+  const branch = "factory/stage-noop-check";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let error = null;
+
+  try {
+    process.chdir(repoDir);
+    prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "501",
+      FACTORY_ISSUE_TITLE: "Ensure no-op classification",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "0",
+      GITHUB_TOKEN: "ghs_mock"
+    });
+  } catch (thrown) {
+    error = thrown;
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.ok(error, "expected stage_noop failure");
+  assert.match(error.message, /Stage run completed without preparing repository changes\./);
+  assert.match(error.message, /Stage diagnostics:/);
+  assert.match(error.message, /commits ahead of origin\/factory\/stage-noop-check: 0/);
+  assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
+});
+
+test("prepare-stage-push reports stage_setup diagnostics for workflow changes without factory token", () => {
+  const branch = "factory/stage-setup-guard";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let error = null;
+
+  try {
+    process.chdir(repoDir);
+    fs.mkdirSync(path.join(repoDir, ".github", "workflows"), { recursive: true });
+    fs.writeFileSync(
+      path.join(repoDir, ".github", "workflows", "test.yml"),
+      "name: Test\non: push\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo test\n"
+    );
+    prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "502",
+      FACTORY_ISSUE_TITLE: "Workflow modifications require PAT",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "0",
+      GITHUB_TOKEN: "ghs_mock"
+    });
+  } catch (thrown) {
+    error = thrown;
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.ok(error, "expected stage_setup failure");
+  assert.match(error.message, /Stage setup prerequisites failed:/);
+  assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
+  assert.match(error.message, /workflow changes detected: yes/);
+  assert.match(error.message, /\.github\/workflows\/test\.yml/);
 });

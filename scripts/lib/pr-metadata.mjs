@@ -30,6 +30,8 @@ export function defaultPrMetadata(overrides = {}) {
     lastEstimatedStage: null,
     lastEstimatedModel: null,
     lastStageCostEstimateUsd: 0,
+    stageNoopAttempts: 0,
+    stageSetupAttempts: 0,
     ...overrides
   };
 }
