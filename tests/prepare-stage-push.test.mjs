@@ -100,11 +100,48 @@ test("persistCostSummaryForStage skips implement artifact-only output", () => {
   assert.equal(fs.existsSync(path.join(artifactsPath, "cost-summary.json")), false);
 });
 
-test("persistCostSummaryForStage copies durable summary when allowed", () => {
+test("persistCostSummaryForStage appends telemetry entry when allowed", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
   const summaryPath = path.join(tempDir, "estimate.json");
   const artifactsPath = path.join(tempDir, "artifacts");
-  const summary = { estimated: true, current: { totalEstimatedUsd: 0.1 } };
+  const summary = {
+    issueNumber: 55,
+    branch: "factory/55-telemetry",
+    current: {
+      stage: "review",
+      model: "gpt-5-mini",
+      stageEstimateUsd: 0.004,
+      stageEstimateUsdBeforeCalibration: 0.004,
+      totalEstimatedUsd: 0.01,
+      band: "low",
+      emoji: "🟢",
+      pricingSource: "fallback",
+      calibrationMultiplier: 1,
+      calibrationSource: "default",
+      calibrationSampleSize: 0,
+      calibrationKey: "review:gpt-5-mini",
+      calibrationGeneratedAt: ""
+    },
+    stages: {
+      review: {
+        mode: "review",
+        model: "gpt-5-mini",
+        promptChars: 800,
+        estimatedInputTokens: 200,
+        multiplier: 2,
+        estimatedUsdBeforeCalibration: 0.004,
+        estimatedUsd: 0.004,
+        pricingSource: "fallback",
+        calibrationMultiplier: 1,
+        calibrationSource: "default",
+        calibrationSampleSize: 0,
+        calibrationKey: "review:gpt-5-mini",
+        calibrationGeneratedAt: ""
+      }
+    },
+    thresholds: { warnUsd: 0.25, highUsd: 1 },
+    telemetry: []
+  };
 
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
 
@@ -112,14 +149,35 @@ test("persistCostSummaryForStage copies durable summary when allowed", () => {
     mode: "review",
     artifactsPath,
     costSummaryPath: summaryPath,
-    worktreeHasChanges: false
+    worktreeHasChanges: false,
+    telemetryContext: {
+      issueNumber: 55,
+      prNumber: 56,
+      branch: "factory/55-telemetry",
+      runId: "987654321",
+      runAttempt: "2"
+    },
+    now: new Date("2026-03-18T12:00:00Z")
   });
 
   assert.equal(persistedPath, path.join(artifactsPath, "cost-summary.json"));
-  assert.deepEqual(
-    JSON.parse(fs.readFileSync(persistedPath, "utf8")),
-    summary
-  );
+  const persistedSummary = JSON.parse(fs.readFileSync(persistedPath, "utf8"));
+
+  assert.equal(persistedSummary.prNumber, 56);
+  assert.equal(Array.isArray(persistedSummary.telemetry), true);
+  assert.equal(persistedSummary.telemetry.length, 1);
+
+  const telemetryEntry = persistedSummary.telemetry[0];
+
+  assert.equal(telemetryEntry.stage, "review");
+  assert.equal(telemetryEntry.model, "gpt-5-mini");
+  assert.equal(telemetryEntry.runId, "987654321");
+  assert.equal(telemetryEntry.runAttempt, 2);
+  assert.equal(telemetryEntry.prNumber, 56);
+  assert.equal(telemetryEntry.issueNumber, 55);
+  assert.equal(telemetryEntry.calibrationMultiplier, 1);
+  assert.equal(telemetryEntry.outcome, "succeeded");
+  assert.equal(telemetryEntry.recordedAt, "2026-03-18T12:00:00.000Z");
 });
 
 test("validateReviewArtifactsForStage skips non-review modes", () => {

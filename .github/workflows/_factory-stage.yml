@@ -178,6 +178,9 @@ jobs:
           FACTORY_STAGE_MODEL: ${{ steps.model.outputs.model }}
           FACTORY_COST_WARN_USD: ${{ vars.FACTORY_COST_WARN_USD || '' }}
           FACTORY_COST_HIGH_USD: ${{ vars.FACTORY_COST_HIGH_USD || '' }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Run Codex
         id: codex
@@ -212,6 +215,9 @@ jobs:
           FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
           FACTORY_COST_SUMMARY_PATH: ${{ steps.cost.outputs.cost_summary_path }}
           FACTORY_REVIEW_METHOD: ${{ steps.build.outputs.review_methodology_requested }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Stop on stage output preparation failure
         if: steps.prepare.outcome == 'failure'
@@ -257,3 +263,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_PENDING_REVIEW_SHA: ${{ steps.prepare.outputs.prepared_head_sha }}
           FACTORY_CI_STATUS: pending
+
+      - name: Log telemetry skip on failure
+        if: ${{ always() && failure() && steps.cost.outcome == 'success' }}
+        run: echo "Factory telemetry entry not recorded because the stage failed after estimation."

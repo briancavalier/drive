@@ -146,7 +146,27 @@ transient retries are recorded in the PR metadata as `lastFailureType` and
 
 Factory stages also write an advisory `cost-summary.json` artifact and surface a
 three-band emoji cost estimate in the PR status. These values are heuristic
-estimates, not billed usage.
+estimates, not billed usage. The summary file now includes an append-only
+`telemetry` array where each stage run records its GitHub context (issue, PR,
+branch, workflow run id), resolved model, prompt size, estimated tokens/price,
+calibration metadata, and placeholders for `actualInputTokens`/`actualUsd`. The
+placeholders default to `null` so operators can backfill real usage data later
+without reshaping the schema.
+
+When you have reliable billing data for a stage, update the corresponding
+telemetry entry in `.factory/runs/<issue>/cost-summary.json` with the observed
+token and USD values. After backfilling any entries, run the calibration helper:
+
+```bash
+node scripts/calibrate-cost-estimates.mjs
+```
+
+The script scans all run telemetry, computes per `{stage, model}` correction
+factors, and writes them to `.factory/cost-calibration.json` (tracked in-repo).
+Cost estimation automatically loads this file on subsequent runs and reports
+which multiplier was applied so you can confirm that historical data is being
+used. Entries without actual usage remain in the telemetry history but are
+ignored by the calibration pass, so partial backfills are safe.
 
 When stage/review failures block a PR, the failure comment now includes a
 stable "Where to look" section with the failing Factory PR Loop run, branch,

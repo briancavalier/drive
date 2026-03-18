@@ -9,6 +9,12 @@ import { COST_SUMMARY_FILE_NAME } from "./lib/cost-estimation.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
+import {
+  appendTelemetryEntry,
+  buildTelemetryEntry,
+  ensureTelemetryArray,
+  TELEMETRY_OUTCOMES
+} from "./lib/cost-telemetry.mjs";
 
 function git(args, { allowFailure = false } = {}) {
   try {
@@ -52,7 +58,10 @@ export function persistCostSummaryForStage({
   mode,
   artifactsPath,
   costSummaryPath,
-  worktreeHasChanges
+  worktreeHasChanges,
+  telemetryContext = {},
+  stageOutcome = TELEMETRY_OUTCOMES.succeeded,
+  now = new Date()
 }) {
   if (!costSummaryPath || !artifactsPath) {
     return "";
@@ -62,9 +71,63 @@ export function persistCostSummaryForStage({
     return "";
   }
 
+  const rawSummary = fs.readFileSync(costSummaryPath, "utf8");
+  let summary = null;
+
+  try {
+    summary = JSON.parse(rawSummary);
+  } catch (error) {
+    console.warn(
+      `Failed to parse temporary cost summary at ${costSummaryPath}; copying without telemetry.`
+    );
+    const outputPath = path.join(artifactsPath, COST_SUMMARY_FILE_NAME);
+    fs.mkdirSync(artifactsPath, { recursive: true });
+    fs.writeFileSync(outputPath, rawSummary);
+    return outputPath;
+  }
+
+  try {
+    ensureTelemetryArray(summary);
+
+    if (telemetryContext.prNumber != null && summary.prNumber == null) {
+      summary.prNumber = telemetryContext.prNumber;
+    }
+
+    const stageKey = telemetryContext.stage || summary?.current?.stage || mode;
+    const context = {
+      issueNumber: telemetryContext.issueNumber ?? summary.issueNumber,
+      prNumber: telemetryContext.prNumber ?? summary.prNumber,
+      branch: telemetryContext.branch ?? summary.branch,
+      runId: telemetryContext.runId || "",
+      runAttempt: telemetryContext.runAttempt,
+      actualInputTokens: telemetryContext.actualInputTokens,
+      actualUsd: telemetryContext.actualUsd,
+      actualSource: telemetryContext.actualSource,
+      calibrationSampleSize: telemetryContext.calibrationSampleSize,
+      calibrationGeneratedAt: telemetryContext.calibrationGeneratedAt,
+      model: telemetryContext.model
+    };
+    const entry = buildTelemetryEntry({
+      summary,
+      stageKey,
+      context,
+      outcome: stageOutcome,
+      recordedAt: telemetryContext.recordedAt || now.toISOString()
+    });
+    const { appended, reason } = appendTelemetryEntry(summary, entry);
+
+    if (!appended && reason === "duplicate") {
+      console.warn(
+        `Telemetry entry already recorded for ${entry.stage} run ${entry.runId} attempt ${entry.runAttempt ?? ""}; skipping append.`
+      );
+    }
+  } catch (error) {
+    console.warn(`Telemetry append skipped: ${error.message}`);
+  }
+
   const outputPath = path.join(artifactsPath, COST_SUMMARY_FILE_NAME);
   fs.mkdirSync(artifactsPath, { recursive: true });
-  fs.copyFileSync(costSummaryPath, outputPath);
+  fs.writeFileSync(outputPath, JSON.stringify(summary, null, 2));
   return outputPath;
 }
 
@@ -175,6 +238,9 @@ export function main(env = process.env) {
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const costSummaryPath = env.FACTORY_COST_SUMMARY_PATH || "";
   const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
+  const prNumberRaw = env.FACTORY_PR_NUMBER || "";
+  const githubRunId = env.GITHUB_RUN_ID || "";
+  const githubRunAttempt = env.GITHUB_RUN_ATTEMPT || "";
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -203,7 +269,14 @@ export function main(env = process.env) {
     mode,
     artifactsPath,
     costSummaryPath,
-    worktreeHasChanges: hasWorktreeChanges()
+    worktreeHasChanges: hasWorktreeChanges(),
+    telemetryContext: {
+      issueNumber: Number(issueNumber),
+      prNumber: Number(prNumberRaw) > 0 ? Number(prNumberRaw) : null,
+      branch,
+      runId: githubRunId,
+      runAttempt: githubRunAttempt
+    }
   });
   git(["add", "-A"]);
   prepareStageCommit({ mode, issueNumber, branch, issueTitle, remoteHead });

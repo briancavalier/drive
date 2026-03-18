@@ -16,10 +16,10 @@
     }
   },
   "current": {
-    "stage": "plan",
+    "stage": "implement",
     "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.0018,
-    "totalEstimatedUsd": 0.0018,
+    "stageEstimateUsd": 0.0036,
+    "totalEstimatedUsd": 0.0054,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model"
@@ -33,6 +33,42 @@
       "multiplier": 1.5,
       "estimatedUsd": 0.0018,
       "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2907,
+      "estimatedInputTokens": 727,
+      "multiplier": 4,
+      "estimatedUsd": 0.0036,
+      "pricingSource": "model"
     }
-  }
+  },
+  "telemetry": [
+    {
+      "issueNumber": 55,
+      "prNumber": null,
+      "branch": "factory/55-add-telemetry-and-calibration-loop-for-cost-esti",
+      "runId": "23263592290",
+      "runAttempt": 1,
+      "stage": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2907,
+      "estimatedInputTokens": 727,
+      "stageMultiplier": 4,
+      "pricingSource": "model",
+      "estimatedUsdBeforeCalibration": 0.0036,
+      "estimatedUsd": 0.0036,
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "implement:gpt-5-codex",
+      "calibrationGeneratedAt": "",
+      "outcome": "succeeded",
+      "actualInputTokens": null,
+      "actualUsd": null,
+      "actualSource": "",
+      "recordedAt": "2026-03-18T19:48:52.734Z"
+    }
+  ]
 }
