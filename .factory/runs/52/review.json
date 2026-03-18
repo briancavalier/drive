@@ -1,0 +1,100 @@
+{
+  "methodology": "default",
+  "decision": "request_changes",
+  "summary": "Automated follow-up issue creation added for actionable control-plane and artifact-contract failures. Unit tests added and README updated. A potential deduplication search-query bug must be fixed before merge.",
+  "blocking_findings_count": 1,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Actionable failure opens a follow-up issue",
+      "status": "partially_satisfied",
+      "evidence": [
+        "tests/failure-followup.test.mjs: unit test asserts createIssue flow via findOpenFollowup + createIssue paths",
+        "tests/handle-stage-failure.test.mjs: asserts that actionable failures result in comment augmentation and createIssue called in the handler",
+        "CI workflow run 23263316270: unit tests passed (unit: success)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Duplicate signature suppresses new issue creation",
+      "status": "partially_satisfied",
+      "evidence": [
+        "tests/failure-followup.test.mjs: findOpenFollowup unit test returns matching issue when searchIssues returns items containing the signature",
+        "scripts/lib/failure-followup.mjs: findOpenFollowup uses searchIssues and inspects issue bodies for the signature marker"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Ineligible failures skip follow-up",
+      "status": "satisfied",
+      "evidence": [
+        "tests/failure-followup.test.mjs: classifyFollowup returns actionable=false for transient_infra",
+        "scripts/lib/failure-followup.mjs: INELIGIBLE_FAILURE_TYPES includes transient_infra"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Generated issue body matches template and evidence requirements",
+      "status": "satisfied",
+      "evidence": [
+        "tests/failure-followup.test.mjs: buildFollowupIssue snapshot assertions for headings and metadata block",
+        "scripts/lib/failure-followup.mjs: buildFollowupIssue composes Problem statement and Evidence sections and appends factory-followup-meta"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Extend GitHub client with createIssue and searchIssues",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github.mjs: exports createIssue and searchIssues functions",
+        "tests/github.test.mjs: tests for createIssue and searchIssues behavior"
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Refactor handle-stage-failure to wire follow-up creation and deduplication",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/handle-stage-failure.mjs: imports followup helpers, builds signature, calls findOpenFollowup and createIssue, appends follow-up comment section",
+        "tests/handle-stage-failure.test.mjs: exercises flows with mocked dependencies"
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Add unit tests for follow-up classification and signature stability",
+      "status": "satisfied",
+      "evidence": [
+        "tests/failure-followup.test.mjs: classification and signature stability tests present and passing",
+        "local test run: node --test output shows all three test suites passing"
+      ]
+    }
+    ,
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Documentation reflects automated follow-up behavior",
+      "status": "satisfied",
+      "evidence": [
+        "README.md: 'Actionable control-plane or artifact-contract failures now trigger an automatic Factory Request issue' section present",
+        ".factory/runs/52/acceptance-tests.md: includes acceptance test to verify README updates"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "blocking",
+      "title": "Deduplication search query appears malformed and may fail to match open follow-ups",
+      "details": "The search query constructed in scripts/lib/failure-followup.mjs uses a partial, unterminated quoted string and may not match the intended metadata block in issues. This can cause duplicate follow-up issues to be created for the same signature.",
+      "scope": "findOpenFollowup in scripts/lib/failure-followup.mjs",
+      "recommendation": "Fix the search query generation to include a robust match for the metadata block or search for the raw signature token. Add unit tests asserting the exact query string passed to searchIssues and an integration test covering dedupe behavior.",
+      "id": "B001"
+    },
+    {
+      "level": "non_blocking",
+      "title": "Consider adding an explicit label to follow-up issues",
+      "details": "Adding a label like 'Factory Request' to created issues would make filtering and operator workflows easier. The current createIssue call supports labels but no labels are passed.",
+      "scope": "scripts/handle-stage-failure.mjs -> createIssue call",
+      "recommendation": "Include a configurable labels array when calling createIssue; update tests to assert label inclusion.",
+      "id": "N001"
+    }
+  ]
+}
