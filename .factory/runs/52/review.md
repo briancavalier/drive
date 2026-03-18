@@ -1,80 +1,79 @@
-decision: request_changes
+decision: pass
 
 📝 Summary
-- Methodology: `default`
-- Change introduces automated follow-up issue creation for actionable control-plane and artifact-contract failures. It adds `scripts/lib/failure-followup.mjs`, extends `scripts/lib/github.mjs` with issue/search helpers, and wires follow-up creation into `scripts/handle-stage-failure.mjs`.
-- Unit tests were added and the local test run passes; README updated to document the behavior.
+- Methodology: `default`.
+- The branch implements automated follow-up issue creation for actionable control-plane and artifact-contract failures. It adds `scripts/lib/failure-followup.mjs`, extends GitHub helpers in `scripts/lib/github.mjs`, and wires follow-up creation into `scripts/handle-stage-failure.mjs` with unit tests covering the key paths.
+- Unit tests for follow-up classification, signature stability, issue composition, deduplication lookup, and handler wiring are present and passing; CI unit job succeeded (workflow run id: 23263673307).
 
 🚨 blocking findings
-- Malformed search query used by `findOpenFollowup` may prevent deduplication and cause duplicate follow-up issues to be opened. The code builds a search query string in `scripts/lib/failure-followup.mjs` that appears to omit the closing quote/terminator for the search phrase: the query literal is `state:open "factory-followup-meta: {\"signature\":\"${signature}` which can produce an unterminated quoted phrase. This increases the risk of creating duplicate issues in production. Recommendation: fix the query to include the full, correctly escaped metadata JSON (for example: `state:open "<!-- factory-followup-meta: {\\"signature\\":\\"${signature}\\"} -->"` or search for the signature token without relying on partial JSON quoting) and add a unit test that asserts the outgoing query string.
+- None. All acceptance criteria mapped in `.factory/runs/52/acceptance-tests.md` are satisfied by code, tests, and CI evidence.
 
 ⚠️ non-blocking notes
-- Tests: All new unit tests pass locally (`node --test`), and CI shows `unit: success`. Evidence paths below.
-- Suggestion: add a label (e.g., `Factory Request`) when creating follow-up issues so operators can filter follow-ups more easily; this is not required by the spec but would improve usability.
-- Suggestion: add an integration or end-to-end test that exercises `handle-stage-failure` with a mocked GitHub client to assert the dedupe path and the appended PR comment in one flow.
-
-**Done**
-
-🧭 Traceability
-- See `.factory/runs/52/review.json` for machine-readable traceability and findings.
+- Comment/metadata marker mismatch: the follow-up issue metadata uses `<!-- factory-followup-meta: {...} -->` while the appended PR comment uses `<!-- factory-followup-signature: <sig> -->`. This does not break deduplication (which searches issues), but unifying the marker would improve traceability and make it easier to locate the signature in comments. Recommendation: use the same metadata marker in both issue bodies and comment annotations, or document the intentional difference in README.
+- Consider adding a lightweight integration test (simulated GitHub search/create via a sandboxed stub) that asserts the full lifecycle end-to-end, including the exact search query used for dedupe, to reduce regression risk in future changes to the metadata format.
 
 ## 🧭 Traceability
 
 <details>
 <summary>🧭 Traceability: Acceptance Criteria</summary>
 
-- Requirement: Actionable failure opens a follow-up issue
-  - Status: `partially_satisfied`
-  - Evidence:
-    - tests/failure-followup.test.mjs: unit test asserts createIssue flow via findOpenFollowup + createIssue paths
-    - tests/handle-stage-failure.test.mjs: asserts that actionable failures result in comment augmentation and createIssue called in the handler
-    - CI workflow run 23263316270: unit tests passed (unit: success)
-- Requirement: Duplicate signature suppresses new issue creation
-  - Status: `partially_satisfied`
-  - Evidence:
-    - tests/failure-followup.test.mjs: findOpenFollowup unit test returns matching issue when searchIssues returns items containing the signature
-    - scripts/lib/failure-followup.mjs: findOpenFollowup uses searchIssues and inspects issue bodies for the signature marker
-- Requirement: Ineligible failures skip follow-up
+- Requirement: When a factory-managed PR blocks on an actionable control-plane or artifact-contract failure, the factory can generate a structured Factory Request issue instead of only leaving an advisory comment.
   - Status: `satisfied`
   - Evidence:
-    - tests/failure-followup.test.mjs: classifyFollowup returns actionable=false for transient_infra
-    - scripts/lib/failure-followup.mjs: INELIGIBLE_FAILURE_TYPES includes transient_infra
-- Requirement: Generated issue body matches template and evidence requirements
+    - tests/handle-stage-failure.test.mjs: 'main creates follow-up issue for actionable failure' asserts createIssue is called and the comment mentions the new issue.
+    - scripts/handle-stage-failure.mjs: logic calls githubClient.createIssue and appends follow-up comment when followupAssessment.actionable is true.
+    - CI: unit tests succeeded (workflow run id: 23263673307).
+- Requirement: The created issue references the triggering PR number, workflow run, failure type, and a concise problem statement and evidence.
   - Status: `satisfied`
   - Evidence:
-    - tests/failure-followup.test.mjs: buildFollowupIssue snapshot assertions for headings and metadata block
-    - scripts/lib/failure-followup.mjs: buildFollowupIssue composes Problem statement and Evidence sections and appends factory-followup-meta
-- Requirement: Documentation reflects automated follow-up behavior
+    - tests/failure-followup.test.mjs: 'buildFollowupIssue composes template with metadata block' asserts problem statement includes PR and metadata marker.
+    - scripts/lib/failure-followup.mjs: buildFollowupIssue includes PR, run URL, failure type, category, evidence and metadata block.
+- Requirement: Deduplicate by stamping each issue with a stable failure signature and skipping creation when an open issue already tracks the same signature.
   - Status: `satisfied`
   - Evidence:
-    - README.md: 'Actionable control-plane or artifact-contract failures now trigger an automatic Factory Request issue' section present
-    - .factory/runs/52/acceptance-tests.md: includes acceptance test to verify README updates
+    - scripts/lib/failure-followup.mjs: buildFailureSignature derives SHA-256 from normalized fields; findOpenFollowup searches issues using the full metadata marker.
+    - tests/handle-stage-failure.test.mjs: 'main skips creating follow-up when signature already tracked' confirms createIssue is not called for duplicates.
+- Requirement: Ineligible failures are skipped and standard advisory comments are still posted.
+  - Status: `satisfied`
+  - Evidence:
+    - tests/handle-stage-failure.test.mjs: 'main leaves comment unchanged for ineligible failures' asserts no follow-up and comment includes standard sections.
+    - scripts/lib/failure-followup.mjs: INELIGIBLE_FAILURE_TYPES includes transient infra and other ineligible kinds.
+- Requirement: Tests and evidence demonstrate each changed acceptance criterion and high-risk path.
+  - Status: `satisfied`
+  - Evidence:
+    - CI: unit tests passed in workflow run id 23263673307.
+    - tests/*: targeted unit tests cover allowlist patterns, duplication logic, and error handling in follow-up creation.
 
 </details>
 
 <details>
 <summary>🧭 Traceability: Spec Commitments</summary>
 
-- Requirement: Refactor handle-stage-failure to wire follow-up creation and deduplication
+- Requirement: Implement pure helper functions (classification, signature, issue builder) and wire them into failure handling with dependency injection for testability.
   - Status: `satisfied`
   - Evidence:
-    - scripts/handle-stage-failure.mjs: imports followup helpers, builds signature, calls findOpenFollowup and createIssue, appends follow-up comment section
-    - tests/handle-stage-failure.test.mjs: exercises flows with mocked dependencies
-- Requirement: Add unit tests for follow-up classification and signature stability
-  - Status: `satisfied`
-  - Evidence:
-    - tests/failure-followup.test.mjs: classification and signature stability tests present and passing
-    - local test run: node --test output shows all three test suites passing
+    - scripts/lib/failure-followup.mjs: exports classifyFollowup, buildFailureSignature, buildFollowupIssue, findOpenFollowup and buildFollowupCommentSection.
+    - scripts/handle-stage-failure.mjs: accepts injected dependencies and uses followup helpers via dependency object.
 
 </details>
 
 <details>
 <summary>🧭 Traceability: Plan Deliverables</summary>
 
-- Requirement: Extend GitHub client with createIssue and searchIssues
+- Requirement: Extend GitHub client with createIssue and searchIssues and add unit tests for these helpers.
   - Status: `satisfied`
   - Evidence:
-    - scripts/lib/github.mjs: exports createIssue and searchIssues functions
-    - tests/github.test.mjs: tests for createIssue and searchIssues behavior
+    - scripts/lib/github.mjs: createIssue and searchIssues implemented with request retries and repo-prefixing behavior.
+    - tests/github.test.mjs: tests covering createIssue behavior and searchIssues request formatting.
+- Requirement: Add tests for classification, signature stability, issue body content, dedup lookup, and handler wiring.
+  - Status: `satisfied`
+  - Evidence:
+    - tests/failure-followup.test.mjs: covers classification, signature normalization, issue body metadata and findOpenFollowup behavior.
+    - tests/handle-stage-failure.test.mjs: covers end-to-end handler wiring for actionable, duplicate, and ineligible flows.
+- Requirement: Update documentation to describe the automated follow-up path and dedup behavior.
+  - Status: `satisfied`
+  - Evidence:
+    - README.md: contains lines describing follow-up issue content and comment linking (found in repository README).
+    - .factory/runs/52/repair-log.md: records fix to follow-up search query and unit test to prevent duplicates.
 
 </details>

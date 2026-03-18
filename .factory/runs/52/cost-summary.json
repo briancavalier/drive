@@ -16,9 +16,9 @@
     }
   },
   "current": {
-    "stage": "repair",
-    "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.0041,
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0007,
     "totalEstimatedUsd": 0.0106,
     "band": "low",
     "emoji": "🟢",
@@ -46,8 +46,8 @@
     "review": {
       "mode": "review",
       "model": "gpt-5-mini",
-      "promptChars": 5687,
-      "estimatedInputTokens": 1422,
+      "promptChars": 5941,
+      "estimatedInputTokens": 1486,
       "multiplier": 2,
       "estimatedUsd": 0.0007,
       "pricingSource": "model"
