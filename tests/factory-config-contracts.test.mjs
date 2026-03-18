@@ -54,6 +54,18 @@ test("factory PR loop concurrency uses only event-safe identifiers", () => {
   );
 });
 
+test("factory PR loop stage caller grants reusable workflow write permissions", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const stageBlock = extractJobBlock(workflowText, "stage");
+
+  assert.match(stageBlock, /permissions:\s*\n\s+contents:\s+write/);
+  assert.match(stageBlock, /permissions:\s*\n(?:\s+[a-z-]+:\s+\w+\n)*\s+issues:\s+write/);
+  assert.match(
+    stageBlock,
+    /permissions:\s*\n(?:\s+[a-z-]+:\s+\w+\n)*\s+pull-requests:\s+write/
+  );
+});
+
 test("factory stage workflow creates the stage artifacts path before Codex runs", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
