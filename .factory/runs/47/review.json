@@ -1,0 +1,65 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Preflight model validation and improved failure messaging implemented; unit and contract tests cover the changes; CI passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "When the resolved stage model is invalid or unsupported, the stage emits a specific failure_message that names the model and explains what configuration to change.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/validate-stage-model.mjs: buildModelUnavailableMessage constructs a message naming the mode and model and references the controlling variable (sourceVariable).",
+        "tests/validate-stage-model.test.mjs: test 'validateStageModel reports configuration failure for missing models' asserts outputs.failure_message contains the resolved model name and FACTORY_REVIEW_MODEL.",
+        "CI: workflow run id 23262808309 — unit: success (tests passed)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The blocked PR comment for model-validation failures includes the specific failure_message rather than a generic placeholder.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/failure-comment.test.mjs: test 'configuration failure comments render actionable guidance inside the fenced block' asserts the failure_message is rendered verbatim inside the fenced code block.",
+        "scripts/lib/failure-comment.mjs: buildFailureComment consumes the workflow-provided failure_message without alteration (tests exercise rendering)."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Add deterministic stage model preflight validation script and unit tests.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/validate-stage-model.mjs: new script implements model validation and writes GITHUB_OUTPUT entries (validated/failure_type/failure_message).",
+        "tests/validate-stage-model.test.mjs: unit tests cover success, model_not_found (404), authorization (401), and transient server (503) paths."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Wire the preflight into the reusable workflow so validation runs after resolution and gates Codex execution, and expose its outputs as job outputs.",
+      "status": "satisfied",
+      "evidence": [
+        ".github/workflows/_factory-stage.yml: contains a 'Validate stage model' step (node scripts/validate-stage-model.mjs) and a 'Stop on stage model validation failure' step that exits when steps.model_preflight.outcome == 'failure'.",
+        "tests/factory-config-contracts.test.mjs: asserts the workflow includes the validation step, correct env wiring (FACTORY_STAGE_MODEL/FACTORY_STAGE_MODE/OPENAI_API_KEY/FACTORY_STAGE_MODEL_SOURCE_VARIABLE), and that job outputs prefer steps.model_preflight outputs for failure_type and failure_message."
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Preserve backward compatibility: keep existing 'model' output name and existing failure classification flow so blocked comments pick up the improved message.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/factory-config.mjs: resolveFactoryStageModel remains a thin wrapper returning info.model.",
+        "scripts/resolve-stage-model.mjs: still writes 'model' output and additionally emits model_source and model_source_variable, preserving downstream callers.",
+        "tests/failure-comment.test.mjs: confirms blocked comment rendering remains compatible with configuration failure messages."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Transient upstream errors are skipped rather than retried",
+      "details": "validate-stage-model.mjs treats 5xx and 429 responses as transient and skips validation (returns status 'skipped') to avoid misclassifying infrastructure outages as configuration failures.",
+      "scope": "scripts/validate-stage-model.mjs",
+      "recommendation": "Consider adding an optional retry/backoff or a feature-flagged stricter validation mode if occasional model lookup flakiness affects operator experience.",
+      "severity": "low"
+    }
+  ]
+}
