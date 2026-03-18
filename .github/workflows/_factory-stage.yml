@@ -144,7 +144,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_CODEX_MODEL || 'gpt-5-codex' }}
+          model: ${{ inputs.mode == 'review' && (vars.FACTORY_REVIEW_MODEL || 'codex-mini-latest') || (vars.FACTORY_CODEX_MODEL || 'gpt-5-codex') }}
           codex-version: 0.114.0
           codex-args: --full-auto
 

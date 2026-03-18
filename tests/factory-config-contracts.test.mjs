@@ -67,7 +67,16 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
 });
 
-test("factory PR loop failure jobs build diagnosis prompts under RUNNER_TEMP and run Codex advisories", () => {
+test("factory stage workflow uses a dedicated cheaper model for review", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /model:\s*\$\{\{\s*inputs\.mode == 'review' && \(vars\.FACTORY_REVIEW_MODEL \|\| 'codex-mini-latest'\) \|\| \(vars\.FACTORY_CODEX_MODEL \|\| 'gpt-5-codex'\)\s*\}\}/
+  );
+});
+
+test("factory PR loop failure jobs build diagnosis prompts and gate Codex advisories", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
   assert.match(
@@ -80,6 +89,9 @@ test("factory PR loop failure jobs build diagnosis prompts under RUNNER_TEMP and
     /FACTORY_FAILURE_PHASE:\s*\$\{\{\s*needs\['process-review'\]\.outputs\.failure_phase \|\| 'review_delivery'\s*\}\}/
   );
   assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
+  assert.match(workflowText, /FACTORY_ENABLE_FAILURE_DIAGNOSIS:\s*\$\{\{\s*vars\.FACTORY_ENABLE_FAILURE_DIAGNOSIS \|\| 'true'\s*\}\}/);
+  assert.match(workflowText, /configuration\|transient_infra\|stale_branch_conflict\|stale_stage_push/);
+  assert.match(workflowText, /if:\s*steps\.diagnosis_gate\.outputs\.run_diagnosis == 'true'/);
   assert.match(workflowText, /prompt-file:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.prompt_path\s*\}\}/);
   assert.match(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\$\{\{\s*steps\.diagnosis_prompt\.outputs\.advisory_path\s*\}\}/);
   assert.match(
@@ -98,6 +110,7 @@ test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of r
   const codexSteps = workflowText.match(/name:\s+Run Codex failure diagnosis[\s\S]*?codex-args:\s+--full-auto/g) || [];
   assert.equal(codexSteps.length, 2);
   for (const step of codexSteps) {
+    assert.match(step, /if:\s*steps\.diagnosis_gate\.outputs\.run_diagnosis == 'true'/);
     assert.match(step, /continue-on-error:\s*true/);
   }
 

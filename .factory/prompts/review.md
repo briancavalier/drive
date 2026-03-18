@@ -14,56 +14,22 @@ Methodology rubric:
 
 Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
-1. `review.md` — human-readable summary that includes:
-   - Overall decision and short summary. Prefix the decision heading with `✅` (pass) or `❌` (request_changes).
-   - A Summary section using the `📝` heading.
-   - Blocking findings first, using a `🚨` heading and keeping them outside collapsible sections.
-   - Non-blocking findings or notes under a `⚠️` heading when present.
-   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections with the `🧭` cue.
-   - Methodology used (`{{METHODOLOGY_NAME}}`).
-   - Use this exact traceability structure, omitting empty groups:
+1. `review.md`
+   - Write sections in this order: decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability.
+   - Keep blocking findings and unmet requirements outside collapsible sections.
+   - Include the methodology used (`{{METHODOLOGY_NAME}}`).
+   - Render Traceability with GitHub-friendly `<details><summary>` blocks.
+2. `review.json`
+   - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
+   - `requirement_checks` must use `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`.
+   - Status values must be `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`.
+   - `findings` must use `blocking` or `non_blocking` and include actionable recommendations.
 
-   ```md
-   ## 🧭 Traceability
+Validation:
 
-   <details>
-   <summary>🧭 Traceability: Acceptance Criteria</summary>
-
-   - Requirement: <requirement text>
-     - Status: `<status>`
-     - Evidence: <files, tests, CI jobs, or artifact evidence>
-
-   </details>
-   ```
-2. `review.json` — machine-readable artifact that MUST follow this schema:
-
-   ```json
-   {
-     "methodology": "<active-method>",
-     "decision": "pass" | "request_changes",
-     "summary": "<plain language overview>",
-     "blocking_findings_count": <integer>,
-     "requirement_checks": [
-       {
-         "type": "acceptance_criterion" | "spec_commitment" | "plan_deliverable",
-         "requirement": "<requirement text>",
-         "status": "satisfied" | "partially_satisfied" | "not_satisfied" | "not_applicable",
-         "evidence": "<files, tests, CI jobs, or artifact evidence>"
-       }
-     ],
-     "findings": [
-       {
-         "level": "blocking" | "non_blocking",
-         "title": "<short name>",
-         "details": "<what was found>",
-         "scope": "<files/tests impacted>",
-         "recommendation": "<follow-up guidance>"
-       }
-     ]
-   }
-   ```
-
-   Additional optional fields are allowed, but the required keys and value types must be present. `blocking_findings_count` must equal the number of findings whose `level` is `"blocking"`. `requirement_checks` must be populated, and a `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
+- Canonical traceability in `review.md` is validated against `review.json` after the run.
+- `blocking_findings_count` must match the number of blocking findings.
+- A `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
 
 Review guidance:
 
