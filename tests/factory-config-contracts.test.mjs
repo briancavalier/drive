@@ -188,3 +188,17 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
     /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
   );
 });
+
+test("factory intake finalize job checks out the planned factory branch before finalizing", () => {
+  const workflowText = readWorkflowText("factory-intake.yml");
+  const finalizeJob = extractJobBlock(workflowText, "finalize");
+
+  assert.match(
+    finalizeJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.prepare\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+  assert.match(
+    finalizeJob,
+    /name:\s+Finalize planning state[\s\S]*?run:\s+node scripts\/finalize-plan\.mjs/
+  );
+});
