@@ -180,7 +180,7 @@ function normalizeModelName(value) {
   return `${value || ""}`.trim();
 }
 
-export function resolveFactoryStageModel({
+export function resolveFactoryStageModelInfo({
   mode,
   overrideModel = "",
   variables = process.env
@@ -189,25 +189,45 @@ export function resolveFactoryStageModel({
   const explicitOverride = normalizeModelName(overrideModel);
 
   if (explicitOverride) {
-    return explicitOverride;
+    return {
+      model: explicitOverride,
+      source: "override",
+      sourceVariable: "FACTORY_STAGE_MODEL_OVERRIDE"
+    };
   }
 
   const stageVariableName = FACTORY_STAGE_MODEL_VARIABLES[normalizedMode];
   const stageVariableModel = normalizeModelName(variables?.[stageVariableName]);
 
   if (stageVariableModel) {
-    return stageVariableModel;
+    return {
+      model: stageVariableModel,
+      source: "stage-variable",
+      sourceVariable: stageVariableName
+    };
   }
 
   if (normalizedMode !== FACTORY_STAGE_MODES.review) {
     const sharedCodexModel = normalizeModelName(variables?.FACTORY_CODEX_MODEL);
 
     if (sharedCodexModel) {
-      return sharedCodexModel;
+      return {
+        model: sharedCodexModel,
+        source: "shared-variable",
+        sourceVariable: "FACTORY_CODEX_MODEL"
+      };
     }
   }
 
-  return DEFAULT_FACTORY_STAGE_MODELS[normalizedMode];
+  return {
+    model: DEFAULT_FACTORY_STAGE_MODELS[normalizedMode],
+    source: "default",
+    sourceVariable: stageVariableName
+  };
+}
+
+export function resolveFactoryStageModel(options) {
+  return resolveFactoryStageModelInfo(options).model;
 }
 
 export function isFactoryPrStatus(value) {
