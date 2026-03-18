@@ -156,7 +156,7 @@ test("factory PR loop failure jobs build diagnosis prompts and gate Codex adviso
     workflowText,
     /FACTORY_FAILURE_PHASE:\s*\$\{\{\s*needs\['process-review'\]\.outputs\.failure_phase \|\| 'review_delivery'\s*\}\}/
   );
-  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
+  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'gpt-5-mini'\s*\}\}/);
   assert.match(workflowText, /FACTORY_ENABLE_FAILURE_DIAGNOSIS:\s*\$\{\{\s*vars\.FACTORY_ENABLE_FAILURE_DIAGNOSIS \|\| 'true'\s*\}\}/);
   assert.match(workflowText, /configuration\|transient_infra\|stale_branch_conflict\|stale_stage_push/);
   assert.match(workflowText, /if:\s*steps\.diagnosis_gate\.outputs\.run_diagnosis == 'true'/);

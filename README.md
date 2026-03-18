@@ -44,7 +44,7 @@ Configure these before using the scaffold in a live repository:
    and `FACTORY_REVIEW_MODEL`.
    Stage-specific values override `FACTORY_CODEX_MODEL` for their stage.
    Defaults are `gpt-5-codex` for plan/implement/repair and
-   `codex-mini-latest` for review.
+   `gpt-5-mini` for review.
 9. Optional: set `FACTORY_COST_WARN_USD` and `FACTORY_COST_HIGH_USD` to tune
    the advisory low/medium/high cost bands shown on factory PRs and artifacts.
 10. The stage runner executes Codex with `--full-auto` so planning, coding, and
@@ -59,7 +59,7 @@ Configure these before using the scaffold in a live repository:
     Missing or invalid values fall back to the built-in `default` rubric.
 13. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
     Codex model used to draft advisory failure guidance comments. Missing values
-    fall back to `codex-mini-latest`.
+    fall back to `gpt-5-mini`.
 14. Optional: set `FACTORY_ENABLE_FAILURE_DIAGNOSIS=false` to skip advisory
     Codex diagnosis for stage/review failures entirely. Deterministic failure
     types are skipped automatically even when diagnosis is enabled.
