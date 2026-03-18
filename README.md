@@ -36,12 +36,15 @@ Configure these before using the scaffold in a live repository:
    `.github/workflows/factory-pr-loop.yml`.
 5. Protect your default branch and require normal human review for merges.
 6. Run the `Factory Bootstrap` workflow once to create the required labels.
-7. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
-   override the default `gpt-5-codex` model used by the plan, implement, and
-   repair stages.
-8. Optional: set the `FACTORY_REVIEW_MODEL` Actions variable if you want to
-   override the default `codex-mini-latest` model used by the autonomous review
-   stage.
+7. Optional: set the shared `FACTORY_CODEX_MODEL` Actions variable if you want
+   one model override for the plan, implement, and repair stages.
+8. Optional: set stage-specific Actions variables to tune cost and capability
+   per stage:
+   `FACTORY_PLAN_MODEL`, `FACTORY_IMPLEMENT_MODEL`, `FACTORY_REPAIR_MODEL`,
+   and `FACTORY_REVIEW_MODEL`.
+   Stage-specific values override `FACTORY_CODEX_MODEL` for their stage.
+   Defaults are `gpt-5-codex` for plan/implement/repair and
+   `codex-mini-latest` for review.
 9. The stage runner executes Codex with `--full-auto` so planning, coding, and
    repair runs stay non-interactive inside GitHub Actions.
 10. Optional: tune prompt budgets with the following Actions variables:
