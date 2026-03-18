@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { APPROVED_ISSUE_FILE_NAME } from "./lib/factory-config.mjs";
 import { parseIssueForm } from "./lib/issue-form.mjs";
 import { extractPrMetadata } from "./lib/pr-metadata.mjs";
 import {
-  getIssue,
   getPullRequest,
   getReview,
   listReviewComments,
@@ -161,6 +161,18 @@ function maybeRead(filePath) {
     return fs.readFileSync(filePath, "utf8").trim();
   } catch {
     return "";
+  }
+}
+
+function readApprovedIssueSnapshot(artifactsPath) {
+  const snapshotPath = path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME);
+
+  try {
+    return fs.readFileSync(snapshotPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `Missing approved issue snapshot at ${snapshotPath}. Restart the factory run from a newly approved issue.`
+    );
   }
 }
 
@@ -787,7 +799,6 @@ export async function loadStagePromptInputs(env = process.env) {
     throw new Error("FACTORY_MODE, FACTORY_BRANCH, FACTORY_ARTIFACTS_PATH, and FACTORY_ISSUE_NUMBER are required");
   }
 
-  const issue = await getIssue(issueNumber);
   const pullRequest = prNumber > 0 ? await getPullRequest(prNumber) : null;
   const review =
     prNumber > 0 && reviewId && mode === FACTORY_STAGE_MODES.repair
@@ -810,7 +821,7 @@ export async function loadStagePromptInputs(env = process.env) {
     prNumber,
     branch: pullRequest?.head?.ref || branch,
     artifactsPath,
-    issueBody: issue.body || "",
+    issueBody: readApprovedIssueSnapshot(artifactsPath),
     pullRequestBody: pullRequest?.body || "",
     review,
     reviewComments,

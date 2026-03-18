@@ -95,6 +95,11 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   assert.equal(latestCostLine, "- Latest stage estimate: $0.223 using gpt-5-codex");
   assert.ok(
     lines.includes(
+      "- [approved-issue.md](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/approved-issue.md)"
+    )
+  );
+  assert.ok(
+    lines.includes(
       "- ▶️ Apply `factory:implement` to start coding after plan review."
     )
   );

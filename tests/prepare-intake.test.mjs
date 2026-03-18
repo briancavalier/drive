@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  APPROVED_ISSUE_FILE_NAME,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_LABELS
 } from "../scripts/lib/factory-config.mjs";
@@ -12,6 +13,9 @@ function withBasePayload(overrides = {}) {
       number: 101,
       title: "[factory] Sample issue",
       body: "",
+      user: {
+        login: "issue-author"
+      },
       ...overrides.issue
     },
     sender: {
@@ -77,7 +81,9 @@ test("prepareIntake applies the rejection label when the requester lacks write a
     () =>
       prepareIntake({
         payload: withBasePayload(),
-        getCollaboratorPermissionImpl: async () => ({ permission: "read" }),
+        getCollaboratorPermissionImpl: async (login) => ({
+          permission: login === "octocat" ? "read" : "write"
+        }),
         addLabelsImpl: async (issueNumber, labels) => {
           addLabelCalls.push({ issueNumber, labels });
         },
@@ -104,11 +110,51 @@ test("prepareIntake applies the rejection label when the requester lacks write a
   assert.deepEqual(removeLabelCalls, []);
 });
 
+test("prepareIntake applies the rejection label when the issue author lacks write access", async () => {
+  const addLabelCalls = [];
+  const removeLabelCalls = [];
+  const gitCalls = [];
+
+  await assert.rejects(
+    () =>
+      prepareIntake({
+        payload: withBasePayload(),
+        getCollaboratorPermissionImpl: async (login) => ({
+          permission: login === "issue-author" ? "read" : "write"
+        }),
+        addLabelsImpl: async (issueNumber, labels) => {
+          addLabelCalls.push({ issueNumber, labels });
+        },
+        removeLabelImpl: async (issueNumber, label) => {
+          removeLabelCalls.push({ issueNumber, label });
+        },
+        commentOnIssueImpl: async () => {
+          throw new Error("commentOnIssue should not be called");
+        },
+        renderIntakeRejectedCommentImpl: () => "intake rejected comment",
+        setOutputsImpl: () => {},
+        gitImpl: (args) => {
+          gitCalls.push(args);
+        },
+        env: {}
+      }),
+    /Issue author issue-author does not have write access/
+  );
+
+  assert.deepEqual(gitCalls, []);
+  assert.deepEqual(addLabelCalls, [
+    { issueNumber: 101, labels: [FACTORY_LABELS.intakeRejected] }
+  ]);
+  assert.deepEqual(removeLabelCalls, []);
+});
+
 test("prepareIntake removes the rejection label on a successful intake", async () => {
   const addLabelCalls = [];
   const removeLabelCalls = [];
   const gitCalls = [];
   const outputs = [];
+  const mkdirCalls = [];
+  const writeFileCalls = [];
 
   const issueBody = `
 ## Problem Statement
@@ -147,6 +193,12 @@ List affected areas
     },
     renderIntakeRejectedCommentImpl: () => "intake rejected comment",
     setOutputsImpl: (next) => outputs.push(next),
+    mkdirImpl: (target, options) => {
+      mkdirCalls.push({ target, options });
+    },
+    writeFileImpl: (target, contents) => {
+      writeFileCalls.push({ target, contents });
+    },
     gitImpl: (args) => {
       gitCalls.push(args);
     },
@@ -171,6 +223,20 @@ List affected areas
     ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
     ["fetch", "origin", "main"],
     ["checkout", "-B", "factory/103-successful-issue", "origin/main"],
+    ["add", `.factory/runs/103/${APPROVED_ISSUE_FILE_NAME}`],
+    ["commit", "-m", "factory(intake): snapshot approved request"],
     ["push", "origin", "HEAD:refs/heads/factory/103-successful-issue"]
+  ]);
+  assert.deepEqual(mkdirCalls, [
+    {
+      target: ".factory/runs/103",
+      options: { recursive: true }
+    }
+  ]);
+  assert.deepEqual(writeFileCalls, [
+    {
+      target: `.factory/runs/103/${APPROVED_ISSUE_FILE_NAME}`,
+      contents: issueBody
+    }
   ]);
 });

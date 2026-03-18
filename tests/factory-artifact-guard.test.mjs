@@ -35,6 +35,7 @@ test("listBlockingFactoryRunArtifacts ignores deletions", () => {
 test("listInvalidFactoryRunArtifacts flags unexpected files under run directories", () => {
   assert.deepEqual(
     listInvalidFactoryRunArtifacts([
+      { status: "A", path: ".factory/runs/1/approved-issue.md" },
       { status: "A", path: ".factory/runs/1/spec.md" },
       { status: "A", path: ".factory/runs/1/cost-summary.json" },
       { status: "A", path: ".factory/runs/1/tmp.txt" },
