@@ -150,6 +150,7 @@ export const FACTORY_COST_LABELS = Object.freeze(
 );
 export const DEFAULT_FACTORY_COST_WARN_USD = 0.25;
 export const DEFAULT_FACTORY_COST_HIGH_USD = 1.0;
+export const APPROVED_ISSUE_FILE_NAME = "approved-issue.md";
 
 export function isFactoryBranch(branchName) {
   return typeof branchName === "string" && branchName.startsWith("factory/");

@@ -5,9 +5,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildStagePrompt,
+  loadStagePromptInputs,
   resolvePromptBudgets,
   writePromptArtifacts
 } from "../scripts/build-stage-prompt.mjs";
+import { APPROVED_ISSUE_FILE_NAME } from "../scripts/lib/factory-config.mjs";
 import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { parseIssueForm } from "../scripts/lib/issue-form.mjs";
 import { resolveReviewMethodology } from "../scripts/lib/review-methods.mjs";
@@ -37,6 +39,7 @@ function fixture(name) {
 function makeArtifactsDir(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-prompt-"));
   const files = {
+    [APPROVED_ISSUE_FILE_NAME]: fixture("long-issue-body.md"),
     "spec.md": fixture("spec.md"),
     "plan.md": fixture("plan.md"),
     "acceptance-tests.md": fixture("acceptance-tests.md"),
@@ -662,4 +665,51 @@ test("implement prompt is materially smaller than the legacy prompt shape", () =
   });
 
   assert.ok(nextPrompt.length < legacyPrompt.length * 0.6, `${nextPrompt.length} vs ${legacyPrompt.length}`);
+});
+
+test("loadStagePromptInputs reads approved issue snapshot from artifacts", async () => {
+  const artifactsDir = makeArtifactsDir({
+    [APPROVED_ISSUE_FILE_NAME]: [
+      "## Problem Statement",
+      "Approved snapshot problem",
+      "## Goals",
+      "Approved goals",
+      "## Non-goals",
+      "Approved non-goals",
+      "## Constraints",
+      "Approved constraints",
+      "## Acceptance Criteria",
+      "Approved acceptance",
+      "## Risk",
+      "Approved risk",
+      "## Affected Area",
+      "Approved area"
+    ].join("\n")
+  });
+
+  const input = await loadStagePromptInputs({
+    FACTORY_MODE: "implement",
+    FACTORY_ISSUE_NUMBER: "12",
+    FACTORY_BRANCH: "factory/12-sample",
+    FACTORY_ARTIFACTS_PATH: artifactsDir
+  });
+
+  assert.match(input.issueBody, /Approved snapshot problem/);
+});
+
+test("loadStagePromptInputs fails closed when approved issue snapshot is missing", async () => {
+  const artifactsDir = makeArtifactsDir({
+    [APPROVED_ISSUE_FILE_NAME]: null
+  });
+
+  await assert.rejects(
+    () =>
+      loadStagePromptInputs({
+        FACTORY_MODE: "implement",
+        FACTORY_ISSUE_NUMBER: "12",
+        FACTORY_BRANCH: "factory/12-sample",
+        FACTORY_ARTIFACTS_PATH: artifactsDir
+      }),
+    /Missing approved issue snapshot/
+  );
 });
