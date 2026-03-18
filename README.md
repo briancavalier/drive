@@ -150,6 +150,7 @@ The workflows create and manage these labels automatically:
 - `factory:implement`
 - `factory:blocked`
 - `factory:paused`
+- `factory:intake-rejected` (intake was rejected before planning; the issue needs updates)
 - `factory:cost-low`
 - `factory:cost-medium`
 - `factory:cost-high`

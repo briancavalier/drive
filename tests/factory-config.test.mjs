@@ -83,3 +83,16 @@ test("label definitions include advisory cost labels", () => {
     FACTORY_LABELS.costMedium
   ]);
 });
+
+test("label definitions include the intake rejection label metadata", () => {
+  const definition = LABEL_DEFINITIONS.find(
+    (entry) => entry.name === FACTORY_LABELS.intakeRejected
+  );
+
+  assert.ok(definition, "expected intake rejection label definition");
+  assert.equal(
+    definition.description,
+    "Factory intake was rejected; issue needs updates before planning can start."
+  );
+  assert.equal(definition.color, "D73A4A");
+});
