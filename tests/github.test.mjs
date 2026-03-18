@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createIssue,
   githubGraphql,
   githubRequest,
   normalizeMethod,
+  searchIssues,
   shouldRetryRequest
 } from "../scripts/lib/github.mjs";
 
@@ -163,4 +165,90 @@ test("githubGraphql disables retries for mutations", async () => {
 
   globalThis.fetch = previousFetch;
   assert.equal(calls, 1);
+});
+
+test("createIssue posts minimal payload without labels", async () => {
+  let requestPath = "";
+  let requestMethod = "";
+  let requestBody = null;
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options = {}) => {
+    requestPath = url;
+    requestMethod = options.method;
+    requestBody = JSON.parse(options.body);
+    return jsonResponse(201, { number: 42 });
+  };
+
+  await withRepoEnv(async () => {
+    const response = await createIssue({ title: "Follow-up", body: "Details" });
+    assert.equal(response.number, 42);
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.equal(requestPath, "https://api.github.com/repos/example/repo/issues");
+  assert.equal(requestMethod, "POST");
+  assert.deepEqual(requestBody, { title: "Follow-up", body: "Details" });
+});
+
+test("createIssue includes labels when provided", async () => {
+  let requestBody = null;
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_url, options = {}) => {
+    requestBody = JSON.parse(options.body);
+    return jsonResponse(201, { number: 7 });
+  };
+
+  await withRepoEnv(async () => {
+    await createIssue({ title: "With labels", body: "Body", labels: ["Factory Request"] });
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.deepEqual(requestBody, {
+    title: "With labels",
+    body: "Body",
+    labels: ["Factory Request"]
+  });
+});
+
+test("searchIssues prefixes repo qualifier when missing", async () => {
+  let requestPath = "";
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    requestPath = url;
+    return jsonResponse(200, { items: [] });
+  };
+
+  await withRepoEnv(async () => {
+    await searchIssues({ query: "state:open test" });
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.match(
+    requestPath,
+    /\/search\/issues\?q=repo%3Aexample%2Frepo\+state%3Aopen\+test/
+  );
+});
+
+test("searchIssues preserves existing repo qualifier", async () => {
+  let requestPath = "";
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    requestPath = url;
+    return jsonResponse(200, { items: [] });
+  };
+
+  await withRepoEnv(async () => {
+    await searchIssues({ query: "repo:other/repo state:open test", perPage: 5 });
+  });
+
+  globalThis.fetch = previousFetch;
+  assert.match(requestPath, /per_page=5/);
+  assert.match(
+    requestPath,
+    /\/search\/issues\?q=repo%3Aother%2Frepo\+state%3Aopen\+test/
+  );
 });
