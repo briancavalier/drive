@@ -1,0 +1,73 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Adds 'workflow-safety' review methodology and integrates it into prompt resolution, artifact validation, and documentation while preserving default behavior.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Provide methodology assets: add .factory/review-methods/workflow-safety/instructions.md describing workflow rubric.",
+      "status": "satisfied",
+      "evidence": [
+        ".factory/review-methods/workflow-safety/instructions.md (file present in branch)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Methodology resolution: resolveReviewMethodology must resolve 'workflow-safety' and fall back to default when appropriate.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/review-methods.mjs -> resolveReviewMethodology checks for requested method and falls back to 'default'."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Prompt generation: setting FACTORY_REVIEW_METHOD=workflow-safety causes review prompt construction to embed the new instructions and include metadata.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/build-stage-prompt.mjs calls resolveReviewMethodology and embeds methodology.instructions into prompt; tests in tests/build-stage-prompt.test.mjs assert presence."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Review artifact validation: processing accepts review.json artifacts that declare \"methodology\": \"workflow-safety\" when requested.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/review-artifacts.mjs -> validateReviewPayload enforces expected methodology; tests in tests/review-artifacts.test.mjs include 'loadValidatedReviewArtifacts accepts workflow-safety methodology'."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Documentation: README updated to document selecting FACTORY_REVIEW_METHOD and mention 'workflow-safety'.",
+      "status": "satisfied",
+      "evidence": [
+        "README.md updated: lines describing FACTORY_REVIEW_METHOD and an entry for 'workflow-safety'."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Test coverage: tests extended to exercise methodology resolution, prompt embedding, and artifact validation for workflow-safety while preserving default-path coverage.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/build-stage-prompt.test.mjs, tests/review-artifacts.test.mjs, and tests/process-review.test.mjs include cases for 'workflow-safety'; CI unit job succeeded (workflow run id: 23252604203)."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Preserve backward compatibility: default behavior unchanged when FACTORY_REVIEW_METHOD is unset or invalid.",
+      "status": "satisfied",
+      "evidence": [
+        "resolveReviewMethodology falls back to 'default' and build-stage-prompt sets fallback metadata; tests assert default-path behavior remains intact."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Missing run-level repair-log.md",
+      "details": ".factory/runs/42/repair-log.md is not present in the run artifacts. While the implementation treats the repair log as optional, its absence reduces traceability for repair-step outputs in this run.",
+      "scope": ".factory/runs/42",
+      "recommendation": "Include a short 'repair-log.md' in run artifacts when available, or explicitly document when it will be omitted."
+    }
+  ]
+}
