@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - factory/**
   pull_request:
 
 permissions:
