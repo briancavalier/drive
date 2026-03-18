@@ -92,6 +92,10 @@ jobs:
     needs:
       - route
       - mark-in-progress
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/_factory-stage.yml
     with:
       mode: ${{ needs.route.outputs.action }}
