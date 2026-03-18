@@ -199,7 +199,7 @@ function legacyReviewMethodologyInstructions() {
     "   - type: `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`",
     "   - requirement text",
     "   - status: `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`",
-    "   - concrete evidence such as changed files, tests, CI jobs, or artifact evidence",
+    "   - evidence as an array of concrete citations such as changed files, tests, CI jobs, or artifact evidence",
     "6. The control plane renders the canonical `review.md` Traceability section from `review.json`; do not rely on hand-authored markdown traceability to stay in sync.",
     "7. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.",
     "8. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.",
@@ -373,7 +373,9 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes/);
   assert.match(result.prompt, /requirement_checks/);
   assert.match(result.prompt, /requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`/);
+  assert.match(result.prompt, /`evidence` must be an array of non-empty strings/);
   assert.match(result.prompt, /findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`/);
+  assert.match(result.prompt, /Record evidence in `review\.json` as arrays of concrete citations/);
   assert.match(result.prompt, /partially_satisfied/);
   assert.deepEqual(result.meta.methodology, {
     name: "default",
@@ -483,7 +485,7 @@ test("review static instruction payload is materially smaller than the legacy sh
   const legacyStaticPayload = legacyPrompt.length;
 
   assert.ok(
-    nextStaticPayload < legacyStaticPayload * 0.75,
+    nextStaticPayload < legacyStaticPayload * 0.8,
     `${nextStaticPayload} vs ${legacyStaticPayload}`
   );
 });

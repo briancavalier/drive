@@ -9,6 +9,18 @@ import {
 } from "../scripts/lib/review-artifacts.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
+function normalizeEvidenceForMarkdown(evidence) {
+  if (Array.isArray(evidence)) {
+    return evidence.map((item) => `${item ?? ""}`);
+  }
+
+  if (typeof evidence === "string") {
+    return [evidence];
+  }
+
+  return ["[invalid evidence placeholder]"];
+}
+
 function createArtifacts({
   reviewJson = {},
   beforeTraceability = "",
@@ -25,13 +37,18 @@ function createArtifacts({
         type: "acceptance_criterion",
         requirement: "Acceptance criteria are covered by automated tests.",
         status: "satisfied",
-        evidence: "End-to-end tests cover acceptance criteria."
+        evidence: ["End-to-end tests cover acceptance criteria."]
       }
     ],
     findings: [],
     ...reviewJson
   };
-  const traceability = renderCanonicalTraceabilityMarkdown(baseReview.requirement_checks);
+  const traceability = renderCanonicalTraceabilityMarkdown(
+    baseReview.requirement_checks.map((check) => ({
+      ...check,
+      evidence: normalizeEvidenceForMarkdown(check.evidence)
+    }))
+  );
   const markdownSegments = [
     "# ✅ Autonomous Review Decision: PASS",
     "",
@@ -96,7 +113,7 @@ test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonica
         type: "acceptance_criterion",
         requirement: "Acceptance criteria are covered by automated tests.",
         status: "satisfied",
-        evidence: "End-to-end tests cover acceptance criteria."
+        evidence: ["End-to-end tests cover acceptance criteria."]
       }
     ]), "## 🧭 Traceability\nThis content has drifted.");
 
@@ -327,4 +344,143 @@ test("loadValidatedReviewArtifacts appends canonical traceability when missing",
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
   assert.match(reviewMarkdown, /Traceability: Acceptance Criteria/);
+});
+
+test("loadValidatedReviewArtifacts preserves evidence arrays", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: ["tests/e2e.test.mjs", "ci / test: success"]
+        }
+      ]
+    }
+  });
+  const { review } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.deepEqual(review.requirement_checks[0].evidence, [
+    "tests/e2e.test.mjs",
+    "ci / test: success"
+  ]);
+});
+
+test("loadValidatedReviewArtifacts normalizes legacy evidence strings to arrays", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: "tests/e2e.test.mjs"
+        }
+      ]
+    }
+  });
+  const { review } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.deepEqual(review.requirement_checks[0].evidence, ["tests/e2e.test.mjs"]);
+});
+
+test("loadValidatedReviewArtifacts rejects empty evidence arrays", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: []
+        }
+      ]
+    }
+  });
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: "default"
+      }),
+    /requirement_checks\[0\]\.evidence must be a non-empty array/
+  );
+});
+
+test("loadValidatedReviewArtifacts rejects empty evidence items", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: ["tests/e2e.test.mjs", " "]
+        }
+      ]
+    }
+  });
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: "default"
+      }),
+    /requirement_checks\[0\]\.evidence\[1\] must not be empty/
+  );
+});
+
+test("loadValidatedReviewArtifacts rejects invalid evidence types", () => {
+  const nullEvidencePath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: null
+        }
+      ]
+    }
+  });
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath: nullEvidencePath,
+        requestedMethodology: "default"
+      }),
+    /requirement_checks\[0\]\.evidence must be a string or an array of strings/
+  );
+
+  const objectEvidencePath = createArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "Acceptance criteria are covered by automated tests.",
+          status: "satisfied",
+          evidence: { file: "tests/e2e.test.mjs" }
+        }
+      ]
+    }
+  });
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath: objectEvidencePath,
+        requestedMethodology: "default"
+      }),
+    /requirement_checks\[0\]\.evidence must be a string or an array of strings/
+  );
 });

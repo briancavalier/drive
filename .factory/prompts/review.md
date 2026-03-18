@@ -22,6 +22,7 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 2. `review.json`
    - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
    - `requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`.
+   - `evidence` must be an array of non-empty strings, with one concrete citation or proof point per item.
    - `requirement_checks` must use `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`.
    - Status values must be `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`.
    - `findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`.
@@ -38,6 +39,7 @@ Review guidance:
 - Validate correctness against the spec, plan deliverables, and acceptance tests.
 - Build explicit traceability between requirements and evidence before deciding.
 - Confirm test coverage and CI evidence are sufficient.
+- Record evidence in `review.json` as arrays of concrete citations, preserving one item per supporting proof point.
 - Assess regression risk, security/safety implications, and scope control.
 - Flag missing artifacts, weak evidence, or deviations from plan/spec.
 - Keep blocking findings and unmet requirements visible outside collapsible sections.
