@@ -147,6 +147,39 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.match(commentBody, /Artifacts: `.+\/review\.md`/);
 });
 
+test("processReview accepts workflow-safety methodology configuration", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: { methodology: "workflow-safety" }
+  });
+  const env = baseEnv({
+    artifactsPath: dir,
+    reviewMethod: "workflow-safety"
+  });
+  const execCalls = [];
+  let commentBody = "";
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: {
+      commentOnIssue: async (_prNumber, body) => {
+        commentBody = body;
+      },
+      submitPullRequestReview: async () => {
+        throw new Error("submitPullRequestReview should not be called for pass decision");
+      }
+    }
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
+  assert.equal(execCalls[0].options.env.FACTORY_REVIEW_METHOD, "workflow-safety");
+  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
+});
+
 test("processReview uses configured pass-comment overrides", async () => {
   const { dir } = makeArtifacts();
   const overridesRoot = makeOverrides({

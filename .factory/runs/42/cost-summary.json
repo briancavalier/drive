@@ -1,0 +1,56 @@
+{
+  "issueNumber": 42,
+  "branch": "factory/42-add-workflow-safety-review-methodology",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0035,
+    "totalEstimatedUsd": 0.0089,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "fallback"
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 4582,
+      "estimatedInputTokens": 1146,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.0021,
+      "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2600,
+      "estimatedInputTokens": 650,
+      "multiplier": 4,
+      "estimatedUsd": 0.0033,
+      "pricingSource": "model"
+    },
+    "review": {
+      "mode": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 5518,
+      "estimatedInputTokens": 1380,
+      "multiplier": 2,
+      "estimatedUsd": 0.0035,
+      "pricingSource": "fallback"
+    }
+  }
+}
