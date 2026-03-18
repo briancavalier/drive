@@ -1,0 +1,38 @@
+{
+  "issueNumber": 52,
+  "branch": "factory/52-investigate-blocked-factory-failures-and-open-de",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "plan",
+    "model": "gpt-5-codex",
+    "stageEstimateUsd": 0.0023,
+    "totalEstimatedUsd": 0.0023,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "model"
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 4875,
+      "estimatedInputTokens": 1219,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.0023,
+      "pricingSource": "model"
+    }
+  }
+}
