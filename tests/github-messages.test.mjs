@@ -198,7 +198,8 @@ function sampleReviewMarkdown({ decision = "pass" } = {}) {
     "",
     "- Requirement: Ensure quality",
     "  - Status: `satisfied`",
-    "  - Evidence: Tests cover expectations.",
+    "  - Evidence:",
+    "    - Tests cover expectations.",
     "",
     "</details>"
   ].join("\n");
@@ -229,7 +230,8 @@ test("buildReviewConversationBody retains traceability section when truncated", 
     "",
     "- Requirement: Ensure quality",
     "  - Status: `satisfied`",
-    "  - Evidence: Tests cover expectations.",
+    "  - Evidence:",
+    "    - Tests cover expectations.",
     "",
     "</details>"
   ].join("\n");

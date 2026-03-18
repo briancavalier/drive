@@ -166,21 +166,14 @@ test("validateReviewArtifactsForStage delegates to loadValidatedReviewArtifacts"
   });
 });
 
-test("prepare-stage-push fails before git when review validation rejects", () => {
+test("prepare-stage-push fails before git when review payload is invalid", () => {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-review-invalid-"));
   const reviewJson = {
     methodology: "default",
     decision: "pass",
     summary: "Test summary",
     blocking_findings_count: 0,
-    requirement_checks: [
-      {
-        type: "acceptance_criterion",
-        requirement: "Validation runs before push.",
-        status: "satisfied",
-        evidence: "Guarded by prepare-stage-push."
-      }
-    ],
+    requirement_checks: [],
     findings: []
   };
 
@@ -205,7 +198,72 @@ test("prepare-stage-push fails before git when review validation rejects", () =>
     }
 
     assert.ok(thrown, "expected validation failure");
-    assert.match(thrown.message, /review\.md must include/);
+    assert.match(thrown.message, /requirement_checks must be a non-empty array/);
   } finally {
   }
+});
+
+test("prepare-stage-push normalizes drifted review traceability before git", () => {
+  const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-review-normalized-"));
+  const reviewJson = {
+    methodology: "default",
+    decision: "pass",
+    summary: "Test summary",
+    blocking_findings_count: 0,
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Validation runs before push.",
+        status: "satisfied",
+        evidence: "Guarded by prepare-stage-push."
+      }
+    ],
+    findings: []
+  };
+
+  fs.writeFileSync(path.join(artifactsDir, "review.json"), JSON.stringify(reviewJson, null, 2));
+  fs.writeFileSync(
+    path.join(artifactsDir, "review.md"),
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "Test summary",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details><summary>Traceability: Acceptance Criteria</summary>",
+      "",
+      "- Acceptance Criterion: \"Validation runs before push.\" — satisfied.",
+      "  - Evidence: Guarded by prepare-stage-push.",
+      "",
+      "</details>",
+      "",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  let thrown = null;
+
+  try {
+    prepareStagePushMain({
+      FACTORY_BRANCH: "factory/34-review-test",
+      FACTORY_MODE: "review",
+      FACTORY_ISSUE_NUMBER: "34",
+      FACTORY_ISSUE_TITLE: "Add validation guard",
+      FACTORY_ARTIFACTS_PATH: artifactsDir,
+      FACTORY_REVIEW_METHOD: "default",
+      GITHUB_TOKEN: "ghs_mock"
+    });
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert.ok(thrown, "expected git failure after validation");
+  assert.doesNotMatch(thrown.message, /canonical Traceability section/);
+
+  const normalizedReviewMarkdown = fs.readFileSync(path.join(artifactsDir, "review.md"), "utf8");
+  assert.match(normalizedReviewMarkdown, /- Requirement: Validation runs before push\./);
+  assert.match(normalizedReviewMarkdown, /  - Status: `satisfied`/);
+  assert.doesNotMatch(normalizedReviewMarkdown, /Methodology used: default\./);
 });

@@ -15,13 +15,14 @@ Methodology rubric:
 Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
 1. `review.md`
-   - Write sections in this order: decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability.
+   - Write sections in this order: decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes.
    - Keep blocking findings and unmet requirements outside collapsible sections.
    - Include the methodology used (`{{METHODOLOGY_NAME}}`).
-   - Render Traceability with GitHub-friendly `<details><summary>` blocks.
+   - The control plane renders the final `🧭` Traceability section from `review.json`; focus `review.md` on the human-readable review narrative.
 2. `review.json`
    - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
    - `requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`.
+   - `evidence` must be an array of non-empty strings, with one concrete citation or proof point per item.
    - `requirement_checks` must use `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`.
    - Status values must be `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`.
    - `findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`.
@@ -29,7 +30,7 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 
 Validation:
 
-- Canonical traceability in `review.md` is validated against `review.json` after the run.
+- The control plane renders canonical traceability in `review.md` from `review.json` after the run.
 - `blocking_findings_count` must match the number of blocking findings.
 - A `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
 
@@ -38,6 +39,7 @@ Review guidance:
 - Validate correctness against the spec, plan deliverables, and acceptance tests.
 - Build explicit traceability between requirements and evidence before deciding.
 - Confirm test coverage and CI evidence are sufficient.
+- Record evidence in `review.json` as arrays of concrete citations, preserving one item per supporting proof point.
 - Assess regression risk, security/safety implications, and scope control.
 - Flag missing artifacts, weak evidence, or deviations from plan/spec.
 - Keep blocking findings and unmet requirements visible outside collapsible sections.
