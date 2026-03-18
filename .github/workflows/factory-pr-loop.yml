@@ -14,7 +14,9 @@ on:
       - completed
 
 concurrency:
-  group: factory-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || github.run_id }}
+  # Keep this expression limited to properties that are always available for the
+  # triggering event. Invalid dereferences here fail the entire workflow at startup.
+  group: factory-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -90,6 +92,10 @@ jobs:
     needs:
       - route
       - mark-in-progress
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/_factory-stage.yml
     with:
       mode: ${{ needs.route.outputs.action }}
@@ -195,7 +201,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
 
@@ -363,7 +369,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           sandbox: workspace-write
-          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'codex-mini-latest' }}
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
 

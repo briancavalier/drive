@@ -43,12 +43,26 @@ test("factory reset workflow status options stay in sync with shared config", ()
   assert.deepEqual(options, FACTORY_RESETTABLE_PR_STATUSES);
 });
 
-test("factory PR loop concurrency prefers linked PR numbers for workflow_run events", () => {
+test("factory PR loop concurrency uses only event-safe identifiers", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
-  assert.match(
+  assert.match(workflowText, /github\.event\.pull_request\.number/);
+  assert.match(workflowText, /github\.event\.workflow_run\.head_branch/);
+  assert.doesNotMatch(
     workflowText,
     /github\.event\.workflow_run\.pull_requests\[0\]\.number/
+  );
+});
+
+test("factory PR loop stage caller grants reusable workflow write permissions", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const stageBlock = extractJobBlock(workflowText, "stage");
+
+  assert.match(stageBlock, /permissions:\s*\n\s+contents:\s+write/);
+  assert.match(stageBlock, /permissions:\s*\n(?:\s+[a-z-]+:\s+\w+\n)*\s+issues:\s+write/);
+  assert.match(
+    stageBlock,
+    /permissions:\s*\n(?:\s+[a-z-]+:\s+\w+\n)*\s+pull-requests:\s+write/
   );
 });
 
@@ -100,6 +114,52 @@ test("factory stage workflow resolves per-stage models before running Codex", ()
   );
 });
 
+test("factory stage workflow validates the resolved model before estimating cost", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Validate stage model[\s\S]*node scripts\/validate-stage-model\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODEL:\s*\$\{\{\s*steps\.model\.outputs\.model\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODE:\s*\$\{\{\s*inputs\.mode\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODEL_SOURCE_VARIABLE:\s*\$\{\{\s*steps\.model\.outputs\.model_source_variable\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /OPENAI_API_KEY:\s*\$\{\{\s*secrets\.OPENAI_API_KEY\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on stage model validation failure[\s\S]*if:\s*steps\.model_preflight\.outcome == 'failure'/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Estimate stage cost[\s\S]*FACTORY_STAGE_MODEL:\s*\$\{\{\s*steps\.model\.outputs\.model\s*\}\}/
+  );
+});
+
+test("factory stage workflow surfaces model validation failures ahead of downstream steps", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /failure_type:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_type \|\|/
+  );
+  assert.match(
+    workflowText,
+    /failure_message:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_message \|\|/
+  );
+});
+
 test("factory stage workflow records estimated cost only after a successful push", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
   const estimateIndex = workflowText.indexOf("name: Estimate stage cost");
@@ -142,7 +202,7 @@ test("factory PR loop failure jobs build diagnosis prompts and gate Codex adviso
     workflowText,
     /FACTORY_FAILURE_PHASE:\s*\$\{\{\s*needs\['process-review'\]\.outputs\.failure_phase \|\| 'review_delivery'\s*\}\}/
   );
-  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'codex-mini-latest'\s*\}\}/);
+  assert.match(workflowText, /model:\s*\$\{\{\s*vars\.FACTORY_FAILURE_DIAGNOSIS_MODEL \|\| 'gpt-5-mini'\s*\}\}/);
   assert.match(workflowText, /FACTORY_ENABLE_FAILURE_DIAGNOSIS:\s*\$\{\{\s*vars\.FACTORY_ENABLE_FAILURE_DIAGNOSIS \|\| 'true'\s*\}\}/);
   assert.match(workflowText, /configuration\|transient_infra\|stale_branch_conflict\|stale_stage_push/);
   assert.match(workflowText, /if:\s*steps\.diagnosis_gate\.outputs\.run_diagnosis == 'true'/);

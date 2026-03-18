@@ -45,6 +45,10 @@ jobs:
 
   plan:
     needs: prepare
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/_factory-stage.yml
     with:
       mode: plan
