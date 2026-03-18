@@ -1,0 +1,87 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "New failure types (stage_noop, stage_setup), diagnostics, bounded recovery counters, and follow-up gating implemented; unit tests added and CI unit suite passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "A stage failure that finishes with no repository changes is classified distinctly and includes diagnostics and recovery guidance.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/failure-classification.mjs: defines FAILURE_TYPES.stageNoop and matches STAGE_NOOP_PATTERNS.",
+        "scripts/lib/stage-diagnostics.mjs: provides renderStageDiagnostics output used to include diagnostics in failure messages.",
+        "tests/prepare-stage-push.test.mjs: tests that prepare-stage-push reports stage_noop diagnostics when branch is unchanged.",
+        "tests/failure-comment.test.mjs: asserts stage_noop failure comment includes diagnostics and targeted recovery text.",
+        "CI workflow run id: 23265468956 (unit: success)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "A configuration/setup failure before branch output is prepared is classified distinctly and prompts targeted operator guidance.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/failure-classification.mjs: defines FAILURE_TYPES.stageSetup and matches STAGE_SETUP_PATTERNS.",
+        "tests/prepare-stage-push.test.mjs: contains case asserting stage_setup diagnostics for workflow changes without factory token.",
+        "tests/failure-comment.test.mjs: asserts stage_setup failure comment includes prerequisite guidance and diagnostics.",
+        "scripts/lib/stage-diagnostics.mjs: diagnostics include FACTORY_GITHUB_TOKEN availability and workflow change detection."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Bounded recovery: counters for repeated stage_noop/stage_setup attempts are tracked and the second no-op blocks further automated retries.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/handle-stage-failure.mjs: reads FACTORY_STAGE_NOOP_ATTEMPTS/FACTORY_STAGE_SETUP_ATTEMPTS and increments/caps attempts; buildStateUpdate blocks after limit.",
+        "tests/handle-stage-failure.test.mjs: verifies increments and transition to blocked after exhausting retries.",
+        "scripts/route-pr-loop.mjs: exposes stage_noop_attempts and stage_setup_attempts as workflow outputs."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Deterministic failures (stage_noop/stage_setup) are excluded from spawning Codex diagnosis follow-ups.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/failure-followup.mjs: INELIGIBLE_FAILURE_TYPES includes 'stage_noop' so follow-up creation is skipped.",
+        "tests/failure-followup.test.mjs: contains test asserting classifyFollowup skips stage_noop failures.",
+        ".github/workflows/factory-pr-loop.yml: workflow passes stage_noop_attempts/stage_setup_attempts outputs and wiring for state transitions."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Unit tests added/updated for failure-classification, prepare-stage-push, failure-comment, handle-stage-failure, build-stage-prompt, and followup gating.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/failure-classification.test.mjs: updated to cover new failure types.",
+        "tests/prepare-stage-push.test.mjs: added tests for stage_noop and stage_setup diagnostics.",
+        "tests/failure-comment.test.mjs: asserts new comment rendering for both types.",
+        "tests/handle-stage-failure.test.mjs and tests/build-stage-prompt.test.mjs: cover counters and prompt metadata."
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Documentation updated to describe new failure types and operator guidance.",
+      "status": "satisfied",
+      "evidence": [
+        "README.md: contains entries describing 'stage_noop' and 'stage_setup' behavior and the stageNoopAttempts metadata.",
+        "scripts/lib/failure-comment.mjs: renders Stage diagnostics section within failure comments."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Missing repair-log artifact",
+      "details": "The file .factory/runs/53/repair-log.md referenced by the run metadata (artifact index) is not present in the branch. sed returned 'No such file or directory'.",
+      "scope": ".factory/runs/53",
+      "recommendation": "Add the missing .factory/runs/53/repair-log.md or update the artifact index so generated artifact listings match the branch contents."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Consider an integration smoke test",
+      "details": "Unit tests are comprehensive; consider adding a lightweight E2E/integration job that runs a synthetic stage in CI to validate workflow wiring (checkout + route + stage) in addition to unit tests.",
+      "scope": "CI/workflows",
+      "recommendation": "Add a pipeline job or scripted smoke test that runs the route and stage prepare logic against a temporary repo fixture."
+    }
+  ]
+}
