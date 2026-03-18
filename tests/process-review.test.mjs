@@ -77,7 +77,7 @@ function makeArtifacts(overrides = {}) {
         type: "acceptance_criterion",
         requirement: "A factory-managed PR that reaches green CI enters review.",
         status: "satisfied",
-        evidence: "Verified by CI routing and review stage tests."
+        evidence: ["Verified by CI routing and review stage tests."]
       }
     ],
     findings: [],
@@ -210,6 +210,57 @@ test("processReview rejects pass decision when blocking findings present", async
   );
 });
 
+test("processReview accepts legacy string evidence by normalizing to arrays", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      requirement_checks: [
+        {
+          type: "acceptance_criterion",
+          requirement: "A factory-managed PR that reaches green CI enters review.",
+          status: "satisfied",
+          evidence: "Verified by CI routing and review stage tests."
+        }
+      ]
+    },
+    reviewMd: [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "## 🚨 Blocking Findings",
+      "",
+      "No blocking findings.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details>",
+      "<summary>🧭 Traceability: Acceptance Criteria</summary>",
+      "",
+      "- Requirement: A factory-managed PR that reaches green CI enters review.",
+      "  - Status: `satisfied`",
+      "  - Evidence:",
+      "    - Verified by CI routing and review stage tests.",
+      "",
+      "</details>"
+    ].join("\n")
+  });
+  const env = baseEnv({ artifactsPath: dir });
+
+  await assert.doesNotReject(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    })
+  );
+});
+
 test("processReview rejects pass decision when requirement checks are partially satisfied", async () => {
   const { dir } = makeArtifacts({
     reviewJson: {
@@ -218,7 +269,7 @@ test("processReview rejects pass decision when requirement checks are partially 
           type: "acceptance_criterion",
           requirement: "Review artifacts are generated.",
           status: "partially_satisfied",
-          evidence: "review.md exists but acceptance coverage is incomplete."
+          evidence: ["review.md exists but acceptance coverage is incomplete."]
         }
       ]
     }
@@ -250,7 +301,7 @@ test("processReview normalizes mixed-case enums before rendering request changes
           type: "ACCEPTANCE_CRITERION",
           requirement: "Acceptance criteria are fully covered by tests.",
           status: "NOT_SATISFIED",
-          evidence: "Negative-path coverage is missing."
+          evidence: ["Negative-path coverage is missing.", "ci / test did not cover the negative path."]
         }
       ],
       findings: [
@@ -273,7 +324,7 @@ test("processReview normalizes mixed-case enums before rendering request changes
           type: "acceptance_criterion",
           requirement: "Acceptance criteria are fully covered by tests.",
           status: "not_satisfied",
-          evidence: "Negative-path coverage is missing."
+          evidence: ["Negative-path coverage is missing.", "ci / test did not cover the negative path."]
         }
       ],
       findings: [
@@ -311,6 +362,7 @@ test("processReview normalizes mixed-case enums before rendering request changes
   assert.match(reviewPayload.body, /### Missing tests/);
   assert.match(reviewPayload.body, /`not_satisfied`/);
   assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria/);
+  assert.match(reviewPayload.body, /  - Evidence:\n    - Negative-path coverage is missing\.\n    - ci \/ test did not cover the negative path\./);
 });
 
 test("processReview rejects pass decision when mixed-case unmet requirement checks exist", async () => {
@@ -321,7 +373,7 @@ test("processReview rejects pass decision when mixed-case unmet requirement chec
           type: "ACCEPTANCE_CRITERION",
           requirement: "Review artifacts are generated.",
           status: "PARTIALLY_SATISFIED",
-          evidence: "review.md exists but acceptance coverage is incomplete."
+          evidence: ["review.md exists but acceptance coverage is incomplete."]
         }
       ]
     }
@@ -353,7 +405,7 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
           type: "acceptance_criterion",
           requirement: "Acceptance criteria are fully covered by tests.",
           status: "not_satisfied",
-          evidence: "Negative-path coverage is missing."
+          evidence: ["Negative-path coverage is missing."]
         }
       ],
       findings: [
@@ -439,7 +491,7 @@ test("processReview main writes failure message output for workflow follow-up", 
           type: "acceptance_criterion",
           requirement: "Acceptance criteria are fully covered by tests.",
           status: "not_satisfied",
-          evidence: "Negative-path coverage is missing."
+          evidence: ["Negative-path coverage is missing."]
         }
       ],
       findings: [
@@ -542,7 +594,7 @@ test("processReview uses configured request-changes overrides and preserves trun
         type: "plan_deliverable",
         requirement: "Add tests for changed behavior.",
         status: "not_satisfied",
-        evidence: "No new tests were added for the changed code path."
+        evidence: ["No new tests were added for the changed code path."]
       }
     ],
     findings: [
@@ -564,7 +616,7 @@ test("processReview uses configured request-changes overrides and preserves trun
           type: "plan_deliverable",
           requirement: "Add tests for changed behavior.",
           status: "not_satisfied",
-          evidence: "No new tests were added for the changed code path."
+          evidence: ["No new tests were added for the changed code path."]
         }
       ],
       findings: [
@@ -703,7 +755,8 @@ test("processReview accepts drifted traceability by normalizing it to review.jso
       "",
       "- Requirement: A factory-managed PR that reaches green CI enters review.",
       "  - Status: `satisfied`",
-      "  - Evidence: Drifted evidence that does not match review.json.",
+      "  - Evidence:",
+      "    - Drifted evidence that does not match review.json.",
       "",
       "</details>"
     ].join("\n")
@@ -736,7 +789,7 @@ test("processReview rejects invalid requirement check type or status", async () 
           type: "acceptance",
           requirement: "Review writes artifacts.",
           status: "done",
-          evidence: "review.md was generated."
+          evidence: ["review.md was generated."]
         }
       ]
     }
@@ -766,7 +819,7 @@ test("processReview rejects empty requirement or evidence", async () => {
           type: "spec_commitment",
           requirement: " ",
           status: "satisfied",
-          evidence: ""
+          evidence: [""]
         }
       ]
     }

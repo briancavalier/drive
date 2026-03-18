@@ -44,6 +44,34 @@ function ensureString(value, fieldName) {
   return normalized;
 }
 
+function ensureEvidence(value, fieldName) {
+  if (typeof value === "string") {
+    return [ensureString(value, fieldName)];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be a string or an array of strings`);
+  }
+
+  if (value.length === 0) {
+    throw new Error(`${fieldName} must be a non-empty array`);
+  }
+
+  return value.map((item, index) => {
+    if (typeof item !== "string") {
+      throw new Error(`${fieldName}[${index}] must be a string`);
+    }
+
+    const normalized = item.trim();
+
+    if (!normalized) {
+      throw new Error(`${fieldName}[${index}] must not be empty`);
+    }
+
+    return normalized;
+  });
+}
+
 function ensureInteger(value, fieldName) {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${fieldName} must be a non-negative integer`);
@@ -117,7 +145,7 @@ function validateRequirementChecks(requirementChecks) {
       type,
       status,
       requirement: ensureString(check.requirement, `requirement_checks[${index}].requirement`),
-      evidence: ensureString(check.evidence, `requirement_checks[${index}].evidence`)
+      evidence: ensureEvidence(check.evidence, `requirement_checks[${index}].evidence`)
     };
   });
 }
