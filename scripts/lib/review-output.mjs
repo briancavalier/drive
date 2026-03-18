@@ -22,11 +22,22 @@ function groupRequirementChecks(requirementChecks = []) {
   })).filter((group) => group.checks.length > 0);
 }
 
+function renderEvidenceList(evidence = []) {
+  return [
+    "  - Evidence:",
+    ...evidence.map((item) => `    - ${item}`)
+  ].join("\n");
+}
+
+function renderCompactEvidence(evidence = []) {
+  return evidence.join("; ");
+}
+
 function renderRequirementCheckItem(check) {
   return [
     `- Requirement: ${check.requirement}`,
     `  - Status: \`${check.status}\``,
-    `  - Evidence: ${check.evidence}`
+    renderEvidenceList(check.evidence)
   ].join("\n");
 }
 
@@ -84,7 +95,7 @@ export function renderUnmetRequirementChecksSummary(requirementChecks = []) {
   return unmetChecks
     .map(
       (check) =>
-        `- [${check.type}] \`${check.status}\` ${check.requirement} -- Evidence: ${check.evidence}`
+        `- [${check.type}] \`${check.status}\` ${check.requirement} -- Evidence: ${renderCompactEvidence(check.evidence)}`
     )
     .join("\n");
 }
