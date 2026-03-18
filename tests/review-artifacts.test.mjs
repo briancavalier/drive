@@ -150,7 +150,6 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
 
   assert.equal(reviewMarkdown, normalizedOnDisk);
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
-  assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
   assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
   assert.match(reviewMarkdown, /  - Status: `satisfied`/);
@@ -194,7 +193,7 @@ test("normalizeReviewArtifacts replaces one-line details traceability blocks ins
   assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
   assert.doesNotMatch(reviewMarkdown, /- Acceptance Criterion:/);
-  assert.match(reviewMarkdown, /Methodology used: default\./);
+  assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
 });
 
 test("normalizeReviewArtifacts does not treat Traceability Notes as the traceability section", () => {
@@ -268,7 +267,7 @@ test("normalizeReviewArtifacts replaces prose and subheading traceability conten
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
 });
 
-test("normalizeReviewArtifacts preserves trailing prose after structured traceability content", () => {
+test("normalizeReviewArtifacts discards unheaded prose after the replaced traceability section", () => {
   const artifactsPath = createArtifacts();
   const reviewMdPath = path.join(artifactsPath, "review.md");
 
@@ -299,8 +298,8 @@ test("normalizeReviewArtifacts preserves trailing prose after structured traceab
     requestedMethodology: "default"
   });
 
-  assert.match(reviewMarkdown, /Methodology used: default\./);
-  assert.match(reviewMarkdown, /Closing reviewer note\./);
+  assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
+  assert.doesNotMatch(reviewMarkdown, /Closing reviewer note\./);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
 });
 
