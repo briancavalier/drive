@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import {
+  APPROVED_ISSUE_FILE_NAME,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_LABELS,
   issueArtifactsPath
@@ -30,6 +31,9 @@ function git(args) {
   execFileSync("git", args, { stdio: "inherit" });
 }
 
+const TRUSTED_PERMISSIONS = new Set(["write", "maintain", "admin"]);
+const INTAKE_COMMIT_MESSAGE = "factory(intake): snapshot approved request";
+
 export async function prepareIntake({
   payload = null,
   readEventImpl = readEvent,
@@ -40,6 +44,8 @@ export async function prepareIntake({
   getCollaboratorPermissionImpl = getCollaboratorPermission,
   renderIntakeRejectedCommentImpl = renderIntakeRejectedComment,
   setOutputsImpl = setOutputs,
+  mkdirImpl = fs.mkdirSync,
+  writeFileImpl = fs.writeFileSync,
   env = process.env
 } = {}) {
   const event = payload ?? readEventImpl();
@@ -65,12 +71,18 @@ export async function prepareIntake({
     await removeLabelImpl(issue.number, FACTORY_LABELS.intakeRejected);
   }
 
-  const permission = await getCollaboratorPermissionImpl(event.sender.login);
+  async function requireTrustedPermission(login, actorDescription) {
+    const normalizedLogin = `${login || ""}`.trim();
+    const permission = await getCollaboratorPermissionImpl(normalizedLogin);
 
-  if (!["write", "maintain", "admin"].includes(permission.permission)) {
-    await applyRejectionLabel();
-    throw new Error(`Sender ${event.sender.login} does not have write access`);
+    if (!TRUSTED_PERMISSIONS.has(permission.permission)) {
+      await applyRejectionLabel();
+      throw new Error(`${actorDescription} ${normalizedLogin} does not have write access`);
+    }
   }
+
+  await requireTrustedPermission(event.sender.login, "Sender");
+  await requireTrustedPermission(issue.user?.login, "Issue author");
 
   const parsedIssue = parseIssueForm(issue.body);
 
@@ -97,6 +109,10 @@ export async function prepareIntake({
   gitImpl(["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
   gitImpl(["fetch", "origin", defaultBranch]);
   gitImpl(["checkout", "-B", branch, `origin/${defaultBranch}`]);
+  mkdirImpl(artifactsPath, { recursive: true });
+  writeFileImpl(path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME), issue.body || "");
+  gitImpl(["add", path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME)]);
+  gitImpl(["commit", "-m", INTAKE_COMMIT_MESSAGE]);
   gitImpl(["push", "origin", `HEAD:refs/heads/${branch}`]);
 
   setOutputsImpl({

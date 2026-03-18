@@ -1,4 +1,5 @@
 import {
+  APPROVED_ISSUE_FILE_NAME,
   PR_STATE_MARKER,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_PR_STATUSES
@@ -56,6 +57,7 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   const base = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
 
   return {
+    approvedIssue: `${base}/${APPROVED_ISSUE_FILE_NAME}`,
     spec: `${base}/spec.md`,
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
