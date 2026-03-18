@@ -154,6 +154,15 @@ relevant artifact links, and deterministic recovery guidance. When available, a
 lightweight Codex advisory is appended to explain likely scope and next steps
 without changing the underlying state-transition rules.
 
+Actionable control-plane or artifact-contract failures now trigger an automatic
+Factory Request issue so recurring outages get durable tracking:
+
+- Follow-up creation is gated by the Codex advisory scope/confidence plus a small allowlist of control-plane and contract drift messages; transient infrastructure or branch-local problems are ignored.
+- Every follow-up issue includes the blocked PR number, workflow run link, failure category, and artifacts evidence, along with a hidden signature used for deduplication.
+- If an open issue already carries the same signature, the factory skips creation and simply references the existing issue in the failure comment.
+- The failure comment always notes the issue that captured the follow-up, putting operators one click away from the backlog entry.
+- Newly opened issues still require a human to apply `factory:start` when execution is ready to resume.
+
 ## Labels
 
 The workflows create and manage these labels automatically:
