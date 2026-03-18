@@ -73,9 +73,9 @@ jobs:
       review_methodology: ${{ steps.build.outputs.review_methodology }}
       review_methodology_fallback: ${{ steps.build.outputs.review_methodology_fallback }}
       review_methodology_requested: ${{ steps.build.outputs.review_methodology_requested }}
-      failure_type: ${{ steps.refresh.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
-      failure_message: ${{ steps.refresh.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
-      transient_retry_attempts: ${{ steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
+      failure_type: ${{ steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
+      failure_message: ${{ steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
+      transient_retry_attempts: ${{ steps.model_preflight.outputs.transient_retry_attempts || steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
       refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
       refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}
     permissions:
@@ -151,6 +151,21 @@ jobs:
           FACTORY_IMPLEMENT_MODEL: ${{ vars.FACTORY_IMPLEMENT_MODEL || '' }}
           FACTORY_REPAIR_MODEL: ${{ vars.FACTORY_REPAIR_MODEL || '' }}
           FACTORY_REVIEW_MODEL: ${{ vars.FACTORY_REVIEW_MODEL || '' }}
+
+      - name: Validate stage model
+        id: model_preflight
+        continue-on-error: true
+        run: node scripts/validate-stage-model.mjs
+        env:
+          FACTORY_STAGE_MODEL: ${{ steps.model.outputs.model }}
+          FACTORY_STAGE_MODE: ${{ inputs.mode }}
+          FACTORY_STAGE_MODEL_SOURCE: ${{ steps.model.outputs.model_source }}
+          FACTORY_STAGE_MODEL_SOURCE_VARIABLE: ${{ steps.model.outputs.model_source_variable }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Stop on stage model validation failure
+        if: steps.model_preflight.outcome == 'failure'
+        run: exit 1
 
       - name: Estimate stage cost
         id: cost
