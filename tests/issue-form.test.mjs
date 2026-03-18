@@ -38,6 +38,42 @@ test("missingIssueFormFields reports omitted sections", () => {
   ]);
 });
 
+test("parseIssueForm accepts GitHub issue form heading levels", () => {
+  const parsed = parseIssueForm(`
+## Problem statement
+
+Problem text
+
+## Goals
+
+- Goal one
+
+## Non-goals
+
+- Not this
+
+## Constraints
+
+- Constraint
+
+## Acceptance criteria
+
+- Works
+
+## Risk
+
+- Risk
+
+## Affected area
+
+CI / Automation
+`);
+
+  assert.equal(isValidIssueForm(parsed), true);
+  assert.equal(parsed.problemStatement, "Problem text");
+  assert.equal(parsed.affectedArea, "CI / Automation");
+});
+
 test("slugifyIssueTitle normalizes issue titles", () => {
   assert.equal(
     slugifyIssueTitle("[Factory] Build first autonomous loop"),

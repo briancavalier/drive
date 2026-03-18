@@ -1,11 +1,11 @@
 const SECTION_HEADERS = {
-  "Problem statement": "problemStatement",
-  Goals: "goals",
-  "Non-goals": "nonGoals",
-  Constraints: "constraints",
-  "Acceptance criteria": "acceptanceCriteria",
-  Risk: "risk",
-  "Affected area": "affectedArea"
+  "problem statement": "problemStatement",
+  goals: "goals",
+  "non-goals": "nonGoals",
+  constraints: "constraints",
+  "acceptance criteria": "acceptanceCriteria",
+  risk: "risk",
+  "affected area": "affectedArea"
 };
 
 export function parseIssueForm(body) {
@@ -14,10 +14,10 @@ export function parseIssueForm(body) {
   let currentKey = null;
 
   for (const line of normalizedBody.split("\n")) {
-    const headingMatch = line.match(/^###\s+(.*)$/);
+    const headingMatch = line.match(/^##+\s+(.*?)\s*$/);
 
     if (headingMatch) {
-      currentKey = SECTION_HEADERS[headingMatch[1].trim()] || null;
+      currentKey = SECTION_HEADERS[headingMatch[1].trim().toLowerCase()] || null;
 
       if (currentKey && !sections[currentKey]) {
         sections[currentKey] = [];
