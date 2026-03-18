@@ -150,6 +150,7 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
 
   assert.equal(reviewMarkdown, normalizedOnDisk);
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
+  assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
   assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
   assert.match(reviewMarkdown, /  - Status: `satisfied`/);
@@ -193,6 +194,7 @@ test("normalizeReviewArtifacts replaces one-line details traceability blocks ins
   assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
   assert.doesNotMatch(reviewMarkdown, /- Acceptance Criterion:/);
+  assert.match(reviewMarkdown, /Methodology used: default\./);
 });
 
 test("normalizeReviewArtifacts does not treat Traceability Notes as the traceability section", () => {
@@ -263,6 +265,42 @@ test("normalizeReviewArtifacts replaces prose and subheading traceability conten
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.doesNotMatch(reviewMarkdown, /This prose summary is drifted\./);
   assert.doesNotMatch(reviewMarkdown, /### Acceptance Criteria/);
+  assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+});
+
+test("normalizeReviewArtifacts preserves trailing prose after structured traceability content", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details><summary>Traceability: Acceptance Criteria</summary>",
+      "",
+      "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
+      "  - Evidence: Drifted evidence that should be removed.",
+      "",
+      "</details>",
+      "",
+      "Methodology used: default.",
+      "Closing reviewer note."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /Methodology used: default\./);
+  assert.match(reviewMarkdown, /Closing reviewer note\./);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
 });
 

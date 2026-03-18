@@ -603,7 +603,7 @@ test("processReview uses configured request-changes overrides and preserves trun
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
+  assert.match(reviewPayload.body, /Review truncated after traceability details/);
   assert.match(reviewPayload.body, /Artifacts: `.+\/review\.md`/);
 });
 

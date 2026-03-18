@@ -192,11 +192,58 @@ function findTraceabilityHeadingIndex(lines) {
   );
 }
 
-function findNextTopLevelSectionIndex(lines, startIndex) {
-  for (let index = startIndex; index < lines.length; index += 1) {
-    if (/^##(?!#)\s/u.test(lines[index].trim())) {
+function isTopLevelSectionHeading(line) {
+  return /^##(?!#)\s/u.test(line.trim());
+}
+
+function isSubheading(line) {
+  return /^#{3,}\s/u.test(line.trim());
+}
+
+function isListItem(line) {
+  return /^(\s*[-*+]\s|\s*\d+\.\s)/u.test(line);
+}
+
+function isDetailsLine(line) {
+  return (
+    line.trim().startsWith("<details") ||
+    line.trim().startsWith("<summary") ||
+    line.trim().startsWith("</details>")
+  );
+}
+
+function isTraceabilityContentLine(line) {
+  return !line.trim() || isSubheading(line) || isListItem(line) || isDetailsLine(line);
+}
+
+function findTraceabilityContentEndIndex(lines, startIndex) {
+  let index = startIndex;
+  let sawStructuredTraceability = false;
+
+  while (index < lines.length && !lines[index].trim()) {
+    index += 1;
+  }
+
+  while (index < lines.length) {
+    const currentLine = lines[index];
+
+    if (isTopLevelSectionHeading(currentLine)) {
       return index;
     }
+
+    if (isTraceabilityContentLine(currentLine)) {
+      if (currentLine.trim()) {
+        sawStructuredTraceability = true;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (sawStructuredTraceability) {
+      return index;
+    }
+
+    index += 1;
   }
 
   return lines.length;
@@ -216,7 +263,7 @@ export function normalizeReviewMarkdownTraceability(reviewMarkdown, requirementC
       : canonicalTraceability;
   }
 
-  const trailingContentIndex = findNextTopLevelSectionIndex(lines, traceabilityIndex + 1);
+  const trailingContentIndex = findTraceabilityContentEndIndex(lines, traceabilityIndex + 1);
   const beforeTraceability = lines.slice(0, traceabilityIndex).join("\n").replace(/\s+$/u, "");
   const afterTraceability = lines.slice(trailingContentIndex).join("\n").replace(/^\s+/u, "");
 
