@@ -36,7 +36,14 @@ test("estimateStageCost rolls stage estimates into cumulative totals", () => {
       plan: {
         estimatedUsd: 0.2
       }
-    }
+    },
+    telemetry: [
+      {
+        stage: "plan",
+        runId: "123",
+        runAttempt: 1
+      }
+    ]
   };
   const summary = estimateStageCost({
     mode: "implement",
@@ -45,13 +52,15 @@ test("estimateStageCost rolls stage estimates into cumulative totals", () => {
     thresholds: { warnUsd: 0.25, highUsd: 1 },
     existingSummary,
     issueNumber: 12,
-    branch: "factory/12-example"
+    branch: "factory/12-example",
+    calibration: null
   });
 
   assert.equal(summary.current.stage, "implement");
   assert.equal(summary.stages.plan.estimatedUsd, 0.2);
   assert.ok(summary.current.stageEstimateUsd > 0);
   assert.ok(summary.current.totalEstimatedUsd > summary.current.stageEstimateUsd);
+  assert.equal(summary.telemetry.length, 1);
 });
 
 test("estimateStageCost marks unknown model pricing as fallback", () => {
@@ -61,7 +70,8 @@ test("estimateStageCost marks unknown model pricing as fallback", () => {
     promptChars: 800,
     thresholds: { warnUsd: 0.25, highUsd: 1 },
     issueNumber: 5,
-    branch: "factory/5-example"
+    branch: "factory/5-example",
+    calibration: null
   });
 
   assert.equal(summary.current.pricingSource, "fallback");
@@ -98,4 +108,33 @@ test("buildCostLabelUpdate returns one add label and removes the other bands", (
     "factory:cost-low",
     "factory:cost-medium"
   ]);
+});
+
+test("estimateStageCost records calibration metadata when a multiplier is available", () => {
+  const summary = estimateStageCost({
+    mode: "implement",
+    model: "gpt-5-codex",
+    promptChars: 2000,
+    thresholds: { warnUsd: 0.25, highUsd: 1 },
+    issueNumber: 9,
+    branch: "factory/9-calibration",
+    calibration: {
+      generatedAt: "2026-03-01T00:00:00Z",
+      buckets: {
+        "implement:gpt-5-codex": {
+          multiplier: 1.25,
+          sampleSize: 4,
+          source: "telemetry",
+          generatedAt: "2026-03-01T00:00:00Z"
+        }
+      }
+    }
+  });
+
+  assert.equal(summary.current.calibrationMultiplier, 1.25);
+  assert.equal(summary.current.calibrationSource, "telemetry");
+  assert.equal(summary.current.calibrationSampleSize, 4);
+  assert.ok(summary.current.stageEstimateUsdBeforeCalibration > 0);
+  assert.ok(summary.current.stageEstimateUsd > summary.current.stageEstimateUsdBeforeCalibration);
+  assert.equal(summary.stages.implement.calibrationKey, "implement:gpt-5-codex");
 });

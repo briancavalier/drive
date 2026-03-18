@@ -1,0 +1,121 @@
+{
+  "issueNumber": 55,
+  "prNumber": null,
+  "branch": "factory/55-add-telemetry-and-calibration-loop-for-cost-esti",
+  "estimated": true,
+  "thresholds": {
+    "warnUsd": 0.25,
+    "highUsd": 1
+  },
+  "heuristic": {
+    "charsPerToken": 4,
+    "stageMultipliers": {
+      "plan": 1.5,
+      "implement": 4,
+      "repair": 3,
+      "review": 2
+    }
+  },
+  "current": {
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0007,
+    "stageEstimateUsdBeforeCalibration": 0.0007,
+    "totalEstimatedUsd": 0.0061,
+    "band": "low",
+    "emoji": "🟢",
+    "pricingSource": "model",
+    "calibrationMultiplier": 1,
+    "calibrationSource": "default",
+    "calibrationSampleSize": 0,
+    "calibrationKey": "review:gpt-5-mini",
+    "calibrationGeneratedAt": ""
+  },
+  "stages": {
+    "plan": {
+      "mode": "plan",
+      "model": "gpt-5-codex",
+      "promptChars": 3885,
+      "estimatedInputTokens": 972,
+      "multiplier": 1.5,
+      "estimatedUsd": 0.0018,
+      "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2907,
+      "estimatedInputTokens": 727,
+      "multiplier": 4,
+      "estimatedUsd": 0.0036,
+      "pricingSource": "model"
+    },
+    "review": {
+      "mode": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 5825,
+      "estimatedInputTokens": 1457,
+      "multiplier": 2,
+      "estimatedUsdBeforeCalibration": 0.0007,
+      "estimatedUsd": 0.0007,
+      "pricingSource": "model",
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "review:gpt-5-mini",
+      "calibrationGeneratedAt": ""
+    }
+  },
+  "telemetry": [
+    {
+      "issueNumber": 55,
+      "prNumber": null,
+      "branch": "factory/55-add-telemetry-and-calibration-loop-for-cost-esti",
+      "runId": "23263592290",
+      "runAttempt": 1,
+      "stage": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2907,
+      "estimatedInputTokens": 727,
+      "stageMultiplier": 4,
+      "pricingSource": "model",
+      "estimatedUsdBeforeCalibration": 0.0036,
+      "estimatedUsd": 0.0036,
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "implement:gpt-5-codex",
+      "calibrationGeneratedAt": "",
+      "outcome": "succeeded",
+      "actualInputTokens": null,
+      "actualUsd": null,
+      "actualSource": "",
+      "recordedAt": "2026-03-18T19:48:52.734Z"
+    },
+    {
+      "issueNumber": 55,
+      "prNumber": 0,
+      "branch": "factory/55-add-telemetry-and-calibration-loop-for-cost-esti",
+      "runId": "23263932130",
+      "runAttempt": 1,
+      "stage": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 5825,
+      "estimatedInputTokens": 1457,
+      "stageMultiplier": 2,
+      "pricingSource": "model",
+      "estimatedUsdBeforeCalibration": 0.0007,
+      "estimatedUsd": 0.0007,
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "review:gpt-5-mini",
+      "calibrationGeneratedAt": "",
+      "outcome": "succeeded",
+      "actualInputTokens": null,
+      "actualUsd": null,
+      "actualSource": "",
+      "recordedAt": "2026-03-18T19:51:59.314Z"
+    }
+  ]
+}

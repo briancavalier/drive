@@ -33,6 +33,8 @@ export const MODEL_PRICING = Object.freeze({
 export const FALLBACK_MODEL_PRICING = Object.freeze({
   inputPer1M: 1.25
 });
+export const COST_CALIBRATION_FILE_NAME = "cost-calibration.json";
+const DEFAULT_CALIBRATION_PATH = path.join(".factory", COST_CALIBRATION_FILE_NAME);
 
 function roundCurrency(value) {
   return Math.round(Number(value || 0) * 10000) / 10000;
@@ -61,6 +63,62 @@ export function loadCostSummary(summaryPath) {
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function toPositiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function loadCostCalibration(calibrationPath = DEFAULT_CALIBRATION_PATH) {
+  const calibration = maybeReadJson(calibrationPath);
+
+  if (!calibration || typeof calibration !== "object") {
+    return null;
+  }
+
+  if (calibration.buckets && typeof calibration.buckets === "object") {
+    return calibration;
+  }
+
+  return null;
+}
+
+function resolveCalibrationForStage(calibrationData, { stage, model }) {
+  if (!calibrationData?.buckets || !stage || !model) {
+    return {
+      multiplier: 1,
+      sampleSize: 0,
+      source: "default",
+      key: `${stage}:${model}`,
+      generatedAt: ""
+    };
+  }
+
+  const key = `${stage}:${model}`;
+  const bucket = calibrationData.buckets[key];
+
+  if (!bucket) {
+    return {
+      multiplier: 1,
+      sampleSize: 0,
+      source: "default",
+      key,
+      generatedAt: ""
+    };
+  }
+
+  const parsedMultiplier = Number(bucket.multiplier);
+  const multiplier = Number.isFinite(parsedMultiplier) && parsedMultiplier > 0 ? parsedMultiplier : 1;
+  const sampleSize = Number.isFinite(Number(bucket.sampleSize)) ? Number(bucket.sampleSize) : 0;
+
+  return {
+    multiplier,
+    sampleSize,
+    source: bucket.source || "telemetry",
+    key,
+    generatedAt: bucket.generatedAt || calibrationData.generatedAt || ""
+  };
 }
 
 export function resolveCostThresholds(env = process.env) {
@@ -143,7 +201,9 @@ export function estimateStageCost({
   thresholds,
   existingSummary = null,
   issueNumber,
-  branch
+  branch,
+  prNumber = null,
+  calibration = undefined
 }) {
   const pricing = MODEL_PRICING[model] || FALLBACK_MODEL_PRICING;
   const pricingSource = MODEL_PRICING[model] ? "model" : "fallback";
@@ -155,7 +215,10 @@ export function estimateStageCost({
   }
 
   const estimatedInputUsd = (estimatedInputTokens / 1_000_000) * pricing.inputPer1M;
-  const estimatedUsd = roundCurrency(estimatedInputUsd * multiplier);
+  const estimatedUsdBeforeCalibration = roundCurrency(estimatedInputUsd * multiplier);
+  const calibrationData = calibration === undefined ? loadCostCalibration() : calibration;
+  const calibrationInfo = resolveCalibrationForStage(calibrationData, { stage: mode, model });
+  const estimatedUsd = roundCurrency(estimatedUsdBeforeCalibration * calibrationInfo.multiplier);
   const previousStages = existingSummary?.stages || {};
   const stages = {
     ...previousStages,
@@ -165,8 +228,14 @@ export function estimateStageCost({
       promptChars,
       estimatedInputTokens,
       multiplier,
+      estimatedUsdBeforeCalibration,
       estimatedUsd,
-      pricingSource
+      pricingSource,
+      calibrationMultiplier: calibrationInfo.multiplier,
+      calibrationSource: calibrationInfo.source,
+      calibrationSampleSize: calibrationInfo.sampleSize,
+      calibrationKey: calibrationInfo.key,
+      calibrationGeneratedAt: calibrationInfo.generatedAt
     }
   };
   const totalEstimatedUsd = roundCurrency(
@@ -177,9 +246,15 @@ export function estimateStageCost({
   );
   const band = classifyCostBand(totalEstimatedUsd, thresholds);
   const emoji = COST_BAND_EMOJI[band];
+  const telemetry = Array.isArray(existingSummary?.telemetry)
+    ? [...existingSummary.telemetry]
+    : [];
+  const resolvedPrNumber =
+    prNumber != null ? toPositiveInteger(prNumber) : toPositiveInteger(existingSummary?.prNumber);
 
   return {
     issueNumber,
+    prNumber: resolvedPrNumber,
     branch,
     estimated: true,
     thresholds,
@@ -191,12 +266,19 @@ export function estimateStageCost({
       stage: mode,
       model,
       stageEstimateUsd: estimatedUsd,
+      stageEstimateUsdBeforeCalibration: estimatedUsdBeforeCalibration,
       totalEstimatedUsd,
       band,
       emoji,
-      pricingSource
+      pricingSource,
+      calibrationMultiplier: calibrationInfo.multiplier,
+      calibrationSource: calibrationInfo.source,
+      calibrationSampleSize: calibrationInfo.sampleSize,
+      calibrationKey: calibrationInfo.key,
+      calibrationGeneratedAt: calibrationInfo.generatedAt
     },
-    stages
+    stages,
+    telemetry
   };
 }
 

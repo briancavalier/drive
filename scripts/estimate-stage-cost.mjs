@@ -31,6 +31,8 @@ export function main(env = process.env) {
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const issueNumber = Number(env.FACTORY_ISSUE_NUMBER || 0);
   const branch = env.FACTORY_BRANCH || "";
+  const prNumberValue = Number(env.FACTORY_PR_NUMBER || 0);
+  const prNumber = Number.isInteger(prNumberValue) && prNumberValue > 0 ? prNumberValue : null;
 
   if (!mode || !model || !artifactsPath || !Number.isInteger(issueNumber) || issueNumber <= 0) {
     throw new Error(
@@ -48,13 +50,15 @@ export function main(env = process.env) {
     thresholds,
     existingSummary,
     issueNumber,
-    branch
+    branch,
+    prNumber
   });
   const costSummaryPath = resolveTemporaryCostSummaryPath(env);
   writeCostSummaryAtPath(costSummaryPath, summary);
 
   const metadata = buildCostMetadataFromSummary(summary);
   const labels = buildCostLabelUpdate(summary);
+  const calibrationMultiplier = Number(summary.current?.calibrationMultiplier) || 1;
 
   setOutputs({
     cost_estimate_usd: String(metadata.costEstimateUsd),
@@ -67,13 +71,26 @@ export function main(env = process.env) {
     last_estimated_model: metadata.lastEstimatedModel,
     last_stage_cost_estimate_usd: String(metadata.lastStageCostEstimateUsd),
     cost_summary_path: costSummaryPath,
+    stage_estimate_usd_before_calibration: String(
+      Number(summary.current?.stageEstimateUsdBeforeCalibration) || 0
+    ),
+    cost_calibration_multiplier: String(calibrationMultiplier),
+    cost_calibration_source: summary.current?.calibrationSource || "default",
+    cost_calibration_sample_size: String(
+      Number(summary.current?.calibrationSampleSize) || 0
+    ),
+    cost_calibration_key: summary.current?.calibrationKey || "",
     cost_label_to_add: labels.addLabel,
     cost_labels_to_remove: labels.removeLabels.join(",")
   });
 
+  const calibrationNote =
+    calibrationMultiplier !== 1
+      ? ` (calibrated x${calibrationMultiplier.toFixed(3)})`
+      : "";
   console.log(
     `Estimated ${mode} cost: ${summary.current.emoji} $${formatEstimatedUsd(summary.current.stageEstimateUsd)} ` +
-      `(total $${formatEstimatedUsd(summary.current.totalEstimatedUsd)}) using ${model}`
+      `(total $${formatEstimatedUsd(summary.current.totalEstimatedUsd)}) using ${model}${calibrationNote}`
   );
 }
 

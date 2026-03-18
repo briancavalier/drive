@@ -1,0 +1,79 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Adds append-only telemetry per stage, a calibration generator, and calibration-aware cost estimation; unit tests and CI demonstrate the behavior.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Factory records a per-stage telemetry entry with stable identifiers and estimate/outcome fields.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/cost-telemetry.mjs: implements schema and buildTelemetryEntry()",
+        "scripts/prepare-stage-push.mjs: persistCostSummaryForStage() appends telemetry during stage preparation",
+        "tests/prepare-stage-push.test.mjs: asserts telemetry entry fields are present after persist"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Implementation provides a place to store actual token/cost values for later calibration.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/cost-telemetry.mjs: telemetry entry includes actualInputTokens, actualUsd, actualSource placeholders",
+        "README.md: documents backfilling telemetry entries and running the calibration script"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Calibration script aggregates historical telemetry into per-{stage,model} multipliers and writes .factory/cost-calibration.json.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/calibrate-cost-estimates.mjs: scans .factory/runs/**/cost-summary.json and writes .factory/cost-calibration.json",
+        "tests/calibrate-cost-estimates.test.mjs: validates aggregation, sample counts, and multiplier values"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Cost estimation applies calibration multipliers and records calibration metadata in summary and telemetry.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/cost-estimation.mjs: resolveCalibrationForStage() and estimateStageCost() apply multiplier and populate calibration metadata",
+        "tests/cost-estimation.test.mjs: asserts calibrationMultiplier, calibrationSource, and calibrationSampleSize are recorded and used"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Stage workflow passes run id/attempt and PR number into estimation and prepare steps so telemetry contains GitHub context.",
+      "status": "satisfied",
+      "evidence": [
+        ".github/workflows/_factory-stage.yml: passes GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, and FACTORY_PR_NUMBER into estimate and prepare steps",
+        "scripts/prepare-stage-push.mjs: persistCostSummaryForStage() consumes runId/runAttempt/prNumber from env context"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Unit tests and CI cover telemetry append, calibration aggregation, and calibration-aware estimation.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/cost-telemetry.test.mjs, tests/prepare-stage-push.test.mjs, tests/calibrate-cost-estimates.test.mjs, tests/cost-estimation.test.mjs: unit tests added/updated",
+        "CI: workflow run id 23263919480 — unit and factory-artifact-guard jobs reported success"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Document or register .factory/cost-calibration.json as a durable artifact",
+      "details": "The calibration output file (.factory/cost-calibration.json) is written by the calibration script and intentionally lives at the factory root. The artifact guard logic currently allows this file implicitly, but adding it to the durable artifact policy or documenting the allowance makes governance explicit.",
+      "scope": "scripts/lib/factory-artifact-guard.mjs",
+      "recommendation": "Add `.factory/cost-calibration.json` to the durable artifacts list or update README/guard tests to clearly state that root-level calibration artifacts are permitted."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Missing run repair log in this run directory",
+      "details": "The run directory `.factory/runs/55/` does not contain `repair-log.md`. If a repair narrative exists for this run, include it for completeness; otherwise this is informational.",
+      "scope": ".factory/runs/55",
+      "recommendation": "Add `repair-log.md` when a repair step is performed for the run, or document why it is intentionally absent."
+    }
+  ]
+}

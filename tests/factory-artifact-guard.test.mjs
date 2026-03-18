@@ -129,3 +129,15 @@ test("guard blocks temporary artifact writes on any branch", () => {
     true
   );
 });
+
+test("guard ignores calibration artifact at the factory root", () => {
+  assert.equal(
+    shouldBlockFactoryRunArtifacts({
+      eventName: "pull_request",
+      baseRef: "main",
+      headRef: "codex/fix",
+      changes: [{ status: "A", path: ".factory/cost-calibration.json" }]
+    }),
+    false
+  );
+});
