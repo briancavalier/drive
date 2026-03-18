@@ -43,10 +43,12 @@ test("factory reset workflow status options stay in sync with shared config", ()
   assert.deepEqual(options, FACTORY_RESETTABLE_PR_STATUSES);
 });
 
-test("factory PR loop concurrency prefers linked PR numbers for workflow_run events", () => {
+test("factory PR loop concurrency uses only event-safe identifiers", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
-  assert.match(
+  assert.match(workflowText, /github\.event\.pull_request\.number/);
+  assert.match(workflowText, /github\.event\.workflow_run\.head_branch/);
+  assert.doesNotMatch(
     workflowText,
     /github\.event\.workflow_run\.pull_requests\[0\]\.number/
   );

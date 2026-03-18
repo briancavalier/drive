@@ -14,7 +14,9 @@ on:
       - completed
 
 concurrency:
-  group: factory-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || github.run_id }}
+  # Keep this expression limited to properties that are always available for the
+  # triggering event. Invalid dereferences here fail the entire workflow at startup.
+  group: factory-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
 permissions:
