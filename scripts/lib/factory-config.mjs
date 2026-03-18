@@ -5,6 +5,7 @@ export const FACTORY_LABELS = {
   implement: "factory:implement",
   blocked: "factory:blocked",
   paused: "factory:paused",
+  intakeRejected: "factory:intake-rejected",
   costLow: "factory:cost-low",
   costMedium: "factory:cost-medium",
   costHigh: "factory:cost-high"
@@ -93,6 +94,12 @@ export const LABEL_DEFINITIONS = [
     name: FACTORY_LABELS.paused,
     color: "BFD4F2",
     description: "Pause autonomous activity for this pull request"
+  },
+  {
+    name: FACTORY_LABELS.intakeRejected,
+    color: "D73A4A",
+    description:
+      "Factory intake was rejected; issue needs updates before planning can start."
   },
   {
     name: FACTORY_LABELS.costLow,
