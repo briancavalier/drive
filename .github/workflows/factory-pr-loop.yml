@@ -156,8 +156,28 @@ jobs:
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
 
+      - name: Decide whether to run failure diagnosis
+        id: diagnosis_gate
+        env:
+          FACTORY_ENABLE_FAILURE_DIAGNOSIS: ${{ vars.FACTORY_ENABLE_FAILURE_DIAGNOSIS || 'true' }}
+          FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
+        run: |
+          run_diagnosis=true
+          case "${FACTORY_ENABLE_FAILURE_DIAGNOSIS,,}" in
+            false|0|no|off)
+              run_diagnosis=false
+              ;;
+          esac
+          case "${FACTORY_FAILURE_TYPE}" in
+            configuration|transient_infra|stale_branch_conflict|stale_stage_push)
+              run_diagnosis=false
+              ;;
+          esac
+          echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
+
       - name: Run Codex failure diagnosis
         id: diagnosis
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
@@ -292,8 +312,28 @@ jobs:
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
 
+      - name: Decide whether to run failure diagnosis
+        id: diagnosis_gate
+        env:
+          FACTORY_ENABLE_FAILURE_DIAGNOSIS: ${{ vars.FACTORY_ENABLE_FAILURE_DIAGNOSIS || 'true' }}
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
+        run: |
+          run_diagnosis=true
+          case "${FACTORY_ENABLE_FAILURE_DIAGNOSIS,,}" in
+            false|0|no|off)
+              run_diagnosis=false
+              ;;
+          esac
+          case "${FACTORY_FAILURE_TYPE}" in
+            configuration|transient_infra|stale_branch_conflict|stale_stage_push)
+              run_diagnosis=false
+              ;;
+          esac
+          echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
+
       - name: Run Codex failure diagnosis
         id: diagnosis
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:

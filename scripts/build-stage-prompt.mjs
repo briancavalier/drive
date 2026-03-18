@@ -21,7 +21,7 @@ export const DEFAULT_PROMPT_BUDGETS = Object.freeze({
   [FACTORY_STAGE_MODES.plan]: 20000,
   [FACTORY_STAGE_MODES.implement]: 12000,
   [FACTORY_STAGE_MODES.repair]: 14000,
-  [FACTORY_STAGE_MODES.review]: 12000,
+  [FACTORY_STAGE_MODES.review]: 8000,
   hardMax: 24000
 });
 

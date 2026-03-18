@@ -37,20 +37,28 @@ Configure these before using the scaffold in a live repository:
 5. Protect your default branch and require normal human review for merges.
 6. Run the `Factory Bootstrap` workflow once to create the required labels.
 7. Optional: set the `FACTORY_CODEX_MODEL` Actions variable if you want to
-   override the default `gpt-5-codex` model used by the stage runner.
-8. The stage runner executes Codex with `--full-auto` so planning, coding, and
+   override the default `gpt-5-codex` model used by the plan, implement, and
+   repair stages.
+8. Optional: set the `FACTORY_REVIEW_MODEL` Actions variable if you want to
+   override the default `codex-mini-latest` model used by the autonomous review
+   stage.
+9. The stage runner executes Codex with `--full-auto` so planning, coding, and
    repair runs stay non-interactive inside GitHub Actions.
-9. Optional: tune prompt budgets with the following Actions variables:
+10. Optional: tune prompt budgets with the following Actions variables:
    `FACTORY_PLAN_PROMPT_MAX_CHARS`, `FACTORY_IMPLEMENT_PROMPT_MAX_CHARS`,
    `FACTORY_REPAIR_PROMPT_MAX_CHARS`, `FACTORY_REVIEW_PROMPT_MAX_CHARS`,
-   and `FACTORY_PROMPT_HARD_MAX_CHARS`.
-10. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
+   and `FACTORY_PROMPT_HARD_MAX_CHARS`. The default review prompt budget is
+   `8000` characters.
+11. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
     methodology under `.factory/review-methods/<method>/instructions.md`.
     Missing or invalid values fall back to the built-in `default` rubric.
-11. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
+12. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
     Codex model used to draft advisory failure guidance comments. Missing values
     fall back to `codex-mini-latest`.
-12. Factory branches are refreshed from `origin/main` automatically before
+13. Optional: set `FACTORY_ENABLE_FAILURE_DIAGNOSIS=false` to skip advisory
+    Codex diagnosis for stage/review failures entirely. Deterministic failure
+    types are skipped automatically even when diagnosis is enabled.
+14. Factory branches are refreshed from `origin/main` automatically before
     implement/repair runs. If the merge conflicts, the PR is blocked and needs
     a human to resolve the conflict before retrying.
 

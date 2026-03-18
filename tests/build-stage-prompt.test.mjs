@@ -132,6 +132,102 @@ function legacyImplementPrompt({ issueBody, pullRequestBody, artifactsDir }) {
     .replace("{{CONTEXT}}", context);
 }
 
+function legacyReviewPrompt({ artifactsDir, methodologyInstructions }) {
+  const legacyTemplate = [
+    "You are the autonomous review stage of a GitHub-native software factory.",
+    "",
+    "Goals:",
+    "",
+    "- Apply the active methodology `{{METHODOLOGY_NAME}}` to evaluate the latest branch update.",
+    "- Read `{{ARTIFACTS_PATH}}/spec.md`, `{{ARTIFACTS_PATH}}/plan.md`, `{{ARTIFACTS_PATH}}/acceptance-tests.md`, and `{{ARTIFACTS_PATH}}/repair-log.md` as needed.",
+    "- Inspect the current git diff, test results, and supporting evidence to determine alignment with the specification and acceptance tests.",
+    "",
+    "{{METHODOLOGY_NOTE}}",
+    "",
+    "Methodology rubric:",
+    "",
+    "{{METHODOLOGY_INSTRUCTIONS}}",
+    "",
+    "Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):",
+    "",
+    "1. `review.md` — human-readable summary that includes:",
+    "   - Overall decision and short summary. Prefix the decision heading with `✅` (pass) or `❌` (request_changes).",
+    "   - A Summary section using the `📝` heading.",
+    "   - Blocking findings first, using a `🚨` heading and keeping them outside collapsible sections.",
+    "   - Non-blocking findings or notes under a `⚠️` heading when present.",
+    "   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections with the `🧭` cue.",
+    "   - Methodology used (`{{METHODOLOGY_NAME}}`).",
+    "2. `review.json` — machine-readable artifact that must include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.",
+    "",
+    "Review guidance:",
+    "",
+    "- Validate correctness against the spec, plan deliverables, and acceptance tests.",
+    "- Build explicit traceability between requirements and evidence before deciding.",
+    "- Confirm test coverage and CI evidence are sufficient.",
+    "- Assess regression risk, security/safety implications, and scope control.",
+    "- Flag missing artifacts, weak evidence, or deviations from plan/spec.",
+    "- Keep blocking findings and unmet requirements visible outside collapsible sections.",
+    "- When requesting changes, clearly document actionable recommendations.",
+    "",
+    "Context:",
+    "",
+    "{{CONTEXT}}"
+  ].join("\n");
+
+  return legacyTemplate
+    .replaceAll("{{ARTIFACTS_PATH}}", artifactsDir)
+    .replaceAll("{{METHODOLOGY_NAME}}", "default")
+    .replace("{{METHODOLOGY_NOTE}}", "")
+    .replace("{{METHODOLOGY_INSTRUCTIONS}}", methodologyInstructions)
+    .replace("{{CONTEXT}}", "## Run Metadata\n- Mode: review\n");
+}
+
+function legacyReviewMethodologyInstructions() {
+  return [
+    "## Review Rubric: Default",
+    "",
+    "Review procedure:",
+    "",
+    "1. Read the approved `spec.md`, `plan.md`, `acceptance-tests.md`, relevant CI evidence, and the current git diff before deciding.",
+    "2. Write `review.md` in this order: decision and summary, blocking findings, non-blocking notes, then **Traceability**.",
+    "3. Keep blocking findings and unmet requirements outside collapsible sections so repair context stays visible in GitHub reviews.",
+    "4. Produce a compact **Traceability** section in `review.md` that covers:",
+    "   - every acceptance criterion",
+    "   - each major spec commitment touched by the change",
+    "   - each plan deliverable touched by the change",
+    "5. Render traceability as GitHub-friendly `<details><summary>` blocks, grouped by:",
+    "   - `Traceability: Acceptance Criteria`",
+    "   - `Traceability: Spec Commitments`",
+    "   - `Traceability: Plan Deliverables`",
+    "6. For every traceability item, record:",
+    "   - type: `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`",
+    "   - requirement text",
+    "   - status: `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`",
+    "   - concrete evidence such as changed files, tests, CI jobs, or artifact evidence",
+    "7. Use the canonical traceability block derived from `review.json` exactly, so the machine-readable and human-readable artifacts stay in sync.",
+    "8. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.",
+    "9. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.",
+    "",
+    "Focus areas:",
+    "",
+    "1. **Correctness:** Implementation must satisfy the approved spec, plan, and acceptance tests. Validate logic, data handling, and edge cases.",
+    "2. **Acceptance Coverage:** Ensure automated tests demonstrate each acceptance criterion and changed high-risk path. Identify missing, weak, or flaky coverage.",
+    "3. **Regression Risk:** Review the diff for unintended side effects, backwards incompatibilities, migrations, dependency changes, and behavior changes outside the requested scope.",
+    "4. **Testing & Evidence:** Confirm CI signal is green and that the evidence cited in traceability is specific and relevant to the changed behavior.",
+    "5. **Security & Safety:** Look for security, privacy, validation, secrets-handling, and destructive-operation risks requiring remediation.",
+    "6. **Scope Control & Documentation:** Verify the change stays within the approved scope or clearly justifies safe deviations, and includes required docs/config updates.",
+    "",
+    "Finding guidance:",
+    "",
+    "- Use **blocking** findings for issues that must be fixed before human review, including correctness failures, unmet acceptance criteria, insufficient evidence for changed behavior, security risks, and scope breakage.",
+    "- Use **non_blocking** findings for improvements that are useful but not required for hand-off.",
+    "- Provide actionable recommendations for every finding and reference impacted files, tests, or CI evidence.",
+    "- Avoid speculative, stylistic, or low-confidence findings unless they materially affect correctness, safety, or operability.",
+    "",
+    "If everything meets expectations, the review can issue a `pass` decision only when all requirement checks are `satisfied` or `not_applicable`."
+  ].join("\n");
+}
+
 test("resolvePromptBudgets honors overrides and hard ceiling", () => {
   const budgets = resolvePromptBudgets({
     FACTORY_PLAN_PROMPT_MAX_CHARS: "26000",
@@ -266,21 +362,22 @@ test("review prompt embeds methodology instructions and metadata", () => {
     budgets: {
       plan: 5500,
       implement: 12000,
-      review: 12000,
+      review: 8000,
       repair: 14000,
       hardMax: 14000
     }
   });
 
   assert.match(result.prompt, /Autonomous review stage/i);
-  assert.match(result.prompt, new RegExp(methodology.instructions.trim().slice(0, 20)));
+  assert.match(result.prompt, /Review against these dimensions:/);
+  assert.match(result.prompt, /review\.json/);
   assert.match(result.prompt, /Traceability/);
-  assert.match(result.prompt, /<details><summary>/);
-  assert.match(result.prompt, /Prefix the decision heading with `✅`/);
-  assert.match(result.prompt, /using the `📝` heading/);
-  assert.match(result.prompt, /using a `🚨` heading/);
-  assert.match(result.prompt, /uses GitHub-friendly `<details><summary>` sections with the `🧭` cue/);
+  assert.match(result.prompt, /Render Traceability with GitHub-friendly `<details><summary>` blocks/);
+  assert.match(result.prompt, /Canonical traceability in `review\.md` is validated against `review\.json` after the run/);
+  assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability/);
   assert.match(result.prompt, /requirement_checks/);
+  assert.match(result.prompt, /requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`/);
+  assert.match(result.prompt, /findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`/);
   assert.match(result.prompt, /partially_satisfied/);
   assert.deepEqual(result.meta.methodology, {
     name: "default",
@@ -329,7 +426,7 @@ test("review prompt includes CI evidence when workflow run provided", () => {
     budgets: {
       plan: 5500,
       implement: 12000,
-      review: 12000,
+      review: 8000,
       repair: 14000,
       hardMax: 14000
     }
@@ -365,7 +462,7 @@ test("review prompt records fallback note when method missing", () => {
     budgets: {
       plan: 5500,
       implement: 12000,
-      review: 12000,
+      review: 8000,
       repair: 14000,
       hardMax: 14000
     }
@@ -377,6 +474,22 @@ test("review prompt records fallback note when method missing", () => {
     requested: methodology.requested,
     fallback: true
   });
+});
+
+test("review static instruction payload is materially smaller than the legacy shape", () => {
+  const methodology = resolveReviewMethodology({ requested: "default" });
+  const legacyPrompt = legacyReviewPrompt({
+    artifactsDir: "/tmp/factory-run",
+    methodologyInstructions: legacyReviewMethodologyInstructions()
+  });
+
+  const nextStaticPayload = reviewTemplate.length + methodology.instructions.trim().length;
+  const legacyStaticPayload = legacyPrompt.length;
+
+  assert.ok(
+    nextStaticPayload < legacyStaticPayload * 0.75,
+    `${nextStaticPayload} vs ${legacyStaticPayload}`
+  );
 });
 
 test("repair prompt includes failure context and capped repair-log tail", () => {
