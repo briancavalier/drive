@@ -7,15 +7,18 @@ import {
   routeWorkflowRun
 } from "./lib/event-router.mjs";
 import {
+  getCollaboratorPermission,
   findOpenPullRequestByHead,
   getPullRequest
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
+import { isTrustedReviewTrigger } from "./lib/event-router.mjs";
 
 export async function routeEvent({
   eventName,
   payload,
   githubClient = {
+    getCollaboratorPermission,
     findOpenPullRequestByHead,
     getPullRequest
   }
@@ -32,7 +35,30 @@ export async function routeEvent({
   }
 
   if (eventName === "pull_request_review") {
-    return routePullRequestReview(payload);
+    const livePullRequest = payload.pull_request?.number
+      ? await githubClient.getPullRequest(payload.pull_request.number)
+      : payload.pull_request;
+    const reviewerLogin = payload.review?.user?.login || "";
+    let reviewerPermission = "";
+
+    if (
+      reviewerLogin &&
+      !isTrustedReviewTrigger({ reviewerLogin }) &&
+      githubClient.getCollaboratorPermission
+    ) {
+      try {
+        reviewerPermission =
+          (await githubClient.getCollaboratorPermission(reviewerLogin))?.permission || "";
+      } catch {
+        reviewerPermission = "";
+      }
+    }
+
+    return routePullRequestReview({
+      ...payload,
+      pull_request: livePullRequest || payload.pull_request,
+      reviewerPermission
+    });
   }
 
   if (eventName === "workflow_run") {
