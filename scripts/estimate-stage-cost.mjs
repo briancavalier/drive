@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import {
@@ -9,8 +10,20 @@ import {
   loadExistingCostSummary,
   readPromptMeta,
   resolveCostThresholds,
-  writeCostSummary
+  writeCostSummaryAtPath
 } from "./lib/cost-estimation.mjs";
+
+export function resolveTemporaryCostSummaryPath(env = process.env) {
+  const runnerTemp = env.RUNNER_TEMP || os.tmpdir();
+  const issueNumber = Number(env.FACTORY_ISSUE_NUMBER || 0);
+  const mode = env.FACTORY_MODE || "stage";
+
+  if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+    throw new Error("FACTORY_ISSUE_NUMBER is required to resolve the temporary cost summary path");
+  }
+
+  return path.join(runnerTemp, "factory-cost-estimates", String(issueNumber), `${mode}.json`);
+}
 
 export function main(env = process.env) {
   const mode = env.FACTORY_MODE || "";
@@ -37,7 +50,8 @@ export function main(env = process.env) {
     issueNumber,
     branch
   });
-  writeCostSummary(artifactsPath, summary);
+  const costSummaryPath = resolveTemporaryCostSummaryPath(env);
+  writeCostSummaryAtPath(costSummaryPath, summary);
 
   const metadata = buildCostMetadataFromSummary(summary);
   const labels = buildCostLabelUpdate(summary);
@@ -52,6 +66,7 @@ export function main(env = process.env) {
     last_estimated_stage: metadata.lastEstimatedStage,
     last_estimated_model: metadata.lastEstimatedModel,
     last_stage_cost_estimate_usd: String(metadata.lastStageCostEstimateUsd),
+    cost_summary_path: costSummaryPath,
     cost_label_to_add: labels.addLabel,
     cost_labels_to_remove: labels.removeLabels.join(",")
   });

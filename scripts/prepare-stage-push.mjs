@@ -1,9 +1,11 @@
 import path from "node:path";
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import { buildCommitMessage } from "./lib/commit-message.mjs";
 import { classifyFailure } from "./lib/failure-classification.mjs";
+import { COST_SUMMARY_FILE_NAME } from "./lib/cost-estimation.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
@@ -32,6 +34,38 @@ function hasStagedChanges() {
   } catch (error) {
     return error.status === 1;
   }
+}
+
+function hasWorktreeChanges() {
+  return git(["status", "--porcelain"]).length > 0;
+}
+
+export function shouldPersistCostSummary(mode, worktreeHasChanges) {
+  if (mode === "implement" || mode === "repair") {
+    return worktreeHasChanges;
+  }
+
+  return mode === "plan" || mode === "review";
+}
+
+export function persistCostSummaryForStage({
+  mode,
+  artifactsPath,
+  costSummaryPath,
+  worktreeHasChanges
+}) {
+  if (!costSummaryPath || !artifactsPath) {
+    return "";
+  }
+
+  if (!fs.existsSync(costSummaryPath) || !shouldPersistCostSummary(mode, worktreeHasChanges)) {
+    return "";
+  }
+
+  const outputPath = path.join(artifactsPath, COST_SUMMARY_FILE_NAME);
+  fs.mkdirSync(artifactsPath, { recursive: true });
+  fs.copyFileSync(costSummaryPath, outputPath);
+  return outputPath;
 }
 
 function getChangedFiles(remoteHead, localHead) {
@@ -139,6 +173,7 @@ export function main(env = process.env) {
   const issueNumber = env.FACTORY_ISSUE_NUMBER || "0";
   const issueTitle = env.FACTORY_ISSUE_TITLE || "";
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
+  const costSummaryPath = env.FACTORY_COST_SUMMARY_PATH || "";
   const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
 
   if (!branch) {
@@ -164,6 +199,12 @@ export function main(env = process.env) {
     throw new Error(`Remote branch origin/${branch} is missing.`);
   }
 
+  persistCostSummaryForStage({
+    mode,
+    artifactsPath,
+    costSummaryPath,
+    worktreeHasChanges: hasWorktreeChanges()
+  });
   git(["add", "-A"]);
   prepareStageCommit({ mode, issueNumber, branch, issueTitle, remoteHead });
 

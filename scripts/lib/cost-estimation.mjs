@@ -49,6 +49,14 @@ function maybeReadJson(filePath) {
   }
 }
 
+export function loadCostSummary(summaryPath) {
+  if (!summaryPath) {
+    return null;
+  }
+
+  return maybeReadJson(summaryPath);
+}
+
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -124,7 +132,7 @@ export function loadExistingCostSummary(artifactsPath) {
     return null;
   }
 
-  return maybeReadJson(path.join(artifactsPath, COST_SUMMARY_FILE_NAME));
+  return loadCostSummary(path.join(artifactsPath, COST_SUMMARY_FILE_NAME));
 }
 
 export function estimateStageCost({
@@ -191,11 +199,17 @@ export function estimateStageCost({
   };
 }
 
+export function writeCostSummaryAtPath(summaryPath, summary) {
+  fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  return summaryPath;
+}
+
 export function writeCostSummary(artifactsPath, summary) {
-  fs.mkdirSync(artifactsPath, { recursive: true });
-  const outputPath = path.join(artifactsPath, COST_SUMMARY_FILE_NAME);
-  fs.writeFileSync(outputPath, JSON.stringify(summary, null, 2));
-  return outputPath;
+  return writeCostSummaryAtPath(
+    path.join(artifactsPath, COST_SUMMARY_FILE_NAME),
+    summary
+  );
 }
 
 export function buildCostMetadataFromSummary(summary) {
