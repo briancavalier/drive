@@ -26,6 +26,23 @@ function parseBoolean(input) {
   return `${input || ""}`.toLowerCase() === "true";
 }
 
+function applyCostMetadataField(metadata, key, envValue, { numeric = false } = {}) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue || ""}`.trim();
+
+  if (!normalized || normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    [key]: numeric ? Number(normalized) : normalized
+  };
+}
+
 export function resolveNextStatus(metadataStatus, envStatus) {
   const requestedStatus = `${envStatus || ""}`.trim();
 
@@ -72,6 +89,62 @@ export function applyPendingReviewSha(metadata, envValue) {
   } else {
     nextMetadata.pendingReviewSha = pendingValue;
   }
+
+  return nextMetadata;
+}
+
+export function applyCostEstimateMetadata(metadata, env = {}) {
+  let nextMetadata = { ...metadata };
+
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costEstimateUsd",
+    env.FACTORY_COST_ESTIMATE_USD,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costEstimateBand",
+    env.FACTORY_COST_ESTIMATE_BAND
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costEstimateEmoji",
+    env.FACTORY_COST_ESTIMATE_EMOJI
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costWarnUsd",
+    env.FACTORY_COST_WARN_USD,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costHighUsd",
+    env.FACTORY_COST_HIGH_USD,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "costPricingSource",
+    env.FACTORY_COST_PRICING_SOURCE
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "lastEstimatedStage",
+    env.FACTORY_LAST_ESTIMATED_STAGE
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "lastEstimatedModel",
+    env.FACTORY_LAST_ESTIMATED_MODEL
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "lastStageCostEstimateUsd",
+    env.FACTORY_LAST_STAGE_COST_ESTIMATE_USD,
+    { numeric: true }
+  );
 
   return nextMetadata;
 }
@@ -135,6 +208,7 @@ export async function main(env = process.env) {
   }
 
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
+  nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
 
   const body = renderPrBody({
     issueNumber: nextMetadata.issueNumber,

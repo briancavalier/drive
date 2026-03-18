@@ -3,6 +3,7 @@ const DURABLE_FACTORY_RUN_FILES = new Set([
   "plan.md",
   "acceptance-tests.md",
   "repair-log.md",
+  "cost-summary.json",
   "review.md",
   "review.json"
 ]);

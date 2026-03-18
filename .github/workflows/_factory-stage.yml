@@ -152,6 +152,18 @@ jobs:
           FACTORY_REPAIR_MODEL: ${{ vars.FACTORY_REPAIR_MODEL || '' }}
           FACTORY_REVIEW_MODEL: ${{ vars.FACTORY_REVIEW_MODEL || '' }}
 
+      - name: Estimate stage cost
+        id: cost
+        run: node scripts/estimate-stage-cost.mjs
+        env:
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          FACTORY_BRANCH: ${{ inputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+          FACTORY_STAGE_MODEL: ${{ steps.model.outputs.model }}
+          FACTORY_COST_WARN_USD: ${{ vars.FACTORY_COST_WARN_USD || '' }}
+          FACTORY_COST_HIGH_USD: ${{ vars.FACTORY_COST_HIGH_USD || '' }}
+
       - name: Run Codex
         id: codex
         continue-on-error: true
@@ -183,6 +195,7 @@ jobs:
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_BRANCH: ${{ inputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+          FACTORY_COST_SUMMARY_PATH: ${{ steps.cost.outputs.cost_summary_path }}
           FACTORY_REVIEW_METHOD: ${{ steps.build.outputs.review_methodology_requested }}
 
       - name: Stop on stage output preparation failure
@@ -200,6 +213,24 @@ jobs:
       - name: Stop on push failure
         if: steps.push.outcome == 'failure'
         run: exit 1
+
+      - name: Record cost estimate on pull request
+        if: inputs.pr_number > 0 && steps.push.outcome == 'success'
+        run: node scripts/apply-pr-state.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_COST_ESTIMATE_USD: ${{ steps.cost.outputs.cost_estimate_usd }}
+          FACTORY_COST_ESTIMATE_BAND: ${{ steps.cost.outputs.cost_estimate_band }}
+          FACTORY_COST_ESTIMATE_EMOJI: ${{ steps.cost.outputs.cost_estimate_emoji }}
+          FACTORY_COST_WARN_USD: ${{ steps.cost.outputs.cost_warn_usd }}
+          FACTORY_COST_HIGH_USD: ${{ steps.cost.outputs.cost_high_usd }}
+          FACTORY_COST_PRICING_SOURCE: ${{ steps.cost.outputs.cost_pricing_source }}
+          FACTORY_LAST_ESTIMATED_STAGE: ${{ steps.cost.outputs.last_estimated_stage }}
+          FACTORY_LAST_ESTIMATED_MODEL: ${{ steps.cost.outputs.last_estimated_model }}
+          FACTORY_LAST_STAGE_COST_ESTIMATE_USD: ${{ steps.cost.outputs.last_stage_cost_estimate_usd }}
+          FACTORY_ADD_LABELS: ${{ steps.cost.outputs.cost_label_to_add }}
+          FACTORY_REMOVE_LABELS: ${{ steps.cost.outputs.cost_labels_to_remove }}
 
       # Two-stage review guard: record the freshly pushed review commit so CI completion
       # from the same SHA does not trigger an immediate rerun. process-review clears it.

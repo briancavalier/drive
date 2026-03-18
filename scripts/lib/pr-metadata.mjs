@@ -20,6 +20,15 @@ export function defaultPrMetadata(overrides = {}) {
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
+    costEstimateUsd: 0,
+    costEstimateBand: "",
+    costEstimateEmoji: "",
+    costWarnUsd: 0,
+    costHighUsd: 0,
+    costPricingSource: "",
+    lastEstimatedStage: null,
+    lastEstimatedModel: null,
+    lastStageCostEstimateUsd: 0,
     ...overrides
   };
 }
@@ -51,6 +60,7 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     plan: `${base}/plan.md`,
     acceptanceTests: `${base}/acceptance-tests.md`,
     repairLog: `${base}/repair-log.md`,
+    costSummary: `${base}/cost-summary.json`,
     review: `${base}/review.md`,
     reviewJson: `${base}/review.json`
   };

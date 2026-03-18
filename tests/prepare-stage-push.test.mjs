@@ -4,7 +4,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  persistCostSummaryForStage,
   resolveStageCommitAction,
+  shouldPersistCostSummary,
   shouldAllowNoChanges,
   validateReviewArtifactsForStage,
   main as prepareStagePushMain
@@ -70,6 +72,54 @@ test("review mode allows no-op stage output for identical artifacts", () => {
   assert.equal(shouldAllowNoChanges("review"), true);
   assert.equal(shouldAllowNoChanges("implement"), false);
   assert.equal(shouldAllowNoChanges("repair"), false);
+});
+
+test("shouldPersistCostSummary keeps implement and repair no-op safe", () => {
+  assert.equal(shouldPersistCostSummary("implement", false), false);
+  assert.equal(shouldPersistCostSummary("repair", false), false);
+  assert.equal(shouldPersistCostSummary("implement", true), true);
+  assert.equal(shouldPersistCostSummary("review", false), true);
+  assert.equal(shouldPersistCostSummary("plan", false), true);
+});
+
+test("persistCostSummaryForStage skips implement artifact-only output", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
+  const summaryPath = path.join(tempDir, "estimate.json");
+  const artifactsPath = path.join(tempDir, "artifacts");
+
+  fs.writeFileSync(summaryPath, JSON.stringify({ estimated: true }, null, 2));
+
+  const persistedPath = persistCostSummaryForStage({
+    mode: "implement",
+    artifactsPath,
+    costSummaryPath: summaryPath,
+    worktreeHasChanges: false
+  });
+
+  assert.equal(persistedPath, "");
+  assert.equal(fs.existsSync(path.join(artifactsPath, "cost-summary.json")), false);
+});
+
+test("persistCostSummaryForStage copies durable summary when allowed", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
+  const summaryPath = path.join(tempDir, "estimate.json");
+  const artifactsPath = path.join(tempDir, "artifacts");
+  const summary = { estimated: true, current: { totalEstimatedUsd: 0.1 } };
+
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const persistedPath = persistCostSummaryForStage({
+    mode: "review",
+    artifactsPath,
+    costSummaryPath: summaryPath,
+    worktreeHasChanges: false
+  });
+
+  assert.equal(persistedPath, path.join(artifactsPath, "cost-summary.json"));
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(persistedPath, "utf8")),
+    summary
+  );
 });
 
 test("validateReviewArtifactsForStage skips non-review modes", () => {

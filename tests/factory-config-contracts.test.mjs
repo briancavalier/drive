@@ -100,6 +100,36 @@ test("factory stage workflow resolves per-stage models before running Codex", ()
   );
 });
 
+test("factory stage workflow records estimated cost only after a successful push", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+  const estimateIndex = workflowText.indexOf("name: Estimate stage cost");
+  const codexIndex = workflowText.indexOf("name: Run Codex");
+  const prepareIndex = workflowText.indexOf("name: Prepare stage output for push");
+  const pushIndex = workflowText.indexOf("name: Push stage output");
+  const recordIndex = workflowText.indexOf("name: Record cost estimate on pull request");
+
+  assert.ok(estimateIndex >= 0);
+  assert.ok(codexIndex > estimateIndex);
+  assert.ok(prepareIndex > codexIndex);
+  assert.ok(pushIndex > prepareIndex);
+  assert.ok(recordIndex > pushIndex);
+
+  assert.match(
+    workflowText,
+    /name:\s+Estimate stage cost[\s\S]*node scripts\/estimate-stage-cost\.mjs/
+  );
+  assert.match(workflowText, /FACTORY_COST_WARN_USD:\s*\$\{\{\s*vars\.FACTORY_COST_WARN_USD \|\| ''\s*\}\}/);
+  assert.match(workflowText, /FACTORY_COST_HIGH_USD:\s*\$\{\{\s*vars\.FACTORY_COST_HIGH_USD \|\| ''\s*\}\}/);
+  assert.match(
+    workflowText,
+    /name:\s+Prepare stage output for push[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
+  );
+});
+
 test("factory PR loop failure jobs build diagnosis prompts and gate Codex advisories", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
@@ -156,5 +186,19 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
   assert.match(
     reviewProcessingFailedJob,
     /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+});
+
+test("factory intake finalize job checks out the planned factory branch before finalizing", () => {
+  const workflowText = readWorkflowText("factory-intake.yml");
+  const finalizeJob = extractJobBlock(workflowText, "finalize");
+
+  assert.match(
+    finalizeJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.prepare\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+  assert.match(
+    finalizeJob,
+    /name:\s+Finalize planning state[\s\S]*?run:\s+node scripts\/finalize-plan\.mjs/
   );
 });

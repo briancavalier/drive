@@ -45,23 +45,25 @@ Configure these before using the scaffold in a live repository:
    Stage-specific values override `FACTORY_CODEX_MODEL` for their stage.
    Defaults are `gpt-5-codex` for plan/implement/repair and
    `codex-mini-latest` for review.
-9. The stage runner executes Codex with `--full-auto` so planning, coding, and
+9. Optional: set `FACTORY_COST_WARN_USD` and `FACTORY_COST_HIGH_USD` to tune
+   the advisory low/medium/high cost bands shown on factory PRs and artifacts.
+10. The stage runner executes Codex with `--full-auto` so planning, coding, and
    repair runs stay non-interactive inside GitHub Actions.
-10. Optional: tune prompt budgets with the following Actions variables:
+11. Optional: tune prompt budgets with the following Actions variables:
    `FACTORY_PLAN_PROMPT_MAX_CHARS`, `FACTORY_IMPLEMENT_PROMPT_MAX_CHARS`,
    `FACTORY_REPAIR_PROMPT_MAX_CHARS`, `FACTORY_REVIEW_PROMPT_MAX_CHARS`,
    and `FACTORY_PROMPT_HARD_MAX_CHARS`. The default review prompt budget is
    `8000` characters.
-11. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
+12. Optional: set `FACTORY_REVIEW_METHOD` to select an autonomous review
     methodology under `.factory/review-methods/<method>/instructions.md`.
     Missing or invalid values fall back to the built-in `default` rubric.
-12. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
+13. Optional: set `FACTORY_FAILURE_DIAGNOSIS_MODEL` to override the lightweight
     Codex model used to draft advisory failure guidance comments. Missing values
     fall back to `codex-mini-latest`.
-13. Optional: set `FACTORY_ENABLE_FAILURE_DIAGNOSIS=false` to skip advisory
+14. Optional: set `FACTORY_ENABLE_FAILURE_DIAGNOSIS=false` to skip advisory
     Codex diagnosis for stage/review failures entirely. Deterministic failure
     types are skipped automatically even when diagnosis is enabled.
-14. Factory branches are refreshed from `origin/main` automatically before
+15. Factory branches are refreshed from `origin/main` automatically before
     implement/repair runs. If the merge conflicts, the PR is blocked and needs
     a human to resolve the conflict before retrying.
 
@@ -107,6 +109,7 @@ Only these files are allowed to persist there:
 - `plan.md`
 - `acceptance-tests.md`
 - `repair-log.md`
+- `cost-summary.json`
 - `review.md`
 - `review.json`
 
@@ -127,6 +130,10 @@ such as GitHub API/network push errors before blocking the PR. Exhausted
 transient retries are recorded in the PR metadata as `lastFailureType` and
 `transientRetryAttempts`.
 
+Factory stages also write an advisory `cost-summary.json` artifact and surface a
+three-band emoji cost estimate in the PR status. These values are heuristic
+estimates, not billed usage.
+
 When stage/review failures block a PR, the failure comment now includes a
 stable "Where to look" section with the failing Factory PR Loop run, branch,
 relevant artifact links, and deterministic recovery guidance. When available, a
@@ -143,6 +150,9 @@ The workflows create and manage these labels automatically:
 - `factory:implement`
 - `factory:blocked`
 - `factory:paused`
+- `factory:cost-low`
+- `factory:cost-medium`
+- `factory:cost-high`
 
 ## GitHub message templates
 

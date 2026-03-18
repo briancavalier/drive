@@ -30,8 +30,11 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.lastFailureType, null);
   assert.equal(metadata.transientRetryAttempts, 0);
   assert.equal(metadata.pendingReviewSha, null);
+  assert.equal(metadata.costEstimateUsd, 0);
+  assert.equal(metadata.costEstimateBand, "");
   assert.match(body, /Closes #7/);
   assert.match(body, /\[spec\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
+  assert.match(body, /\[cost-summary\.json\]\(https:\/\/github\.com\/example\/repo\/blob\//);
   assert.match(body, /\[review\.md\]\(https:\/\/github\.com\/example\/repo\/blob\//);
 });
 

@@ -36,6 +36,7 @@ test("listInvalidFactoryRunArtifacts flags unexpected files under run directorie
   assert.deepEqual(
     listInvalidFactoryRunArtifacts([
       { status: "A", path: ".factory/runs/1/spec.md" },
+      { status: "A", path: ".factory/runs/1/cost-summary.json" },
       { status: "A", path: ".factory/runs/1/tmp.txt" },
       { status: "A", path: ".factory/runs/1/nested/extra.md" }
     ]),

@@ -12,6 +12,7 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     { label: "plan.md", url: `${baseUrl}/plan.md` },
     { label: "acceptance-tests.md", url: `${baseUrl}/acceptance-tests.md` },
     { label: "repair-log.md", url: `${baseUrl}/repair-log.md` },
+    { label: "cost-summary.json", url: `${baseUrl}/cost-summary.json` },
     { label: "review.md", url: `${baseUrl}/review.md` },
     { label: "review.json", url: `${baseUrl}/review.json` }
   ];
