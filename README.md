@@ -82,6 +82,12 @@ After CI succeeds on a factory-managed pull request, the loop enters a dedicated
 `FACTORY_REVIEW_METHOD` Actions variable (falling back to `default`) and
 instructs the agent to produce two durable artifacts inside the run directory:
 
+- Available methodologies:
+  - `default` — general-purpose rubric covering correctness, coverage, regression risk, safety, and scope.
+  - `workflow-safety` — workflow automation rubric focused on least-privilege permissions, trigger safety, secret handling, self-modifying logic, branch protections, and validation evidence for workflow changes.
+- Set `FACTORY_REVIEW_METHOD=workflow-safety` (for example in the workflow `env` block or repository variables) when reviewing `.github/workflows/**` or automation control-plane changes. Leave it unset to keep the default behavior.
+- The selected methodology is embedded into the review prompt, and `review.json` must declare the same `methodology` value; mismatches fail validation.
+
 - `review.md` — human-readable summary with decision and findings first, plus a
   canonical traceability section rendered with collapsible `<details>` blocks.
 - `review.json` — machine-readable decision payload with severity-classified

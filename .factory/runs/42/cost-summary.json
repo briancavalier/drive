@@ -16,10 +16,10 @@
     }
   },
   "current": {
-    "stage": "plan",
+    "stage": "implement",
     "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.0021,
-    "totalEstimatedUsd": 0.0021,
+    "stageEstimateUsd": 0.0033,
+    "totalEstimatedUsd": 0.0054,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model"
@@ -32,6 +32,15 @@
       "estimatedInputTokens": 1146,
       "multiplier": 1.5,
       "estimatedUsd": 0.0021,
+      "pricingSource": "model"
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2600,
+      "estimatedInputTokens": 650,
+      "multiplier": 4,
+      "estimatedUsd": 0.0033,
       "pricingSource": "model"
     }
   }

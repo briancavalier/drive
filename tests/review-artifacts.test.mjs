@@ -66,6 +66,18 @@ test("loadValidatedReviewArtifacts returns normalized review payload", () => {
   assert.match(reviewMarkdown, /Autonomous Review Decision: PASS/);
 });
 
+test("loadValidatedReviewArtifacts accepts workflow-safety methodology", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: { methodology: "workflow-safety" }
+  });
+  const { review } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "workflow-safety"
+  });
+
+  assert.equal(review.methodology, "workflow-safety");
+});
+
 test("loadValidatedReviewArtifacts rejects mismatched methodology", () => {
   const artifactsPath = createArtifacts({
     reviewJson: { methodology: "custom" }
@@ -108,4 +120,3 @@ test("loadValidatedReviewArtifacts enforces canonical traceability block", () =>
     /review\.md must include the canonical Traceability section/
   );
 });
-

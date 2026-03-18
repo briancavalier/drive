@@ -386,6 +386,57 @@ test("review prompt embeds methodology instructions and metadata", () => {
   });
 });
 
+test("review prompt resolves workflow-safety methodology when requested", () => {
+  const artifactsDir = makeArtifactsDir();
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata: defaultPrMetadata({
+      issueNumber: 1,
+      artifactsPath: artifactsDir,
+      status: "reviewing"
+    })
+  });
+  const methodology = resolveReviewMethodology({ requested: "workflow-safety" });
+  const templateVariables = {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: "",
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: methodology.fallback ? "true" : "false"
+  };
+
+  const result = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    templateText: reviewTemplate,
+    templateVariables,
+    budgets: {
+      plan: 5500,
+      implement: 12000,
+      review: 8000,
+      repair: 14000,
+      hardMax: 14000
+    }
+  });
+
+  assert.match(result.prompt, /Review Rubric: Workflow-Safety/);
+  assert.match(result.prompt, /Least-Privilege Permissions/);
+  assert.match(result.prompt, /Trigger Scope & Recursion/);
+  assert.deepEqual(result.meta.methodology, {
+    name: "workflow-safety",
+    requested: "workflow-safety",
+    fallback: false
+  });
+});
+
 test("review prompt includes CI evidence when workflow run provided", () => {
   const artifactsDir = makeArtifactsDir();
   const methodology = resolveReviewMethodology({ requested: "default" });
