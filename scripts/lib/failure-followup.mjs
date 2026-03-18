@@ -9,7 +9,8 @@ export const FOLLOWUP_CATEGORIES = Object.freeze({
 export const INELIGIBLE_FAILURE_TYPES = new Set([
   "transient_infra",
   "stale_branch_conflict",
-  "stale_stage_push"
+  "stale_stage_push",
+  "stage_noop"
 ]);
 
 export const ACTIONABLE_MESSAGE_PATTERNS = [

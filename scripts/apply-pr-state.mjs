@@ -149,6 +149,36 @@ export function applyCostEstimateMetadata(metadata, env = {}) {
   return nextMetadata;
 }
 
+function applyStageCounter(metadata, envValue, key) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized) {
+    return {
+      ...metadata,
+      [key]: 0
+    };
+  }
+
+  const parsed = Number(normalized);
+
+  if (Number.isNaN(parsed)) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    [key]: parsed
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -209,6 +239,8 @@ export async function main(env = process.env) {
 
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
+  nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_NOOP_ATTEMPTS, "stageNoopAttempts");
+  nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_SETUP_ATTEMPTS, "stageSetupAttempts");
 
   const body = renderPrBody({
     issueNumber: nextMetadata.issueNumber,

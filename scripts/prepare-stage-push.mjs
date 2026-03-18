@@ -9,6 +9,7 @@ import { COST_SUMMARY_FILE_NAME } from "./lib/cost-estimation.mjs";
 import { evaluateStagePush, resolveStageToken } from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
+import { renderStageDiagnostics } from "./lib/stage-diagnostics.mjs";
 import {
   appendTelemetryEntry,
   buildTelemetryEntry,
@@ -142,6 +143,19 @@ function countCommitsAhead(remoteHead) {
   return Number(git(["rev-list", "--count", `${remoteHead}..HEAD`]));
 }
 
+function buildStageSetupError(message, diagnosticsOptions) {
+  const normalized = `${message || ""}`.trim() || "Unknown setup failure.";
+  const diagnostics = renderStageDiagnostics(diagnosticsOptions);
+  const sections = [
+    `Stage setup prerequisites failed: ${normalized}`,
+    "",
+    "Stage diagnostics:",
+    diagnostics
+  ];
+
+  return new Error(sections.join("\n"));
+}
+
 export function resolveStageCommitAction({
   mode,
   issueNumber,
@@ -230,6 +244,18 @@ export function validateReviewArtifactsForStage(
   });
 }
 
+function buildStageNoopError(diagnosticsOptions) {
+  const diagnostics = renderStageDiagnostics(diagnosticsOptions);
+  const sections = [
+    "Stage run completed without preparing repository changes.",
+    "",
+    "Stage diagnostics:",
+    diagnostics
+  ];
+
+  return new Error(sections.join("\n"));
+}
+
 export function main(env = process.env) {
   const branch = env.FACTORY_BRANCH;
   const mode = env.FACTORY_MODE || "stage";
@@ -241,28 +267,56 @@ export function main(env = process.env) {
   const prNumberRaw = env.FACTORY_PR_NUMBER || "";
   const githubRunId = env.GITHUB_RUN_ID || "";
   const githubRunAttempt = env.GITHUB_RUN_ATTEMPT || "";
+  const factoryTokenConfigured = Boolean(`${env.FACTORY_GITHUB_TOKEN || ""}`.trim());
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
   }
 
-  const resolvedToken = resolveStageToken({
-    factoryToken: env.FACTORY_GITHUB_TOKEN,
-    githubToken: env.GITHUB_TOKEN
-  });
-
-  pruneFactoryTempArtifacts();
-  validateReviewArtifactsForStage(
-    {
-      mode,
-      artifactsPath,
-      reviewMethod
-    }
-  );
   const remoteHead = git(["rev-parse", `origin/${branch}`], { allowFailure: true });
 
+  let resolvedToken;
+
+  try {
+    resolvedToken = resolveStageToken({
+      factoryToken: env.FACTORY_GITHUB_TOKEN,
+      githubToken: env.GITHUB_TOKEN
+    });
+  } catch (error) {
+    throw buildStageSetupError(error?.message, {
+      branch,
+      remoteHead,
+      hasFactoryToken: factoryTokenConfigured,
+      workflowChanges: false
+    });
+  }
+
+  pruneFactoryTempArtifacts();
+
+  try {
+    validateReviewArtifactsForStage(
+      {
+        mode,
+        artifactsPath,
+        reviewMethod
+      }
+    );
+  } catch (error) {
+    throw buildStageSetupError(error?.message, {
+      branch,
+      remoteHead,
+      hasFactoryToken: resolvedToken.source === "factory",
+      workflowChanges: false
+    });
+  }
+
   if (!remoteHead) {
-    throw new Error(`Remote branch origin/${branch} is missing.`);
+    throw buildStageSetupError(`Remote branch origin/${branch} is missing.`, {
+      branch,
+      remoteHead,
+      hasFactoryToken: resolvedToken.source === "factory",
+      workflowChanges: false
+    });
   }
 
   persistCostSummaryForStage({
@@ -297,7 +351,12 @@ export function main(env = process.env) {
       return;
     }
 
-    throw new Error("Codex completed without producing repository changes.");
+    throw buildStageNoopError({
+      branch,
+      remoteHead,
+      hasFactoryToken: resolvedToken.source === "factory",
+      workflowChanges: false
+    });
   }
 
   const changedFiles = getChangedFiles(remoteHead, localHead);
@@ -307,7 +366,12 @@ export function main(env = process.env) {
   });
 
   if (!evaluation.allowed) {
-    throw new Error(evaluation.reason);
+    throw buildStageSetupError(evaluation.reason, {
+      branch,
+      remoteHead,
+      hasFactoryToken: resolvedToken.source === "factory",
+      workflowChanges: evaluation.workflowChanges
+    });
   }
 
   setOutputs({

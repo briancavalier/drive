@@ -55,7 +55,9 @@ export function routePullRequestLabeled(payload) {
     prNumber: pullRequest.number,
     issueNumber: metadata.issueNumber,
     branch: pullRequest.head.ref,
-    artifactsPath: metadata.artifactsPath
+    artifactsPath: metadata.artifactsPath,
+    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
   };
 }
 
@@ -88,7 +90,9 @@ export function routePullRequestReview(payload) {
     artifactsPath: metadata.artifactsPath,
     reviewId: payload.review.id,
     reviewBody: payload.review.body || "",
-    repairState
+    repairState,
+    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
   };
 }
 
@@ -138,7 +142,9 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
       issueNumber: metadata.issueNumber,
       branch: workflowRun.head_branch,
       artifactsPath: metadata.artifactsPath,
-      ciRunId: workflowRun.id
+      ciRunId: workflowRun.id,
+      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
     };
   }
 
@@ -158,6 +164,8 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     branch: workflowRun.head_branch,
     artifactsPath: metadata.artifactsPath,
     ciRunId: workflowRun.id,
-    repairState
+    repairState,
+    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
   };
 }

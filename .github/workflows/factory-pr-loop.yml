@@ -39,6 +39,8 @@ jobs:
       repair_attempts: ${{ steps.route.outputs.repair_attempts }}
       repeated_failure_count: ${{ steps.route.outputs.repeated_failure_count }}
       last_failure_signature: ${{ steps.route.outputs.last_failure_signature }}
+      stage_noop_attempts: ${{ steps.route.outputs.stage_noop_attempts }}
+      stage_setup_attempts: ${{ steps.route.outputs.stage_setup_attempts }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -137,6 +139,8 @@ jobs:
           FACTORY_LAST_FAILURE_TYPE: ""
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
+          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
 
   stage-failed:
     if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review') && needs.stage.result == 'failure'
@@ -172,6 +176,8 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
+          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
 
       - name: Decide whether to run failure diagnosis
         id: diagnosis_gate
@@ -186,7 +192,7 @@ jobs:
               ;;
           esac
           case "${FACTORY_FAILURE_TYPE}" in
-            configuration|transient_infra|stale_branch_conflict|stale_stage_push)
+            configuration|transient_infra|stale_branch_conflict|stale_stage_push|stage_noop|stage_setup)
               run_diagnosis=false
               ;;
           esac
@@ -354,7 +360,7 @@ jobs:
               ;;
           esac
           case "${FACTORY_FAILURE_TYPE}" in
-            configuration|transient_infra|stale_branch_conflict|stale_stage_push)
+            configuration|transient_infra|stale_branch_conflict|stale_stage_push|stage_noop|stage_setup)
               run_diagnosis=false
               ;;
           esac

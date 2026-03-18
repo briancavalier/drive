@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { APPROVED_ISSUE_FILE_NAME } from "./lib/factory-config.mjs";
 import { parseIssueForm } from "./lib/issue-form.mjs";
 import { extractPrMetadata } from "./lib/pr-metadata.mjs";
+import { FAILURE_TYPES } from "./lib/failure-classification.mjs";
 import {
   getPullRequest,
   getReview,
@@ -31,6 +32,8 @@ const ARTIFACT_FILES = [
   "acceptance-tests.md",
   "repair-log.md"
 ];
+
+const STAGE_NOOP_ATTEMPT_LIMIT = 2;
 
 const ISSUE_SECTION_CONFIG = [
   { key: "problemStatement", title: "Problem Statement", priority: 6 },
@@ -339,13 +342,37 @@ function renderRunMetadata({
   branch,
   metadata
 }) {
-  return [
+  const lines = [
     `- Mode: ${mode}`,
     `- Issue: #${issueNumber}`,
     `- Pull Request: ${prNumber > 0 ? `#${prNumber}` : "not created yet"}`,
     `- Branch: ${branch}`,
     `- Current status: ${metadata.status || "unknown"}`
-  ].join("\n");
+  ];
+  const lastFailureType = `${metadata.lastFailureType || ""}`.trim();
+  const stageNoopAttempts = Number(metadata.stageNoopAttempts || 0);
+  const stageSetupAttempts = Number(metadata.stageSetupAttempts || 0);
+
+  if (lastFailureType) {
+    lines.push(`- Last failure type: ${lastFailureType}`);
+  }
+
+  if (stageNoopAttempts > 0) {
+    lines.push(`- Stage no-op attempts: ${stageNoopAttempts}/${STAGE_NOOP_ATTEMPT_LIMIT}`);
+  }
+
+  if (stageSetupAttempts > 0) {
+    lines.push(`- Stage setup attempts: ${stageSetupAttempts}`);
+  }
+
+  if (
+    (mode === FACTORY_STAGE_MODES.implement || mode === FACTORY_STAGE_MODES.repair) &&
+    lastFailureType === FAILURE_TYPES.stageNoop
+  ) {
+    lines.push("- Note: Previous stage produced no repository changes; ensure this run delivers substantive updates.");
+  }
+
+  return lines.join("\n");
 }
 
 function renderFailureContext({

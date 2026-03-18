@@ -40,11 +40,21 @@ const CONFIGURATION_PATTERNS = [
   /github token is required/i
 ];
 
+const STAGE_NOOP_PATTERNS = [
+  /stage run completed without preparing repository changes\./i
+];
+
+const STAGE_SETUP_PATTERNS = [
+  /stage setup prerequisites failed:/i
+];
+
 export const FAILURE_TYPES = {
   transientInfra: "transient_infra",
   staleBranchConflict: "stale_branch_conflict",
   staleStagePush: "stale_stage_push",
   configuration: "configuration",
+  stageNoop: "stage_noop",
+  stageSetup: "stage_setup",
   contentOrLogic: "content_or_logic"
 };
 
@@ -67,6 +77,14 @@ export function classifyFailure(message) {
 
   if (TRANSIENT_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return FAILURE_TYPES.transientInfra;
+  }
+
+  if (STAGE_NOOP_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return FAILURE_TYPES.stageNoop;
+  }
+
+  if (STAGE_SETUP_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return FAILURE_TYPES.stageSetup;
   }
 
   if (CONFIGURATION_PATTERNS.some((pattern) => pattern.test(normalized))) {

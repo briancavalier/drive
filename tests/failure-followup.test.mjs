@@ -40,6 +40,19 @@ test("classifyFollowup skips ineligible failure types", () => {
   assert.equal(result.reason, "ineligible_failure_type");
 });
 
+test("classifyFollowup skips stage_noop failures", () => {
+  const result = classifyFollowup({
+    failureType: "stage_noop",
+    phase: "stage",
+    action: "implement",
+    failureMessage: "Stage run completed without preparing repository changes.",
+    advisory: null
+  });
+
+  assert.equal(result.actionable, false);
+  assert.equal(result.reason, "ineligible_failure_type");
+});
+
 test("classifyFollowup uses pattern allowlist when no advisory", () => {
   const pattern = ACTIONABLE_MESSAGE_PATTERNS.find((entry) => entry.id === "missing_review_json");
   assert.ok(pattern, "expected missing_review_json pattern");

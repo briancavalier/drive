@@ -110,3 +110,63 @@ test("missing or invalid advisory files are ignored cleanly", () => {
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /Ignoring invalid failure advisory/);
 });
+
+test("stage_noop failure comment surfaces diagnostics and targeted recovery", () => {
+  const failureMessage = [
+    "Stage run completed without preparing repository changes.",
+    "",
+    "Stage diagnostics:",
+    "branch: factory/77-noop",
+    "remote head: abc123",
+    "local head: abc123",
+    "commits ahead of origin/factory/77-noop: 0",
+    "FACTORY_GITHUB_TOKEN available: no",
+    "workflow changes detected: no",
+    "status sample:",
+    "  - (none)"
+  ].join("\n");
+  const comment = buildFailureComment({
+    action: "implement",
+    failureType: FAILURE_TYPES.stageNoop,
+    failureMessage,
+    runUrl: "https://github.com/example/repo/actions/runs/501",
+    branch: "factory/77-noop",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/77"
+  });
+
+  assert.match(comment, /Factory stage completed without any repository updates\./);
+  assert.match(comment, /Stage diagnostics/);
+  assert.match(comment, /<summary>Stage diagnostics<\/summary>/);
+  assert.match(comment, /Review the stage diagnostics to confirm the branch remained unchanged/);
+});
+
+test("stage_setup failure comment highlights prerequisite guidance", () => {
+  const failureMessage = [
+    "Stage setup prerequisites failed: Factory stage output modifies .github/workflows/** but FACTORY_GITHUB_TOKEN is not configured.",
+    "",
+    "Stage diagnostics:",
+    "branch: factory/78-setup",
+    "remote head: def456",
+    "local head: ghi789",
+    "commits ahead of origin/factory/78-setup: 1",
+    "FACTORY_GITHUB_TOKEN available: no",
+    "workflow changes detected: yes",
+    "status sample:",
+    "  - M  .github/workflows/test.yml"
+  ].join("\n");
+  const comment = buildFailureComment({
+    action: "implement",
+    failureType: FAILURE_TYPES.stageSetup,
+    failureMessage,
+    runUrl: "https://github.com/example/repo/actions/runs/777",
+    branch: "factory/78-setup",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/78"
+  });
+
+  assert.match(comment, /Factory stage cannot start until setup prerequisites are satisfied\./);
+  assert.match(comment, /Stage diagnostics/);
+  assert.match(comment, /Factory stage output modifies \.github\/workflows/);
+  assert.match(comment, /Fix the setup issue/);
+});
