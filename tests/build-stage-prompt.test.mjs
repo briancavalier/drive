@@ -156,6 +156,7 @@ function legacyReviewPrompt({ artifactsDir, methodologyInstructions }) {
     "   - Blocking findings first, using a `🚨` heading and keeping them outside collapsible sections.",
     "   - Non-blocking findings or notes under a `⚠️` heading when present.",
     "   - A `Traceability` section after findings that matches `review.json` and uses GitHub-friendly `<details><summary>` sections with the `🧭` cue.",
+    "   - Treat `review.json` as the canonical source for Traceability and use the exact `Requirement`, `Status`, and `Evidence` structure for each item.",
     "   - Methodology used (`{{METHODOLOGY_NAME}}`).",
     "2. `review.json` — machine-readable artifact that must include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.",
     "",
@@ -205,6 +206,7 @@ function legacyReviewMethodologyInstructions() {
     "   - status: `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`",
     "   - concrete evidence such as changed files, tests, CI jobs, or artifact evidence",
     "7. Use the canonical traceability block derived from `review.json` exactly, so the machine-readable and human-readable artifacts stay in sync.",
+    "   - Each traceability entry should render as `Requirement`, `Status`, and `Evidence` in that order.",
     "8. If evidence is missing for a changed requirement, record that gap explicitly and treat it as a finding.",
     "9. Do not issue a `pass` decision if any requirement check is `partially_satisfied` or `not_satisfied`.",
     "",
@@ -374,6 +376,8 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /Traceability/);
   assert.match(result.prompt, /Render Traceability with GitHub-friendly `<details><summary>` blocks/);
   assert.match(result.prompt, /Canonical traceability in `review\.md` is validated against `review\.json` after the run/);
+  assert.match(result.prompt, /Treat `review\.json` as the canonical source for Traceability/);
+  assert.match(result.prompt, /exact `Requirement`, `Status`, and `Evidence` structure/);
   assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability/);
   assert.match(result.prompt, /requirement_checks/);
   assert.match(result.prompt, /requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`/);

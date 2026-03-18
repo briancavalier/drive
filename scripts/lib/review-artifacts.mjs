@@ -5,10 +5,14 @@ import {
   resolveReviewMethodology,
   sanitizeReviewDecision
 } from "./review-methods.mjs";
-import { renderCanonicalTraceabilityMarkdown } from "./review-output.mjs";
+import {
+  normalizeNewlines,
+  renderCanonicalTraceabilityMarkdown
+} from "./review-output.mjs";
 
 export const REVIEW_JSON_NAME = "review.json";
 export const REVIEW_MD_NAME = "review.md";
+const TRACEABILITY_HEADING_TOKENS = ["## \ud83e\udded Traceability", "## Traceability"];
 
 function parseJsonFile(filePath) {
   try {
@@ -179,7 +183,96 @@ function validateReviewPayload(payload, expectedMethodology) {
 }
 
 function normalizeMarkdown(markdown) {
-  return `${markdown || ""}`.replaceAll("\r\n", "\n").trim();
+  return normalizeNewlines(`${markdown || ""}`).trim();
+}
+
+function findTraceabilityHeadingIndex(lines) {
+  return lines.findIndex((line) =>
+    TRACEABILITY_HEADING_TOKENS.some((token) => line.trimStart().startsWith(token))
+  );
+}
+
+function findTrailingContentIndex(lines, startIndex) {
+  let index = startIndex;
+
+  while (index < lines.length && !lines[index].trim()) {
+    index += 1;
+  }
+
+  while (index < lines.length) {
+    if (lines[index].trim() !== "<details>") {
+      return index;
+    }
+
+    index += 1;
+
+    while (index < lines.length && lines[index].trim() !== "</details>") {
+      index += 1;
+    }
+
+    if (index >= lines.length) {
+      return lines.length;
+    }
+
+    index += 1;
+
+    while (index < lines.length && !lines[index].trim()) {
+      index += 1;
+    }
+  }
+
+  return lines.length;
+}
+
+export function normalizeReviewMarkdownTraceability(reviewMarkdown, requirementChecks) {
+  const normalizedReviewMarkdown = normalizeMarkdown(reviewMarkdown);
+  const canonicalTraceability = normalizeMarkdown(
+    renderCanonicalTraceabilityMarkdown(requirementChecks)
+  );
+  const lines = normalizedReviewMarkdown.split("\n");
+  const traceabilityIndex = findTraceabilityHeadingIndex(lines);
+
+  if (traceabilityIndex === -1) {
+    return normalizedReviewMarkdown
+      ? `${normalizedReviewMarkdown}\n\n${canonicalTraceability}`
+      : canonicalTraceability;
+  }
+
+  const trailingContentIndex = findTrailingContentIndex(lines, traceabilityIndex + 1);
+  const beforeTraceability = lines.slice(0, traceabilityIndex).join("\n").replace(/\s+$/u, "");
+  const afterTraceability = lines.slice(trailingContentIndex).join("\n").replace(/^\s+/u, "");
+
+  return [beforeTraceability, canonicalTraceability, afterTraceability]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+export function normalizeReviewArtifacts({ artifactsPath, requestedMethodology }) {
+  if (!artifactsPath) {
+    throw new Error("artifactsPath is required");
+  }
+
+  const methodology = resolveReviewMethodology({ requested: requestedMethodology });
+  const reviewJsonPath = path.join(artifactsPath, REVIEW_JSON_NAME);
+  const reviewMarkdownPath = path.join(artifactsPath, REVIEW_MD_NAME);
+  const reviewMarkdown = readMarkdown(reviewMarkdownPath);
+  const parsed = parseJsonFile(reviewJsonPath);
+  const review = validateReviewPayload(parsed, methodology.name);
+  const normalizedReviewMarkdown = normalizeReviewMarkdownTraceability(
+    reviewMarkdown,
+    review.requirement_checks
+  );
+
+  if (normalizeMarkdown(reviewMarkdown) !== normalizedReviewMarkdown) {
+    fs.writeFileSync(reviewMarkdownPath, `${normalizedReviewMarkdown}\n`);
+  }
+
+  return {
+    review,
+    reviewMarkdown: normalizedReviewMarkdown,
+    methodology
+  };
 }
 
 function validateReviewMarkdown(reviewMarkdown, review) {
@@ -199,16 +292,10 @@ export function loadValidatedReviewArtifacts({
   artifactsPath,
   requestedMethodology
 }) {
-  if (!artifactsPath) {
-    throw new Error("artifactsPath is required");
-  }
-
-  const methodology = resolveReviewMethodology({ requested: requestedMethodology });
-  const reviewJsonPath = path.join(artifactsPath, REVIEW_JSON_NAME);
-  const reviewMarkdownPath = path.join(artifactsPath, REVIEW_MD_NAME);
-  const reviewMarkdown = readMarkdown(reviewMarkdownPath);
-  const parsed = parseJsonFile(reviewJsonPath);
-  const review = validateReviewPayload(parsed, methodology.name);
+  const { review, reviewMarkdown, methodology } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology
+  });
 
   validateReviewMarkdown(reviewMarkdown, review);
 
@@ -234,4 +321,3 @@ export function validateReviewArtifacts({
     methodology
   };
 }
-

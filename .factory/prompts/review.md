@@ -19,6 +19,7 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
    - Keep blocking findings and unmet requirements outside collapsible sections.
    - Include the methodology used (`{{METHODOLOGY_NAME}}`).
    - Render Traceability with GitHub-friendly `<details><summary>` blocks.
+   - Treat `review.json` as the canonical source for Traceability and use the exact `Requirement`, `Status`, and `Evidence` structure for each item.
 2. `review.json`
    - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
    - `requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`.
@@ -30,6 +31,7 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 Validation:
 
 - Canonical traceability in `review.md` is validated against `review.json` after the run.
+- The Traceability section in `review.md` must stay structurally aligned with `review.json`; do not invent alternate field labels or prose-only summaries for traced requirements.
 - `blocking_findings_count` must match the number of blocking findings.
 - A `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
 
