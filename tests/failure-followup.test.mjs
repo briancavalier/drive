@@ -122,6 +122,22 @@ test("findOpenFollowup returns issue containing signature marker", async () => {
   assert.equal(issue.number, 2);
 });
 
+test("findOpenFollowup searches using full metadata marker", async () => {
+  let capturedQuery = "";
+  await findOpenFollowup({
+    signature: "abc123",
+    searchIssues: async ({ query }) => {
+      capturedQuery = query;
+      return { items: [] };
+    }
+  });
+
+  assert.equal(
+    capturedQuery,
+    'state:open in:body "<!-- factory-followup-meta: {\\"signature\\":\\"abc123\\"} -->"'
+  );
+});
+
 test("buildFollowupCommentSection distinguishes created vs existing", () => {
   const created = buildFollowupCommentSection({
     issueNumber: 42,

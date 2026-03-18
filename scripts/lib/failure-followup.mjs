@@ -283,7 +283,7 @@ export async function findOpenFollowup({ signature, searchIssues }) {
     throw new Error("searchIssues function is required");
   }
 
-  const query = `state:open "factory-followup-meta: {\\\"signature\\\":\\\"${signature}"`;
+  const query = `state:open in:body "<!-- factory-followup-meta: {\\"signature\\":\\"${signature}\\"} -->"`;
   const results = await searchIssues({ query });
   const items = Array.isArray(results?.items) ? results.items : [];
 

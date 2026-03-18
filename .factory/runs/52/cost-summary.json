@@ -16,10 +16,10 @@
     }
   },
   "current": {
-    "stage": "review",
-    "model": "gpt-5-mini",
-    "stageEstimateUsd": 0.0007,
-    "totalEstimatedUsd": 0.0065,
+    "stage": "repair",
+    "model": "gpt-5-codex",
+    "stageEstimateUsd": 0.004,
+    "totalEstimatedUsd": 0.0105,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model"
@@ -50,6 +50,15 @@
       "estimatedInputTokens": 1422,
       "multiplier": 2,
       "estimatedUsd": 0.0007,
+      "pricingSource": "model"
+    },
+    "repair": {
+      "mode": "repair",
+      "model": "gpt-5-codex",
+      "promptChars": 4278,
+      "estimatedInputTokens": 1070,
+      "multiplier": 3,
+      "estimatedUsd": 0.004,
       "pricingSource": "model"
     }
   }
