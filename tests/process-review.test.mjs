@@ -603,7 +603,7 @@ test("processReview uses configured request-changes overrides and preserves trun
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /Review truncated after traceability details/);
+  assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
   assert.match(reviewPayload.body, /Artifacts: `.+\/review\.md`/);
 });
 
@@ -653,7 +653,7 @@ test("processReview accepts extra prose around canonical traceability block", as
   );
 });
 
-test("processReview rejects review markdown missing canonical traceability block", async () => {
+test("processReview accepts review markdown missing traceability by normalizing it", async () => {
   const { dir } = makeArtifacts({
     reviewMd: [
       "# Autonomous Review",
@@ -667,7 +667,7 @@ test("processReview rejects review markdown missing canonical traceability block
   });
   const env = baseEnv({ artifactsPath: dir });
 
-  await assert.rejects(
+  await assert.doesNotReject(
     processReview({
       env,
       execFileImpl: (_file, _args, _options, callback) => {
@@ -677,12 +677,15 @@ test("processReview rejects review markdown missing canonical traceability block
         commentOnIssue: async () => {},
         submitPullRequestReview: async () => {}
       }
-    }),
-    /canonical Traceability section/
+    })
   );
+
+  const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
+  assert.match(normalizedReviewMarkdown, /## 🧭 Traceability/);
+  assert.match(normalizedReviewMarkdown, /- Requirement: A factory-managed PR that reaches green CI enters review\./);
 });
 
-test("processReview rejects drift between review markdown and review json traceability", async () => {
+test("processReview accepts drifted traceability by normalizing it to review.json", async () => {
   const { dir } = makeArtifacts({
     reviewMd: [
       "# Autonomous Review",
@@ -707,7 +710,7 @@ test("processReview rejects drift between review markdown and review json tracea
   });
   const env = baseEnv({ artifactsPath: dir });
 
-  await assert.rejects(
+  await assert.doesNotReject(
     processReview({
       env,
       execFileImpl: (_file, _args, _options, callback) => {
@@ -717,9 +720,12 @@ test("processReview rejects drift between review markdown and review json tracea
         commentOnIssue: async () => {},
         submitPullRequestReview: async () => {}
       }
-    }),
-    /canonical Traceability section/
+    })
   );
+
+  const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
+  assert.doesNotMatch(normalizedReviewMarkdown, /Drifted evidence that does not match review\.json\./);
+  assert.match(normalizedReviewMarkdown, /Verified by CI routing and review stage tests\./);
 });
 
 test("processReview rejects invalid requirement check type or status", async () => {

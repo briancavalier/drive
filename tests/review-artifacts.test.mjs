@@ -3,7 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadValidatedReviewArtifacts } from "../scripts/lib/review-artifacts.mjs";
+import {
+  loadValidatedReviewArtifacts,
+  normalizeReviewArtifacts
+} from "../scripts/lib/review-artifacts.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function createArtifacts({
@@ -81,7 +84,7 @@ test("loadValidatedReviewArtifacts rejects mismatched methodology", () => {
   );
 });
 
-test("loadValidatedReviewArtifacts enforces canonical traceability block", () => {
+test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonical block", () => {
   const artifactsPath = createArtifacts({
     afterTraceability: "This replaces the canonical content."
   });
@@ -99,13 +102,229 @@ test("loadValidatedReviewArtifacts enforces canonical traceability block", () =>
 
   fs.writeFileSync(reviewMdPath, markdownWithoutTraceability);
 
-  assert.throws(
-    () =>
-      loadValidatedReviewArtifacts({
-        artifactsPath,
-        requestedMethodology: "default"
-      }),
-    /review\.md must include the canonical Traceability section/
+  const { reviewMarkdown } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
+  assert.match(reviewMarkdown, /  - Status: `satisfied`/);
+  assert.doesNotMatch(reviewMarkdown, /This content has drifted\./);
+  assert.doesNotMatch(reviewMarkdown, /This replaces the canonical content\./);
+});
+
+test("normalizeReviewArtifacts rewrites drifted traceability using canonical markdown", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "Reviewer note: retain this intro.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details><summary>Traceability: Acceptance Criteria</summary>",
+      "",
+      "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
+      "  - Evidence: End-to-end tests cover acceptance criteria.",
+      "",
+      "</details>",
+      "",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  const normalizedOnDisk = fs.readFileSync(reviewMdPath, "utf8").trim();
+
+  assert.equal(reviewMarkdown, normalizedOnDisk);
+  assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
+  assert.match(reviewMarkdown, /  - Status: `satisfied`/);
+  assert.doesNotMatch(
+    reviewMarkdown,
+    /- Acceptance Criterion: "Acceptance criteria are covered by automated tests\."/
   );
 });
 
+test("normalizeReviewArtifacts replaces one-line details traceability blocks instead of keeping stale content", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "Reviewer note: retain this intro.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details><summary>Traceability: Acceptance Criteria</summary>",
+      "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
+      "  - Evidence: Drifted evidence that should be removed.",
+      "</details>",
+      "",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
+  assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+  assert.doesNotMatch(reviewMarkdown, /- Acceptance Criterion:/);
+  assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
+});
+
+test("normalizeReviewArtifacts does not treat Traceability Notes as the traceability section", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "## Traceability Notes",
+      "Keep this section unchanged.",
+      "",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /## Traceability Notes/);
+  assert.match(reviewMarkdown, /Keep this section unchanged\./);
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+});
+
+test("normalizeReviewArtifacts replaces prose and subheading traceability content until the next section", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "Reviewer note: retain this intro.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "This prose summary is drifted.",
+      "",
+      "### Acceptance Criteria",
+      "",
+      "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
+      "  - Evidence: Drifted evidence that should be removed.",
+      "",
+      "## Methodology",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /## Methodology/);
+  assert.match(reviewMarkdown, /Methodology used: default\./);
+  assert.doesNotMatch(reviewMarkdown, /This prose summary is drifted\./);
+  assert.doesNotMatch(reviewMarkdown, /### Acceptance Criteria/);
+  assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+});
+
+test("normalizeReviewArtifacts discards unheaded prose after the replaced traceability section", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "## 🧭 Traceability",
+      "",
+      "<details><summary>Traceability: Acceptance Criteria</summary>",
+      "",
+      "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
+      "  - Evidence: Drifted evidence that should be removed.",
+      "",
+      "</details>",
+      "",
+      "Methodology used: default.",
+      "Closing reviewer note."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = normalizeReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
+  assert.doesNotMatch(reviewMarkdown, /Closing reviewer note\./);
+  assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+});
+
+test("loadValidatedReviewArtifacts appends canonical traceability when missing", () => {
+  const artifactsPath = createArtifacts();
+  const reviewMdPath = path.join(artifactsPath, "review.md");
+
+  fs.writeFileSync(
+    reviewMdPath,
+    [
+      "# ✅ Autonomous Review Decision: PASS",
+      "",
+      "## 📝 Summary",
+      "All acceptance criteria are satisfied.",
+      "",
+      "Methodology used: default."
+    ].join("\n")
+  );
+
+  const { reviewMarkdown } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "default"
+  });
+
+  assert.match(reviewMarkdown, /Methodology used: default\./);
+  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /Traceability: Acceptance Criteria/);
+});
