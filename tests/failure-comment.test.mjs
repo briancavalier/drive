@@ -73,6 +73,23 @@ test("valid Codex advisory is merged into the failure comment", () => {
   assert.match(comment, /Merge the control-plane fix to `main` before retrying/);
 });
 
+test("configuration failure comments render actionable guidance inside the fenced block", () => {
+  const message =
+    'Resolved review stage model "gpt-unknown" is not available. Update FACTORY_REVIEW_MODEL to point at a supported model.';
+  const comment = buildFailureComment({
+    action: "review",
+    failureType: FAILURE_TYPES.configuration,
+    failureMessage: message,
+    runUrl: "https://github.com/example/repo/actions/runs/123",
+    branch: "factory/44-example",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/44"
+  });
+
+  assert.match(comment, /## Failure detail/);
+  assert.match(comment, /```text\nResolved review stage model "gpt-unknown" is not available[\s\S]*```/);
+});
+
 test("missing or invalid advisory files are ignored cleanly", () => {
   const missing = readFailureAdvisory("/tmp/does-not-exist-advisory.json");
   assert.equal(missing, null);

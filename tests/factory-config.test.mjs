@@ -6,8 +6,10 @@ import {
   FACTORY_COST_LABELS,
   FACTORY_LABELS,
   FACTORY_STAGE_MODES,
+  FACTORY_STAGE_MODEL_VARIABLES,
   LABEL_DEFINITIONS,
-  resolveFactoryStageModel
+  resolveFactoryStageModel,
+  resolveFactoryStageModelInfo
 } from "../scripts/lib/factory-config.mjs";
 
 test("DEFAULT_FACTORY_REVIEW_MODEL falls back to gpt-5-mini", () => {
@@ -73,6 +75,77 @@ test("resolveFactoryStageModel uses stage defaults when no overrides are provide
     resolveFactoryStageModel({ mode: FACTORY_STAGE_MODES.review, variables: {} }),
     DEFAULT_FACTORY_REVIEW_MODEL
   );
+});
+
+test("resolveFactoryStageModelInfo reports override metadata", () => {
+  const info = resolveFactoryStageModelInfo({
+    mode: FACTORY_STAGE_MODES.implement,
+    overrideModel: "codex-override",
+    variables: {}
+  });
+
+  assert.deepEqual(info, {
+    model: "codex-override",
+    source: "override",
+    sourceVariable: "FACTORY_STAGE_MODEL_OVERRIDE"
+  });
+});
+
+test("resolveFactoryStageModelInfo reports stage-specific metadata", () => {
+  const info = resolveFactoryStageModelInfo({
+    mode: FACTORY_STAGE_MODES.repair,
+    variables: {
+      [FACTORY_STAGE_MODEL_VARIABLES[FACTORY_STAGE_MODES.repair]]:
+        "repair-specialist"
+    }
+  });
+
+  assert.deepEqual(info, {
+    model: "repair-specialist",
+    source: "stage-variable",
+    sourceVariable: FACTORY_STAGE_MODEL_VARIABLES[FACTORY_STAGE_MODES.repair]
+  });
+});
+
+test("resolveFactoryStageModelInfo reports shared codex metadata", () => {
+  const info = resolveFactoryStageModelInfo({
+    mode: FACTORY_STAGE_MODES.plan,
+    variables: {
+      FACTORY_CODEX_MODEL: "codex-shared"
+    }
+  });
+
+  assert.deepEqual(info, {
+    model: "codex-shared",
+    source: "shared-variable",
+    sourceVariable: "FACTORY_CODEX_MODEL"
+  });
+});
+
+test("resolveFactoryStageModelInfo reports default metadata with stage variable guidance", () => {
+  const info = resolveFactoryStageModelInfo({
+    mode: FACTORY_STAGE_MODES.review,
+    variables: {}
+  });
+
+  assert.deepEqual(info, {
+    model: DEFAULT_FACTORY_REVIEW_MODEL,
+    source: "default",
+    sourceVariable: FACTORY_STAGE_MODEL_VARIABLES[FACTORY_STAGE_MODES.review]
+  });
+});
+
+test("resolveFactoryStageModelInfo defaults to stage-specific knob for non-review stages", () => {
+  const info = resolveFactoryStageModelInfo({
+    mode: FACTORY_STAGE_MODES.plan,
+    variables: {}
+  });
+
+  assert.deepEqual(info, {
+    model: DEFAULT_FACTORY_CODEX_MODEL,
+    source: "default",
+    sourceVariable: FACTORY_STAGE_MODEL_VARIABLES[FACTORY_STAGE_MODES.plan]
+  });
 });
 
 test("label definitions include advisory cost labels", () => {

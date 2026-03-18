@@ -114,6 +114,52 @@ test("factory stage workflow resolves per-stage models before running Codex", ()
   );
 });
 
+test("factory stage workflow validates the resolved model before estimating cost", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Validate stage model[\s\S]*node scripts\/validate-stage-model\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODEL:\s*\$\{\{\s*steps\.model\.outputs\.model\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODE:\s*\$\{\{\s*inputs\.mode\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /FACTORY_STAGE_MODEL_SOURCE_VARIABLE:\s*\$\{\{\s*steps\.model\.outputs\.model_source_variable\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /OPENAI_API_KEY:\s*\$\{\{\s*secrets\.OPENAI_API_KEY\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on stage model validation failure[\s\S]*if:\s*steps\.model_preflight\.outcome == 'failure'/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Estimate stage cost[\s\S]*FACTORY_STAGE_MODEL:\s*\$\{\{\s*steps\.model\.outputs\.model\s*\}\}/
+  );
+});
+
+test("factory stage workflow surfaces model validation failures ahead of downstream steps", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /failure_type:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_type \|\|/
+  );
+  assert.match(
+    workflowText,
+    /failure_message:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_message \|\|/
+  );
+});
+
 test("factory stage workflow records estimated cost only after a successful push", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
   const estimateIndex = workflowText.indexOf("name: Estimate stage cost");
