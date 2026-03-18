@@ -21,9 +21,11 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
    - Render Traceability with GitHub-friendly `<details><summary>` blocks.
 2. `review.json`
    - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
+   - `requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`.
    - `requirement_checks` must use `acceptance_criterion`, `spec_commitment`, or `plan_deliverable`.
    - Status values must be `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`.
-   - `findings` must use `blocking` or `non_blocking` and include actionable recommendations.
+   - `findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`.
+   - `findings` must use `blocking` or `non_blocking`.
 
 Validation:
 

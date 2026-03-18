@@ -376,6 +376,8 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /Canonical traceability in `review\.md` is validated against `review\.json` after the run/);
   assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes, `🧭` Traceability/);
   assert.match(result.prompt, /requirement_checks/);
+  assert.match(result.prompt, /requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`/);
+  assert.match(result.prompt, /findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`/);
   assert.match(result.prompt, /partially_satisfied/);
   assert.deepEqual(result.meta.methodology, {
     name: "default",
