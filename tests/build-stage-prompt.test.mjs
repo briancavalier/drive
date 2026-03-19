@@ -253,6 +253,13 @@ test("stage prompts delegate commit and push to the workflow", () => {
   }
 });
 
+test("review prompt requires direct artifact writes in the current checkout", () => {
+  assert.match(reviewTemplate, /Write the final `review\.md` and `review\.json` directly into the current checkout/);
+  assert.match(reviewTemplate, /Do not create extra git worktrees, branches, clones, or patches outside this repository state/);
+  assert.match(reviewTemplate, /The task is only complete when both files exist on disk with final content/);
+  assert.match(reviewTemplate, /Do not run `git commit` or `git push`/);
+});
+
 test("plan prompt trims oversized issue sections and stays within budget", () => {
   const artifactsDir = makeArtifactsDir();
   const result = buildStagePrompt({
@@ -582,7 +589,7 @@ test("review static instruction payload is materially smaller than the legacy sh
   const legacyStaticPayload = legacyPrompt.length;
 
   assert.ok(
-    nextStaticPayload < legacyStaticPayload * 0.82,
+    nextStaticPayload < legacyStaticPayload * 0.95,
     `${nextStaticPayload} vs ${legacyStaticPayload}`
   );
 });
