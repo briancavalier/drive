@@ -1,5 +1,6 @@
 name: Factory Intake
-run-name: ${{ format('Factory: planning {0}', github.event.issue.title) }}
+run-name: >-
+  ${{ format('Factory: planning {0}', github.event.issue.title) }}
 
 on:
   issues:
