@@ -225,6 +225,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          FACTORY_ENABLE_SELF_MODIFY: ${{ vars.FACTORY_ENABLE_SELF_MODIFY || '' }}
           FACTORY_MODE: ${{ inputs.mode }}
           FACTORY_ISSUE_NUMBER: ${{ inputs.issue_number }}
           FACTORY_BRANCH: ${{ inputs.branch }}

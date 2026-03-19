@@ -27,11 +27,13 @@ Configure these before using the scaffold in a live repository:
 1. Add the `OPENAI_API_KEY` repository secret.
 2. Allow GitHub Actions to push branches and create pull requests.
 3. Add the optional `FACTORY_GITHUB_TOKEN` repository secret if you want the
-   factory to modify files under `.github/workflows/**`.
+   factory to modify protected factory control-plane paths such as
+   `scripts/**`, `.factory/prompts/**`, `.factory/review-methods/**`,
+   `.factory/messages/**`, or `.github/workflows/**`.
    Create a fine-grained personal access token scoped only to this repository
    with `Contents: Read/Write`, `Pull requests: Read/Write`, `Issues: Read/Write`,
    `Workflows: Read/Write`, and `Metadata: Read`.
-   Self-modifying factory issues generally need this secret.
+   Self-modifying factory issues require this secret.
 4. Keep the workflow name `CI` or update the `workflow_run` trigger in
    `.github/workflows/factory-pr-loop.yml`.
 5. Protect your default branch and require normal human review for merges.
@@ -66,6 +68,11 @@ Configure these before using the scaffold in a live repository:
 15. Factory branches are refreshed from `origin/main` automatically before
     implement/repair runs. If the merge conflicts, the PR is blocked and needs
     a human to resolve the conflict before retrying.
+16. Optional: set `FACTORY_ENABLE_SELF_MODIFY=true` only when you intend to let
+    a factory-managed PR modify protected control-plane paths. The PR must also
+    carry the `factory:self-modify` label, and `FACTORY_GITHUB_TOKEN` must be
+    configured. Without all three, self-modifying stage output is rejected
+    before push.
 
 ## Factory operator flow
 
@@ -134,9 +141,23 @@ the authoritative request body for all later plan, implement, repair, and
 review stages. Edits to the live GitHub issue after intake do not affect stage
 prompts.
 
-If a factory run changes `.github/workflows/**` without `FACTORY_GITHUB_TOKEN`,
-the stage will stop before `git push` with a setup error that tells you to add
-the secret. Non-workflow changes continue to use the default `github.token`.
+Protected factory control-plane paths are locked by default:
+
+- `scripts/**`
+- `.factory/prompts/**`
+- `.factory/review-methods/**`
+- `.factory/messages/**`
+- `.github/workflows/**`
+
+If a factory run touches any of those paths, the stage will stop before
+`git push` unless all of the following are true:
+
+- the repository variable `FACTORY_ENABLE_SELF_MODIFY` is enabled
+- the live PR currently has the `factory:self-modify` label
+- `FACTORY_GITHUB_TOKEN` is configured
+
+This gate is checked from live PR state during stage preparation, so removing
+the label or disabling the variable immediately re-locks later reruns.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair
@@ -197,6 +218,7 @@ The workflows create and manage these labels automatically:
 
 - `factory:start`
 - `factory:managed`
+- `factory:self-modify`
 - `factory:plan-ready`
 - `factory:implement`
 - `factory:blocked`

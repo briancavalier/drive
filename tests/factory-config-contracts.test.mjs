@@ -203,7 +203,7 @@ test("factory stage workflow records estimated cost only after a successful push
   assert.match(workflowText, /FACTORY_COST_HIGH_USD:\s*\$\{\{\s*vars\.FACTORY_COST_HIGH_USD \|\| ''\s*\}\}/);
   assert.match(
     workflowText,
-    /name:\s+Prepare stage output for push[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}/
+    /name:\s+Prepare stage output for push[\s\S]*FACTORY_ENABLE_SELF_MODIFY:\s*\$\{\{\s*vars\.FACTORY_ENABLE_SELF_MODIFY \|\| ''\s*\}\}[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}/
   );
   assert.match(
     workflowText,

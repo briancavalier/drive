@@ -1,6 +1,7 @@
 export const FACTORY_LABELS = {
   start: "factory:start",
   managed: "factory:managed",
+  selfModify: "factory:self-modify",
   planReady: "factory:plan-ready",
   implement: "factory:implement",
   blocked: "factory:blocked",
@@ -74,6 +75,11 @@ export const LABEL_DEFINITIONS = [
     name: FACTORY_LABELS.managed,
     color: "0052CC",
     description: "Marks a pull request as managed by the autonomous factory"
+  },
+  {
+    name: FACTORY_LABELS.selfModify,
+    color: "B60205",
+    description: "Allows a factory-managed PR to modify protected factory control-plane files"
   },
   {
     name: FACTORY_LABELS.planReady,
