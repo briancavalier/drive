@@ -6,75 +6,19 @@ import {
   FACTORY_REVIEW_REPAIRABLE_STATUSES,
   isFactoryBranch
 } from "./factory-config.mjs";
-import { extractPrMetadata } from "./pr-metadata.mjs";
+import {
+  validateFactoryRepoTrust,
+  validateTrustedFactoryContext
+} from "./factory-trust.mjs";
 import { nextRepairState } from "./repair-state.mjs";
+
+export { validateFactoryRepoTrust, validateTrustedFactoryContext } from "./factory-trust.mjs";
 
 const TRUSTED_REVIEW_PERMISSIONS = new Set(["write", "maintain", "admin"]);
 const TRUSTED_AUTOMATION_REVIEWERS = new Set(["github-actions[bot]", "app/github-actions"]);
 
 function hasLabel(labels, labelName) {
   return labels.some((label) => label.name === labelName);
-}
-
-function normalizeRepositoryFullName(value) {
-  return `${value || ""}`.trim();
-}
-
-function resolveExpectedRepositoryFullName(payload, pullRequest) {
-  return (
-    normalizeRepositoryFullName(payload?.repositoryFullName) ||
-    normalizeRepositoryFullName(payload?.repository?.full_name) ||
-    normalizeRepositoryFullName(pullRequest?.base?.repo?.full_name)
-  );
-}
-
-function resolveHeadRepositoryContext(pullRequest) {
-  return {
-    fullName: normalizeRepositoryFullName(pullRequest?.head?.repo?.full_name),
-    fork: pullRequest?.head?.repo?.fork === true
-  };
-}
-
-export function validateFactoryRepoTrust(payload, pullRequest) {
-  const expectedRepositoryFullName = resolveExpectedRepositoryFullName(
-    payload,
-    pullRequest
-  );
-  const headRepository = resolveHeadRepositoryContext(pullRequest);
-
-  if (!expectedRepositoryFullName) {
-    return {
-      trusted: false,
-      reason: "missing expected repository metadata"
-    };
-  }
-
-  if (!headRepository.fullName) {
-    return {
-      trusted: false,
-      reason: "missing pull request head repository metadata"
-    };
-  }
-
-  if (headRepository.fork) {
-    return {
-      trusted: false,
-      reason: `fork-backed PR head ${headRepository.fullName}`
-    };
-  }
-
-  if (headRepository.fullName !== expectedRepositoryFullName) {
-    return {
-      trusted: false,
-      reason:
-        `pull request head repo ${headRepository.fullName} does not match expected repository ${expectedRepositoryFullName}`
-    };
-  }
-
-  return {
-    trusted: true,
-    repositoryFullName: expectedRepositoryFullName
-  };
 }
 
 function logRepoTrustNoop(trigger, reason) {
@@ -103,14 +47,14 @@ export function isTrustedReviewTrigger({ reviewerLogin, reviewerPermission } = {
 
 export function routePullRequestLabeled(payload) {
   const pullRequest = payload.pull_request;
-  const repoTrust = validateFactoryRepoTrust(payload, pullRequest);
+  const trustedContext = validateTrustedFactoryContext({ payload, pullRequest });
 
-  if (!repoTrust.trusted) {
-    logRepoTrustNoop("factory implement trigger", repoTrust.reason);
+  if (!trustedContext.trusted) {
+    logRepoTrustNoop("factory implement trigger", trustedContext.reason);
     return { action: "noop" };
   }
 
-  const metadata = extractPrMetadata(pullRequest.body);
+  const metadata = trustedContext.metadata;
 
   if (
     payload.action !== "labeled" ||
@@ -125,9 +69,9 @@ export function routePullRequestLabeled(payload) {
   return {
     action: "implement",
     prNumber: pullRequest.number,
-    issueNumber: metadata.issueNumber,
-    branch: pullRequest.head.ref,
-    artifactsPath: metadata.artifactsPath,
+    issueNumber: trustedContext.issueNumber,
+    branch: trustedContext.branch,
+    artifactsPath: trustedContext.artifactsPath,
     stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
     stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
   };
@@ -135,14 +79,14 @@ export function routePullRequestLabeled(payload) {
 
 export function routePullRequestReview(payload) {
   const pullRequest = payload.pull_request;
-  const repoTrust = validateFactoryRepoTrust(payload, pullRequest);
+  const trustedContext = validateTrustedFactoryContext({ payload, pullRequest });
 
-  if (!repoTrust.trusted) {
-    logRepoTrustNoop("factory review trigger", repoTrust.reason);
+  if (!trustedContext.trusted) {
+    logRepoTrustNoop("factory review trigger", trustedContext.reason);
     return { action: "noop" };
   }
 
-  const metadata = extractPrMetadata(pullRequest.body);
+  const metadata = trustedContext.metadata;
   const reviewerLogin = payload.review?.user?.login || "";
   const reviewerPermission = payload.reviewerPermission;
 
@@ -164,9 +108,9 @@ export function routePullRequestReview(payload) {
   return {
     action: repairState.blocked ? "blocked" : "repair",
     prNumber: pullRequest.number,
-    issueNumber: metadata.issueNumber,
-    branch: pullRequest.head.ref,
-    artifactsPath: metadata.artifactsPath,
+    issueNumber: trustedContext.issueNumber,
+    branch: trustedContext.branch,
+    artifactsPath: trustedContext.artifactsPath,
     reviewId: payload.review.id,
     reviewBody: payload.review.body || "",
     repairState,
@@ -180,28 +124,30 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     return { action: "noop" };
   }
 
-  const repoTrust = validateFactoryRepoTrust(
-    {
+  const trustedContext = validateTrustedFactoryContext({
+    payload: {
       repositoryFullName:
         workflowRun?.repository?.full_name || pullRequest?.base?.repo?.full_name || ""
     },
-    pullRequest
-  );
+    pullRequest,
+    candidateBranch: workflowRun.head_branch,
+    candidateHeadSha: workflowRun.head_sha
+  });
 
-  if (!repoTrust.trusted) {
-    logRepoTrustNoop("factory workflow_run trigger", repoTrust.reason);
+  if (!trustedContext.trusted) {
+    logRepoTrustNoop("factory workflow_run trigger", trustedContext.reason);
     return { action: "noop" };
   }
 
-  const metadata = extractPrMetadata(pullRequest.body);
-
-  if (!isManaged(pullRequest.labels, workflowRun.head_branch, metadata)) {
+  if (!isManaged(pullRequest.labels, trustedContext.branch, trustedContext.metadata)) {
     return { action: "noop" };
   }
 
   if (workflowRun.event && workflowRun.event !== "pull_request") {
     return { action: "noop" };
   }
+
+  const metadata = trustedContext.metadata;
 
   if (
     metadata?.lastProcessedWorkflowRunId &&
@@ -231,9 +177,9 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     return {
       action: "review",
       prNumber: pullRequest.number,
-      issueNumber: metadata.issueNumber,
-      branch: workflowRun.head_branch,
-      artifactsPath: metadata.artifactsPath,
+      issueNumber: trustedContext.issueNumber,
+      branch: trustedContext.branch,
+      artifactsPath: trustedContext.artifactsPath,
       ciRunId: workflowRun.id,
       stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
       stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
@@ -252,9 +198,9 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
   return {
     action: repairState.blocked ? "blocked" : "repair",
     prNumber: pullRequest.number,
-    issueNumber: metadata.issueNumber,
-    branch: workflowRun.head_branch,
-    artifactsPath: metadata.artifactsPath,
+    issueNumber: trustedContext.issueNumber,
+    branch: trustedContext.branch,
+    artifactsPath: trustedContext.artifactsPath,
     ciRunId: workflowRun.id,
     repairState,
     stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
