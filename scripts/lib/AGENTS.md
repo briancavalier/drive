@@ -18,6 +18,7 @@ This directory contains the shared contracts for factory behavior. Changes here 
 - Treat these modules as shared contracts, not isolated helpers.
 - Prefer pure, testable functions for parsing, routing, metadata rendering, prompt construction, and policy checks.
 - Preserve existing wire formats unless the task explicitly requires a contract change.
+- Treat `factory:self-modify` as a high-trust human control, not an automatable state transition. Do not add shared logic that auto-applies, implicitly infers, defaults, or silently preserves that label on behalf of the factory.
 - Keep `.factory/messages/*.md` as an override surface only. If the template contract changes, update `github-messages.mjs` first and let docs/tests point back to that source of truth.
 - If you change a shared contract, update every dependent caller, workflow assumption, fixture, and test in the same change.
 
