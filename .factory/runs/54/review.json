@@ -1,0 +1,104 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Implements bounded recovery for malformed autonomous review artifacts; tests and workflow changes present and unit CI passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "If autonomous review emits invalid review.json content, the failure is detected and routed into a bounded repair path instead of immediately blocking the PR.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/prepare-review-artifact-repair.test.mjs :: validates repair attempts increment and blocking behavior",
+        "scripts/prepare-review-artifact-repair.mjs :: implements repair-state derivation and outputs",
+        ".github/workflows/factory-pr-loop.yml :: review-processing-failed job invokes prepare-repair and conditionally schedules review-artifact-repair",
+        "CI: workflow run id 23307124739 — unit: success"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Repair prompts include stored review-artifact failure context so repair runs see the failure message.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/build-stage-prompt.test.mjs :: 'repair prompt surfaces stored review artifact failure details'",
+        "scripts/build-stage-prompt.mjs :: reads metadata.lastReviewArtifactFailure and includes it in repair prompt",
+        "CI: workflow run id 23307124739 — unit: success"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Successful repair resumes the review flow (metadata reset, review re-run and pass handling).",
+      "status": "satisfied",
+      "evidence": [
+        "tests/process-review.test.mjs :: 'processReview marks PR ready and comments on pass decision'",
+        ".github/workflows/factory-pr-loop.yml :: review-artifact-repair-succeeded job records successful repair metadata",
+        "CI: workflow run id 23307124739 — unit: success"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Exhausted repair attempts block the PR with an explicit failure comment referencing malformed artifacts.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/prepare-review-artifact-repair.test.mjs :: 'blocks when repair attempts exceed limit'",
+        "scripts/lib/failure-comment.mjs :: comment headline and artifact links for review_artifact_contract",
+        ".github/workflows/factory-pr-loop.yml :: review-artifact-repair-failed falls back to handle-stage-failure when blocked",
+        "CI: workflow run id 23307124739 — unit: success"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Delivery/configuration failures (e.g., unresolved methodology) still block immediately and are not routed to artifact repair.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/process-review.mjs :: classifyReviewArtifactsFailure maps methodology resolution failures to configuration + review_delivery phase",
+        "tests/process-review.test.mjs :: 'classifyReviewArtifactsFailure keeps invalid methodology failures in review_delivery'",
+        "CI: workflow run id 23307124739 — unit: success"
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Add a dedicated failure type for review-artifact contract errors and propagate it through classification and comments.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/failure-classification.mjs :: defines FAILURE_TYPES.reviewArtifactContract",
+        "scripts/process-review.mjs :: classifyReviewArtifactsFailure returns FAILURE_TYPES.reviewArtifactContract for content failures",
+        "tests/failure-comment.test.mjs :: asserts failure-comment handles FAILURE_TYPES.reviewArtifactContract"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Implement scripts/prepare-review-artifact-repair.mjs to derive repair state and outputs for workflow orchestration.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/prepare-review-artifact-repair.mjs :: new implementation and exported helpers",
+        "tests/prepare-review-artifact-repair.test.mjs :: unit tests for normal, exhausted, and invalid-type cases"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Include stored failure details in repair prompts via build-stage-prompt.mjs.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/build-stage-prompt.mjs :: includes metadata.lastReviewArtifactFailure when present",
+        "tests/build-stage-prompt.test.mjs :: covers repair prompt failure-context inclusion"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Missing repair-log.md in run artifacts",
+      "details": ".factory/runs/54/ does not contain a 'repair-log.md' artifact while build-stage-prompt lists it as an expected artifact. Prompts handle missing files, but including a minimal file would make live diagnostics clearer.",
+      "scope": ".factory/runs/54",
+      "recommendation": "Add an empty or minimal 'repair-log.md' to the run artifacts when emitting run artifacts for review/repair runs."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Recommend integration smoke test",
+      "details": "The change affects workflow orchestration and multiple scripts; unit tests are comprehensive, but an end-to-end smoke test on a non-critical PR would validate runtime interactions with GitHub and actions environment.",
+      "scope": "CI / workflow",
+      "recommendation": "Run a manual or staged integration test exercising review -> repair -> resume on a test PR to confirm behavior in the live environment."
+    }
+  ]
+}

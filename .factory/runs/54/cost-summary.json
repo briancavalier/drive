@@ -17,18 +17,18 @@
     }
   },
   "current": {
-    "stage": "implement",
-    "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.0035,
-    "stageEstimateUsdBeforeCalibration": 0.0035,
-    "totalEstimatedUsd": 0.0057,
+    "stage": "review",
+    "model": "gpt-5-mini",
+    "stageEstimateUsd": 0.0008,
+    "stageEstimateUsdBeforeCalibration": 0.0008,
+    "totalEstimatedUsd": 0.0065,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model",
     "calibrationMultiplier": 1,
     "calibrationSource": "default",
     "calibrationSampleSize": 0,
-    "calibrationKey": "implement:gpt-5-codex",
+    "calibrationKey": "review:gpt-5-mini",
     "calibrationGeneratedAt": ""
   },
   "stages": {
@@ -60,6 +60,21 @@
       "calibrationSource": "default",
       "calibrationSampleSize": 0,
       "calibrationKey": "implement:gpt-5-codex",
+      "calibrationGeneratedAt": ""
+    },
+    "review": {
+      "mode": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 6510,
+      "estimatedInputTokens": 1628,
+      "multiplier": 2,
+      "estimatedUsdBeforeCalibration": 0.0008,
+      "estimatedUsd": 0.0008,
+      "pricingSource": "model",
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "review:gpt-5-mini",
       "calibrationGeneratedAt": ""
     }
   },
@@ -113,6 +128,31 @@
       "actualUsd": null,
       "actualSource": "",
       "recordedAt": "2026-03-19T01:48:27.428Z"
+    },
+    {
+      "issueNumber": 54,
+      "prNumber": 67,
+      "branch": "factory/54-harden-autonomous-review-artifact-generation-and",
+      "runId": "23307500253",
+      "runAttempt": 1,
+      "stage": "review",
+      "model": "gpt-5-mini",
+      "promptChars": 6510,
+      "estimatedInputTokens": 1628,
+      "stageMultiplier": 2,
+      "pricingSource": "model",
+      "estimatedUsdBeforeCalibration": 0.0008,
+      "estimatedUsd": 0.0008,
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "review:gpt-5-mini",
+      "calibrationGeneratedAt": "",
+      "outcome": "succeeded",
+      "actualInputTokens": null,
+      "actualUsd": null,
+      "actualSource": "",
+      "recordedAt": "2026-03-19T17:19:43.590Z"
     }
   ]
 }
