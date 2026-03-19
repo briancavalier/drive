@@ -151,6 +151,7 @@ test("resolveFactoryStageModelInfo defaults to stage-specific knob for non-revie
 test("label definitions include advisory cost labels", () => {
   const labels = LABEL_DEFINITIONS.map((definition) => definition.name);
 
+  assert.ok(labels.includes(FACTORY_LABELS.selfModify));
   assert.ok(labels.includes(FACTORY_LABELS.costLow));
   assert.ok(labels.includes(FACTORY_LABELS.costMedium));
   assert.ok(labels.includes(FACTORY_LABELS.costHigh));
@@ -172,4 +173,17 @@ test("label definitions include the intake rejection label metadata", () => {
     "Factory intake was rejected; issue needs updates before planning can start."
   );
   assert.equal(definition.color, "D73A4A");
+});
+
+test("label definitions include the self-modify label metadata", () => {
+  const definition = LABEL_DEFINITIONS.find(
+    (entry) => entry.name === FACTORY_LABELS.selfModify
+  );
+
+  assert.ok(definition, "expected self-modify label definition");
+  assert.equal(
+    definition.description,
+    "Allows a factory-managed PR to modify protected factory control-plane files"
+  );
+  assert.equal(definition.color, "B60205");
 });

@@ -6,12 +6,14 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
   persistCostSummaryForStage,
+  resolveStagePushAuthorization,
   resolveStageCommitAction,
   shouldPersistCostSummary,
   shouldAllowNoChanges,
   validateReviewArtifactsForStage,
   main as prepareStagePushMain
 } from "../scripts/prepare-stage-push.mjs";
+import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 
 function git(cwd, args) {
   return execFileSync("git", args, {
@@ -251,7 +253,53 @@ test("validateReviewArtifactsForStage delegates to loadValidatedReviewArtifacts"
   });
 });
 
-test("prepare-stage-push fails before git when review payload is invalid", () => {
+test("resolveStagePushAuthorization reads the live pull request labels", async () => {
+  const result = await resolveStagePushAuthorization({
+    env: {
+      FACTORY_ENABLE_SELF_MODIFY: "true"
+    },
+    prNumber: 33,
+    protectedPathChanges: [{ kind: "scripts", label: "scripts/**", paths: ["scripts/x.mjs"] }],
+    githubClient: {
+      getPullRequest: async () => ({
+        labels: [{ name: FACTORY_LABELS.selfModify }]
+      })
+    }
+  });
+
+  assert.deepEqual(result, {
+    selfModifyEnabled: true,
+    hasSelfModifyLabel: true
+  });
+});
+
+test("resolveStagePushAuthorization skips live PR lookup for non-protected changes", async () => {
+  let called = false;
+
+  const result = await resolveStagePushAuthorization({
+    env: {
+      FACTORY_ENABLE_SELF_MODIFY: "true"
+    },
+    prNumber: 33,
+    protectedPathChanges: [],
+    githubClient: {
+      getPullRequest: async () => {
+        called = true;
+        return {
+          labels: [{ name: FACTORY_LABELS.selfModify }]
+        };
+      }
+    }
+  });
+
+  assert.deepEqual(result, {
+    selfModifyEnabled: true,
+    hasSelfModifyLabel: false
+  });
+  assert.equal(called, false);
+});
+
+test("prepare-stage-push fails before git when review payload is invalid", async () => {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-review-invalid-"));
   const reviewJson = {
     methodology: "default",
@@ -269,7 +317,7 @@ test("prepare-stage-push fails before git when review payload is invalid", () =>
     let thrown = null;
 
     try {
-      prepareStagePushMain({
+      await prepareStagePushMain({
         FACTORY_BRANCH: "factory/34-review-test",
         FACTORY_MODE: "review",
         FACTORY_ISSUE_NUMBER: "34",
@@ -288,7 +336,7 @@ test("prepare-stage-push fails before git when review payload is invalid", () =>
   }
 });
 
-test("prepare-stage-push normalizes drifted review traceability before git", () => {
+test("prepare-stage-push normalizes drifted review traceability before git", async () => {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-review-normalized-"));
   const reviewJson = {
     methodology: "default",
@@ -331,7 +379,7 @@ test("prepare-stage-push normalizes drifted review traceability before git", () 
   let thrown = null;
 
   try {
-    prepareStagePushMain({
+    await prepareStagePushMain({
       FACTORY_BRANCH: "factory/34-review-test",
       FACTORY_MODE: "review",
       FACTORY_ISSUE_NUMBER: "34",
@@ -365,7 +413,7 @@ test("prepare-stage-push normalizes drifted review traceability before git", () 
   assert.doesNotMatch(normalizedReviewMarkdown, /Methodology used: default\./);
 });
 
-test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged", () => {
+test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged", async () => {
   const branch = "factory/stage-noop-check";
   const { repoDir } = initTestRepo(branch);
   const originalCwd = process.cwd();
@@ -373,7 +421,7 @@ test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged
 
   try {
     process.chdir(repoDir);
-    prepareStagePushMain({
+    await prepareStagePushMain({
       FACTORY_BRANCH: branch,
       FACTORY_MODE: "implement",
       FACTORY_ISSUE_NUMBER: "501",
@@ -396,7 +444,7 @@ test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged
   assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
 });
 
-test("prepare-stage-push reports stage_setup diagnostics for workflow changes without factory token", () => {
+test("prepare-stage-push reports stage_setup diagnostics for workflow changes without factory token", async () => {
   const branch = "factory/stage-setup-guard";
   const { repoDir } = initTestRepo(branch);
   const originalCwd = process.cwd();
@@ -409,7 +457,7 @@ test("prepare-stage-push reports stage_setup diagnostics for workflow changes wi
       path.join(repoDir, ".github", "workflows", "test.yml"),
       "name: Test\non: push\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo test\n"
     );
-    prepareStagePushMain({
+    await prepareStagePushMain({
       FACTORY_BRANCH: branch,
       FACTORY_MODE: "implement",
       FACTORY_ISSUE_NUMBER: "502",
@@ -430,4 +478,146 @@ test("prepare-stage-push reports stage_setup diagnostics for workflow changes wi
   assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
   assert.match(error.message, /workflow changes detected: yes/);
   assert.match(error.message, /\.github\/workflows\/test\.yml/);
+});
+
+test("prepare-stage-push blocks protected-path changes when self-modify mode is disabled", async () => {
+  const branch = "factory/self-modify-disabled";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let error = null;
+
+  try {
+    process.chdir(repoDir);
+    fs.mkdirSync(path.join(repoDir, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(repoDir, "scripts", "self-modify.mjs"), "export const x = 1;\n");
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "503",
+      FACTORY_ISSUE_TITLE: "Self modify gate",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "44",
+      FACTORY_ENABLE_SELF_MODIFY: "",
+      FACTORY_GITHUB_TOKEN: "pat_mock",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => ({
+          labels: [{ name: FACTORY_LABELS.selfModify }]
+        })
+      }
+    });
+  } catch (thrown) {
+    error = thrown;
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.ok(error, "expected stage_setup failure");
+  assert.match(error.message, /FACTORY_ENABLE_SELF_MODIFY is not enabled/);
+});
+
+test("prepare-stage-push does not require a live PR lookup for non-protected changes", async () => {
+  const branch = "factory/non-protected-pr-change";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let called = false;
+
+  try {
+    process.chdir(repoDir);
+    fs.writeFileSync(path.join(repoDir, "README.md"), "# Updated fixture\n");
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "506",
+      FACTORY_ISSUE_TITLE: "Normal repo change",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "47",
+      FACTORY_ENABLE_SELF_MODIFY: "",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => {
+          called = true;
+          throw new Error("unexpected GitHub lookup");
+        }
+      }
+    });
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.equal(called, false);
+});
+
+test("prepare-stage-push blocks protected-path changes when the self-modify label is absent", async () => {
+  const branch = "factory/self-modify-label-missing";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let error = null;
+
+  try {
+    process.chdir(repoDir);
+    fs.mkdirSync(path.join(repoDir, ".factory", "messages"), { recursive: true });
+    fs.writeFileSync(path.join(repoDir, ".factory", "messages", "pr-body.md"), "override\n");
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "504",
+      FACTORY_ISSUE_TITLE: "Self modify label gate",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "45",
+      FACTORY_ENABLE_SELF_MODIFY: "true",
+      FACTORY_GITHUB_TOKEN: "pat_mock",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => ({
+          labels: []
+        })
+      }
+    });
+  } catch (thrown) {
+    error = thrown;
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.ok(error, "expected stage_setup failure");
+  assert.match(error.message, /missing the factory:self-modify label/);
+});
+
+test("prepare-stage-push allows protected-path changes when self-modify mode is fully authorized", async () => {
+  const branch = "factory/self-modify-authorized";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+
+  try {
+    process.chdir(repoDir);
+    fs.mkdirSync(path.join(repoDir, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(repoDir, "scripts", "self-modify.mjs"), "export const x = 1;\n");
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "505",
+      FACTORY_ISSUE_TITLE: "Authorized self modify",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "46",
+      FACTORY_ENABLE_SELF_MODIFY: "true",
+      FACTORY_GITHUB_TOKEN: "pat_mock",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => ({
+          labels: [{ name: FACTORY_LABELS.selfModify }]
+        })
+      }
+    });
+  } finally {
+    process.chdir(originalCwd);
+  }
 });
