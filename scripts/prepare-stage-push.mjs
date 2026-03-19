@@ -8,7 +8,12 @@ import { classifyFailure } from "./lib/failure-classification.mjs";
 import { COST_SUMMARY_FILE_NAME } from "./lib/cost-estimation.mjs";
 import { FACTORY_LABELS } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
-import { evaluateStagePush, isSelfModifyEnabled, resolveStageToken } from "./lib/stage-push.mjs";
+import {
+  evaluateStagePush,
+  getProtectedPathChanges,
+  isSelfModifyEnabled,
+  resolveStageToken
+} from "./lib/stage-push.mjs";
 import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
 import { renderStageDiagnostics } from "./lib/stage-diagnostics.mjs";
@@ -269,11 +274,12 @@ function pullRequestHasLabel(pullRequest, label) {
 export async function resolveStagePushAuthorization({
   env,
   prNumber,
+  protectedPathChanges = [],
   githubClient = { getPullRequest }
 }) {
   const selfModifyEnabled = isSelfModifyEnabled(env.FACTORY_ENABLE_SELF_MODIFY);
 
-  if (!(prNumber > 0)) {
+  if (!(prNumber > 0) || protectedPathChanges.length === 0) {
     return {
       selfModifyEnabled,
       hasSelfModifyLabel: false
@@ -392,10 +398,12 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
   }
 
   const changedFiles = getChangedFiles(remoteHead, localHead);
+  const protectedPathChanges = getProtectedPathChanges(changedFiles);
   const prNumber = Number(prNumberRaw);
   const authorization = await resolveStagePushAuthorization({
     env,
     prNumber,
+    protectedPathChanges,
     githubClient
   });
   const evaluation = evaluateStagePush({

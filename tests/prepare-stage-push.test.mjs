@@ -259,6 +259,7 @@ test("resolveStagePushAuthorization reads the live pull request labels", async (
       FACTORY_ENABLE_SELF_MODIFY: "true"
     },
     prNumber: 33,
+    protectedPathChanges: [{ kind: "scripts", label: "scripts/**", paths: ["scripts/x.mjs"] }],
     githubClient: {
       getPullRequest: async () => ({
         labels: [{ name: FACTORY_LABELS.selfModify }]
@@ -270,6 +271,32 @@ test("resolveStagePushAuthorization reads the live pull request labels", async (
     selfModifyEnabled: true,
     hasSelfModifyLabel: true
   });
+});
+
+test("resolveStagePushAuthorization skips live PR lookup for non-protected changes", async () => {
+  let called = false;
+
+  const result = await resolveStagePushAuthorization({
+    env: {
+      FACTORY_ENABLE_SELF_MODIFY: "true"
+    },
+    prNumber: 33,
+    protectedPathChanges: [],
+    githubClient: {
+      getPullRequest: async () => {
+        called = true;
+        return {
+          labels: [{ name: FACTORY_LABELS.selfModify }]
+        };
+      }
+    }
+  });
+
+  assert.deepEqual(result, {
+    selfModifyEnabled: true,
+    hasSelfModifyLabel: false
+  });
+  assert.equal(called, false);
 });
 
 test("prepare-stage-push fails before git when review payload is invalid", async () => {
@@ -489,6 +516,40 @@ test("prepare-stage-push blocks protected-path changes when self-modify mode is 
 
   assert.ok(error, "expected stage_setup failure");
   assert.match(error.message, /FACTORY_ENABLE_SELF_MODIFY is not enabled/);
+});
+
+test("prepare-stage-push does not require a live PR lookup for non-protected changes", async () => {
+  const branch = "factory/non-protected-pr-change";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let called = false;
+
+  try {
+    process.chdir(repoDir);
+    fs.writeFileSync(path.join(repoDir, "README.md"), "# Updated fixture\n");
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "506",
+      FACTORY_ISSUE_TITLE: "Normal repo change",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "47",
+      FACTORY_ENABLE_SELF_MODIFY: "",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => {
+          called = true;
+          throw new Error("unexpected GitHub lookup");
+        }
+      }
+    });
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.equal(called, false);
 });
 
 test("prepare-stage-push blocks protected-path changes when the self-modify label is absent", async () => {
