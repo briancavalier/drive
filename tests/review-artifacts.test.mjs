@@ -137,8 +137,20 @@ test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonica
   });
 
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
-  assert.match(reviewMarkdown, /  - Status: `satisfied`/);
+  assert.match(
+    reviewMarkdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
+  );
+  assert.match(
+    reviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
+  );
+  assert.match(
+    reviewMarkdown,
+    /  - \*\*Evidence:\*\* End-to-end tests cover acceptance criteria\./
+  );
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
   assert.doesNotMatch(reviewMarkdown, /This content has drifted\./);
   assert.doesNotMatch(reviewMarkdown, /This replaces the canonical content\./);
 });
@@ -180,12 +192,24 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
   assert.equal(reviewMarkdown, normalizedOnDisk);
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
-  assert.match(reviewMarkdown, /  - Status: `satisfied`/);
+  assert.match(
+    reviewMarkdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
+  );
+  assert.match(
+    reviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
+  );
+  assert.match(
+    reviewMarkdown,
+    /  - \*\*Evidence:\*\* End-to-end tests cover acceptance criteria\./
+  );
   assert.doesNotMatch(
     reviewMarkdown,
     /- Acceptance Criterion: "Acceptance criteria are covered by automated tests\."/
   );
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
 
 test("normalizeReviewArtifacts replaces one-line details traceability blocks instead of keeping stale content", () => {
@@ -219,10 +243,15 @@ test("normalizeReviewArtifacts replaces one-line details traceability blocks ins
   });
 
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(reviewMarkdown, /- Requirement: Acceptance criteria are covered by automated tests\./);
+  assert.match(
+    reviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
+  );
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
   assert.doesNotMatch(reviewMarkdown, /- Acceptance Criterion:/);
   assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
 
 test("normalizeReviewArtifacts does not treat Traceability Notes as the traceability section", () => {
@@ -294,6 +323,8 @@ test("normalizeReviewArtifacts replaces prose and subheading traceability conten
   assert.doesNotMatch(reviewMarkdown, /This prose summary is drifted\./);
   assert.doesNotMatch(reviewMarkdown, /### Acceptance Criteria/);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
 
 test("normalizeReviewArtifacts discards unheaded prose after the replaced traceability section", () => {
@@ -330,6 +361,8 @@ test("normalizeReviewArtifacts discards unheaded prose after the replaced tracea
   assert.doesNotMatch(reviewMarkdown, /Methodology used: default\./);
   assert.doesNotMatch(reviewMarkdown, /Closing reviewer note\./);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
 
 test("loadValidatedReviewArtifacts appends canonical traceability when missing", () => {
@@ -355,7 +388,56 @@ test("loadValidatedReviewArtifacts appends canonical traceability when missing",
 
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(reviewMarkdown, /Traceability: Acceptance Criteria/);
+  assert.match(
+    reviewMarkdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
+  );
+  assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(reviewMarkdown, /- Status:/);
+});
+
+test("renderCanonicalTraceabilityMarkdown lists status counts in severity order", () => {
+  const markdown = renderCanonicalTraceabilityMarkdown([
+    {
+      type: "acceptance_criterion",
+      requirement: "CI covers the negative path.",
+      status: "not_satisfied",
+      evidence: ["ci / test: negative path fails."]
+    },
+    {
+      type: "acceptance_criterion",
+      requirement: "Manual QA verified positive path.",
+      status: "partially_satisfied",
+      evidence: ["Manual QA covers positive path; negative path missing."]
+    },
+    {
+      type: "acceptance_criterion",
+      requirement: "Automated regression coverage is in place.",
+      status: "satisfied",
+      evidence: ["Unit tests cover user flows."]
+    },
+    {
+      type: "acceptance_criterion",
+      requirement: "Documentation update was not required.",
+      status: "not_applicable",
+      evidence: ["No user-facing docs impacted."]
+    },
+    {
+      type: "acceptance_criterion",
+      requirement: "Linting checks run on CI.",
+      status: "satisfied",
+      evidence: ["ci / lint: success"]
+    }
+  ]);
+
+  assert.match(
+    markdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(❌ 1, ⚠️ 1, ✅ 2, ⬜ 1\)<\/summary>/
+  );
+  assert.match(markdown, /- ❌ \*\*Not satisfied\*\*: CI covers the negative path\./);
+  assert.match(markdown, /- ⚠️ \*\*Partially satisfied\*\*: Manual QA verified positive path\./);
+  assert.match(markdown, /- ✅ \*\*Satisfied\*\*: Automated regression coverage is in place\./);
+  assert.match(markdown, /- ⬜ \*\*Not applicable\*\*: Documentation update was not required\./);
 });
 
 test("loadValidatedReviewArtifacts preserves evidence arrays", () => {

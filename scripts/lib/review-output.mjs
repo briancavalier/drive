@@ -10,6 +10,20 @@ const REQUIREMENT_TYPE_LABELS = Object.freeze({
   plan_deliverable: "Plan Deliverables"
 });
 
+const STATUS_DISPLAY = Object.freeze({
+  satisfied: { icon: "✅", label: "Satisfied" },
+  partially_satisfied: { icon: "⚠️", label: "Partially satisfied" },
+  not_satisfied: { icon: "❌", label: "Not satisfied" },
+  not_applicable: { icon: "⬜", label: "Not applicable" }
+});
+
+const STATUS_SEVERITY_ORDER = Object.freeze([
+  "not_satisfied",
+  "partially_satisfied",
+  "satisfied",
+  "not_applicable"
+]);
+
 export function normalizeNewlines(value) {
   return `${value || ""}`.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
 }
@@ -22,23 +36,52 @@ function groupRequirementChecks(requirementChecks = []) {
   })).filter((group) => group.checks.length > 0);
 }
 
-function renderEvidenceList(evidence = []) {
-  return [
-    "  - Evidence:",
-    ...evidence.map((item) => `    - ${item}`)
-  ].join("\n");
-}
-
 function renderCompactEvidence(evidence = []) {
   return evidence.join("; ");
 }
 
+function resolveStatusDisplay(status) {
+  const fallbackLabel = status || "Unknown";
+
+  if (!STATUS_DISPLAY[status]) {
+    return { icon: "", label: fallbackLabel };
+  }
+
+  return STATUS_DISPLAY[status];
+}
+
 function renderRequirementCheckItem(check) {
-  return [
-    `- Requirement: ${check.requirement}`,
-    `  - Status: \`${check.status}\``,
-    renderEvidenceList(check.evidence)
-  ].join("\n");
+  const { icon, label } = resolveStatusDisplay(check.status);
+  const iconPrefix = icon ? `${icon} ` : "";
+  const lines = [`- ${iconPrefix}**${label}**: ${check.requirement}`];
+
+  if (Array.isArray(check.evidence) && check.evidence.length > 0) {
+    for (const evidence of check.evidence) {
+      lines.push(`  - **Evidence:** ${evidence}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function formatStatusCounts(checks = []) {
+  const counts = new Map();
+
+  for (const check of checks) {
+    const current = counts.get(check.status) || 0;
+    counts.set(check.status, current + 1);
+  }
+
+  const parts = STATUS_SEVERITY_ORDER.filter((status) => counts.get(status)).map((status) => {
+    const { icon } = resolveStatusDisplay(status);
+    return `${icon || status} ${counts.get(status)}`;
+  });
+
+  if (!parts.length) {
+    return "";
+  }
+
+  return ` (${parts.join(", ")})`;
 }
 
 function renderRequirementChecksWithHeading(requirementChecks = [], headingLevel = "###") {
@@ -54,16 +97,18 @@ function renderRequirementChecksWithHeading(requirementChecks = [], headingLevel
 }
 
 export function renderCanonicalTraceabilityMarkdown(requirementChecks = []) {
-  const groups = groupRequirementChecks(requirementChecks).map((group) =>
-    [
+  const groups = groupRequirementChecks(requirementChecks).map((group) => {
+    const summaryCounts = formatStatusCounts(group.checks);
+
+    return [
       "<details>",
-      `<summary>🧭 Traceability: ${group.label}</summary>`,
+      `<summary>🧭 Traceability: ${group.label}${summaryCounts}</summary>`,
       "",
       group.checks.map(renderRequirementCheckItem).join("\n"),
       "",
       "</details>"
-    ].join("\n")
-  );
+    ].join("\n");
+  });
 
   return ["## 🧭 Traceability", "", groups.join("\n\n")].join("\n");
 }
