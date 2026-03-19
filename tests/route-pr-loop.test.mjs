@@ -26,15 +26,36 @@ function managedLabels(extra = []) {
   return [{ name: FACTORY_LABELS.managed }, ...extra];
 }
 
+function sameRepoHead(overrides = {}) {
+  return {
+    ref: "factory/12-sample",
+    repo: {
+      full_name: "example/repo",
+      fork: false
+    },
+    ...overrides
+  };
+}
+
+function sameRepoBase() {
+  return {
+    repo: {
+      full_name: "example/repo"
+    }
+  };
+}
+
 test("routeEvent uses live pull request state for implement label events", async () => {
   const payload = {
     action: "labeled",
     label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
     pull_request: {
       number: 33,
       body: managedPrBody(),
       labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: { ref: "factory/12-sample" }
+      head: sameRepoHead(),
+      base: sameRepoBase()
     }
   };
 
@@ -46,7 +67,8 @@ test("routeEvent uses live pull request state for implement label events", async
         number: 33,
         body: managedPrBody("implementing"),
         labels: managedLabels(),
-        head: { ref: "factory/12-sample" }
+        head: sameRepoHead(),
+        base: sameRepoBase()
       }),
       findOpenPullRequestByHead: async () => null
     }
@@ -58,6 +80,7 @@ test("routeEvent uses live pull request state for implement label events", async
 test("routeEvent uses live pull request state and collaborator permission for review events", async () => {
   const payload = {
     action: "submitted",
+    repository: { full_name: "example/repo" },
     review: {
       id: 55,
       state: "changes_requested",
@@ -68,7 +91,8 @@ test("routeEvent uses live pull request state and collaborator permission for re
       number: 33,
       body: managedPrBody("plan_ready"),
       labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
+      head: sameRepoHead(),
+      base: sameRepoBase()
     }
   };
 
@@ -80,7 +104,8 @@ test("routeEvent uses live pull request state and collaborator permission for re
         number: 33,
         body: managedPrBody("implementing"),
         labels: managedLabels(),
-        head: { ref: "factory/12-sample" }
+        head: sameRepoHead(),
+        base: sameRepoBase()
       }),
       getCollaboratorPermission: async () => ({ permission: "write" }),
       findOpenPullRequestByHead: async () => null
@@ -94,6 +119,7 @@ test("routeEvent uses live pull request state and collaborator permission for re
 test("routeEvent ignores untrusted review triggers", async () => {
   const payload = {
     action: "submitted",
+    repository: { full_name: "example/repo" },
     review: {
       id: 56,
       state: "changes_requested",
@@ -103,7 +129,8 @@ test("routeEvent ignores untrusted review triggers", async () => {
       number: 33,
       body: managedPrBody("implementing"),
       labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
+      head: sameRepoHead(),
+      base: sameRepoBase()
     }
   };
 
@@ -124,6 +151,7 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
   let collaboratorLookups = 0;
   const payload = {
     action: "submitted",
+    repository: { full_name: "example/repo" },
     review: {
       id: 57,
       state: "changes_requested",
@@ -133,7 +161,8 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
       number: 33,
       body: managedPrBody("reviewing"),
       labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
+      head: sameRepoHead(),
+      base: sameRepoBase()
     }
   };
 
@@ -152,4 +181,81 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
 
   assert.equal(route.action, "repair");
   assert.equal(collaboratorLookups, 0);
+});
+
+test("routeEvent downgrades implement to noop when live PR is fork-backed", async () => {
+  const payload = {
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody(),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: sameRepoHead(),
+      base: sameRepoBase()
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody(),
+        labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+        head: sameRepoHead({
+          repo: {
+            full_name: "attacker/repo",
+            fork: true
+          }
+        }),
+        base: sameRepoBase()
+      })
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent downgrades review to noop when live PR head repo mismatches", async () => {
+  const payload = {
+    action: "submitted",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 58,
+      state: "changes_requested",
+      user: { login: "maintainer" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: sameRepoHead(),
+      base: sameRepoBase()
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request_review",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody("implementing"),
+        labels: managedLabels(),
+        head: sameRepoHead({
+          repo: {
+            full_name: "other/repo",
+            fork: false
+          }
+        }),
+        base: sameRepoBase()
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  });
+
+  assert.equal(route.action, "noop");
 });

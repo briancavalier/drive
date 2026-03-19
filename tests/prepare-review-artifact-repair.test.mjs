@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { prepareReviewArtifactRepair, buildFailureSignature } from "../scripts/prepare-review-artifact-repair.mjs";
+import {
+  prepareReviewArtifactRepair,
+  buildFailureSignature
+} from "../scripts/prepare-review-artifact-repair.mjs";
 import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import { normalizeFailureSignature } from "../scripts/lib/repair-state.mjs";

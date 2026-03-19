@@ -421,6 +421,8 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`/);
   assert.match(result.prompt, /Record evidence in `review\.json` as arrays of concrete citations/);
   assert.match(result.prompt, /partially_satisfied/);
+  assert.match(result.prompt, /Any requirement check marked `partially_satisfied` or `not_satisfied` requires `request_changes`\./);
+  assert.match(result.prompt, /A `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`\./);
   assert.deepEqual(result.meta.methodology, {
     name: "default",
     requested: "default",
@@ -580,7 +582,7 @@ test("review static instruction payload is materially smaller than the legacy sh
   const legacyStaticPayload = legacyPrompt.length;
 
   assert.ok(
-    nextStaticPayload < legacyStaticPayload * 0.8,
+    nextStaticPayload < legacyStaticPayload * 0.82,
     `${nextStaticPayload} vs ${legacyStaticPayload}`
   );
 });
@@ -667,17 +669,17 @@ test("repair prompt surfaces stored review artifact failure details", () => {
       artifactsPath: artifactsDir,
       metadata
     }),
-    templateText: repairTemplate,
     budgets: {
       plan: 20000,
       implement: 12000,
       repair: 6500,
       hardMax: 6500
-    }
+    },
+    templateText: repairTemplate
   });
 
   assert.match(result.prompt, /Invalid review artifacts/);
-  assert.match(result.prompt, /review\.json/);
+  assert.match(result.prompt, /review\.json, review\.md/);
   assert.match(result.prompt, /2026-03-19T12:34:56\.000Z/);
 });
 

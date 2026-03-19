@@ -75,7 +75,7 @@ Configure these before using the scaffold in a live repository:
 4. Apply the `factory:implement` label to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
 
-For public repositories, maintainers cannot sponsor outsider-authored factory issues into execution. Intake now requires both the issue author and the actor applying `factory:start` to be trusted collaborators.
+For public repositories, maintainers cannot sponsor outsider-authored factory issues into execution. Intake now requires both the issue author and the actor applying `factory:start` to be trusted collaborators. Factory automation also ignores fork-backed pull requests entirely, so outsider PRs cannot trigger implement, repair, or review stages.
 
 ## Autonomous review stage
 

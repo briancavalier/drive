@@ -258,7 +258,10 @@ export async function main(env = process.env) {
     }
   }
 
-  nextMetadata = applyLastReviewArtifactFailure(nextMetadata, env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE);
+  nextMetadata = applyLastReviewArtifactFailure(
+    nextMetadata,
+    env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE
+  );
 
   nextMetadata = applyTransientRetryAttempts(
     nextMetadata,

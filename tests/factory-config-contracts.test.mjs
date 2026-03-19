@@ -222,7 +222,7 @@ test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of r
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
   const codexSteps = workflowText.match(/name:\s+Run Codex failure diagnosis[\s\S]*?codex-args:\s+--full-auto/g) || [];
-  assert.equal(codexSteps.length, 2);
+  assert.equal(codexSteps.length, 3);
   for (const step of codexSteps) {
     assert.match(step, /if:\s*steps\.diagnosis_gate\.outputs\.run_diagnosis == 'true'/);
     assert.match(step, /continue-on-error:\s*true/);
@@ -237,6 +237,7 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
   const routeJob = extractJobBlock(workflowText, "route");
   const stageFailedJob = extractJobBlock(workflowText, "stage-failed");
   const reviewProcessingFailedJob = extractJobBlock(workflowText, "review-processing-failed");
+  const reviewArtifactRepairFailedJob = extractJobBlock(workflowText, "review-artifact-repair-failed");
 
   assert.doesNotMatch(routeJob, /needs\.route\.outputs\.branch/);
   assert.match(
@@ -246,6 +247,37 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
   assert.match(
     reviewProcessingFailedJob,
     /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+  assert.match(
+    reviewArtifactRepairFailedJob,
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+  );
+});
+
+test("review artifact repair jobs mirror stage success and failure handling", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const repairSucceededJob = extractJobBlock(workflowText, "review-artifact-repair-succeeded");
+  const repairFailedJob = extractJobBlock(workflowText, "review-artifact-repair-failed");
+
+  assert.match(
+    repairSucceededJob,
+    /FACTORY_LAST_REVIEW_ARTIFACT_FAILURE:\s*"__CLEAR__"/
+  );
+  assert.match(
+    repairSucceededJob,
+    /FACTORY_LAST_FAILURE_TYPE:\s*""/
+  );
+  assert.match(
+    repairFailedJob,
+    /FACTORY_FAILED_ACTION:\s*repair/
+  );
+  assert.match(
+    repairFailedJob,
+    /FACTORY_FAILURE_TYPE:\s*\$\{\{\s*needs\.review-artifact-repair\.outputs\.failure_type \|\| 'content_or_logic'\s*\}\}/
+  );
+  assert.match(
+    repairFailedJob,
+    /FACTORY_REPAIR_ATTEMPTS:\s*\$\{\{\s*needs\.review-processing-failed\.outputs\.repair_attempts\s*\}\}/
   );
 });
 

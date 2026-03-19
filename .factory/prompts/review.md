@@ -32,6 +32,7 @@ Validation:
 
 - The control plane renders canonical traceability in `review.md` from `review.json` after the run.
 - `blocking_findings_count` must match the number of blocking findings.
+- Any requirement check marked `partially_satisfied` or `not_satisfied` requires `request_changes`.
 - A `pass` decision is only valid when every requirement check is `satisfied` or `not_applicable`.
 
 Review guidance:

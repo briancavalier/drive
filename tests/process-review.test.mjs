@@ -140,6 +140,7 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
+  assert.equal(execCalls[0].options.env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE, "__CLEAR__");
   assert.equal(execCalls[0].options.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, "0");
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
   assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);

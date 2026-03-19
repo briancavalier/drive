@@ -7,7 +7,8 @@ import {
   isTrustedReviewTrigger,
   routePullRequestLabeled,
   routePullRequestReview,
-  routeWorkflowRun
+  routeWorkflowRun,
+  validateFactoryRepoTrust
 } from "../scripts/lib/event-router.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
@@ -35,6 +36,36 @@ function managedLabels(extra = []) {
   return [{ name: FACTORY_LABELS.managed }, ...extra];
 }
 
+function sameRepoHead(overrides = {}) {
+  return {
+    ref: "factory/12-sample",
+    repo: {
+      full_name: "example/repo",
+      fork: false
+    },
+    ...overrides
+  };
+}
+
+function sameRepoBase() {
+  return {
+    repo: {
+      full_name: "example/repo"
+    }
+  };
+}
+
+function basePullRequest(overrides = {}) {
+  return {
+    number: 33,
+    body: managedPrBody(),
+    labels: managedLabels(),
+    head: sameRepoHead(),
+    base: sameRepoBase(),
+    ...overrides
+  };
+}
+
 function makeOverrides(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-route-messages-"));
 
@@ -45,16 +76,72 @@ function makeOverrides(files = {}) {
   return dir;
 }
 
+test("validateFactoryRepoTrust accepts same-repo PR heads", () => {
+  const result = validateFactoryRepoTrust(
+    { repositoryFullName: "example/repo" },
+    basePullRequest()
+  );
+
+  assert.equal(result.trusted, true);
+  assert.equal(result.repositoryFullName, "example/repo");
+});
+
+test("validateFactoryRepoTrust rejects fork-backed PR heads", () => {
+  const result = validateFactoryRepoTrust(
+    { repositoryFullName: "example/repo" },
+    basePullRequest({
+      head: sameRepoHead({
+        repo: {
+          full_name: "attacker/repo",
+          fork: true
+        }
+      })
+    })
+  );
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /fork-backed PR head/);
+});
+
+test("validateFactoryRepoTrust rejects head repo mismatches", () => {
+  const result = validateFactoryRepoTrust(
+    { repositoryFullName: "example/repo" },
+    basePullRequest({
+      head: sameRepoHead({
+        repo: {
+          full_name: "other/repo",
+          fork: false
+        }
+      })
+    })
+  );
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /does not match expected repository/);
+});
+
+test("validateFactoryRepoTrust rejects missing head repo metadata", () => {
+  const result = validateFactoryRepoTrust(
+    { repositoryFullName: "example/repo" },
+    basePullRequest({
+      head: {
+        ref: "factory/12-sample"
+      }
+    })
+  );
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /missing pull request head repository metadata/);
+});
+
 test("routePullRequestLabeled starts implementation for approved managed PRs", () => {
   const result = routePullRequestLabeled({
     action: "labeled",
     label: { name: FACTORY_LABELS.implement },
-    pull_request: {
-      number: 33,
-      body: managedPrBody(),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: { ref: "factory/12-sample" }
-    }
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
+    })
   });
 
   assert.equal(result.action, "implement");
@@ -66,12 +153,10 @@ test("routePullRequestLabeled ignores stale implement events when the label is n
   const result = routePullRequestLabeled({
     action: "labeled",
     label: { name: FACTORY_LABELS.implement },
-    pull_request: {
-      number: 33,
-      body: managedPrBody("implementing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      body: managedPrBody("implementing")
+    })
   });
 
   assert.equal(result.action, "noop");
@@ -90,8 +175,8 @@ test("routePullRequestLabeled still parses metadata from custom PR body template
   const result = routePullRequestLabeled({
     action: "labeled",
     label: { name: FACTORY_LABELS.implement },
-    pull_request: {
-      number: 33,
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
       body: renderPrBody(
         {
           issueNumber: 12,
@@ -110,9 +195,8 @@ test("routePullRequestLabeled still parses metadata from custom PR body template
         },
         { overridesRoot }
       ),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: { ref: "factory/12-sample" }
-    }
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
+    })
   });
 
   assert.equal(result.action, "implement");
@@ -124,17 +208,68 @@ test("routePullRequestLabeled retries implementation for managed PRs already mar
   const result = routePullRequestLabeled({
     action: "labeled",
     label: { name: FACTORY_LABELS.implement },
-    pull_request: {
-      number: 33,
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
       body: managedPrBody("implementing"),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: { ref: "factory/12-sample" }
-    }
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
+    })
   });
 
   assert.equal(result.action, "implement");
   assert.equal(result.issueNumber, 12);
   assert.equal(result.prNumber, 33);
+});
+
+test("routePullRequestLabeled returns noop for fork-backed PRs", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: sameRepoHead({
+        repo: {
+          full_name: "attacker/repo",
+          fork: true
+        }
+      })
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routePullRequestLabeled returns noop for same-branch different-repo heads", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: sameRepoHead({
+        repo: {
+          full_name: "other/repo",
+          fork: false
+        }
+      })
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routePullRequestLabeled returns noop when head repo metadata is missing", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: { ref: "factory/12-sample" }
+    })
+  });
+
+  assert.equal(result.action, "noop");
 });
 
 test("isTrustedReviewTrigger trusts maintainers and automation actors", () => {
@@ -153,18 +288,16 @@ test("routePullRequestReview triggers repair on trusted maintainer changes reque
   const result = routePullRequestReview({
     action: "submitted",
     reviewerPermission: "write",
+    repository: { full_name: "example/repo" },
     review: {
       id: 55,
       state: "changes_requested",
       body: "Please tighten the tests.",
       user: { login: "briancavalier" }
     },
-    pull_request: {
-      number: 33,
-      body: managedPrBody("implementing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pull_request: basePullRequest({
+      body: managedPrBody("implementing")
+    })
   });
 
   assert.equal(result.action, "repair");
@@ -176,13 +309,11 @@ test("routePullRequestReview also handles reviewing status", () => {
   const result = routePullRequestReview({
     action: "submitted",
     reviewerPermission: "maintain",
+    repository: { full_name: "example/repo" },
     review: { id: 56, state: "CHANGES_REQUESTED", user: { login: "maintainer" } },
-    pull_request: {
-      number: 33,
-      body: managedPrBody("reviewing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pull_request: basePullRequest({
+      body: managedPrBody("reviewing")
+    })
   });
 
   assert.equal(result.action, "repair");
@@ -193,18 +324,16 @@ test("routePullRequestReview ignores untrusted public reviewers", () => {
   const result = routePullRequestReview({
     action: "submitted",
     reviewerPermission: "read",
+    repository: { full_name: "example/repo" },
     review: {
       id: 57,
       state: "changes_requested",
       body: "Force a repair run",
       user: { login: "random-user" }
     },
-    pull_request: {
-      number: 33,
-      body: managedPrBody("implementing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pull_request: basePullRequest({
+      body: managedPrBody("implementing")
+    })
   });
 
   assert.equal(result.action, "noop");
@@ -213,21 +342,43 @@ test("routePullRequestReview ignores untrusted public reviewers", () => {
 test("routePullRequestReview trusts automation review actors", () => {
   const result = routePullRequestReview({
     action: "submitted",
+    repository: { full_name: "example/repo" },
     review: {
       id: 58,
       state: "changes_requested",
       user: { login: "github-actions[bot]" }
     },
-    pull_request: {
-      number: 33,
-      body: managedPrBody("reviewing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pull_request: basePullRequest({
+      body: managedPrBody("reviewing")
+    })
   });
 
   assert.equal(result.action, "repair");
   assert.equal(result.reviewId, 58);
+});
+
+test("routePullRequestReview returns noop for repo-mismatched heads", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    reviewerPermission: "write",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 59,
+      state: "changes_requested",
+      user: { login: "maintainer" }
+    },
+    pull_request: basePullRequest({
+      body: managedPrBody("implementing"),
+      head: sameRepoHead({
+        repo: {
+          full_name: "other/repo",
+          fork: false
+        }
+      })
+    })
+  });
+
+  assert.equal(result.action, "noop");
 });
 
 test("routeWorkflowRun routes successful CI to review stage", () => {
@@ -238,14 +389,12 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "abc123"
+      head_sha: "abc123",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("repairing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("repairing")
+    })
   });
 
   assert.equal(result.action, "review");
@@ -259,14 +408,12 @@ test("routeWorkflowRun also reruns review for managed PRs already reviewing", ()
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "def456"
+      head_sha: "def456",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("reviewing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("reviewing")
+    })
   });
 
   assert.equal(result.action, "review");
@@ -281,14 +428,12 @@ test("routeWorkflowRun ignores CI completions for pending autonomous review comm
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: headSha
+      head_sha: headSha,
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("reviewing", 0, { pendingReviewSha: headSha }),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("reviewing", 0, { pendingReviewSha: headSha })
+    })
   });
 
   assert.equal(result.action, "noop");
@@ -302,14 +447,12 @@ test("routeWorkflowRun still triggers review when CI head SHA differs from pendi
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "def456"
+      head_sha: "def456",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("reviewing", 0, { pendingReviewSha: "abc123" }),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("reviewing", 0, { pendingReviewSha: "abc123" })
+    })
   });
 
   assert.equal(result.action, "review");
@@ -323,14 +466,12 @@ test("routeWorkflowRun ignores push-triggered CI runs for managed PR branches", 
       conclusion: "success",
       event: "push",
       head_branch: "factory/12-sample",
-      head_sha: "abc123"
+      head_sha: "abc123",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("repairing"),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("repairing")
+    })
   });
 
   assert.equal(result.action, "noop");
@@ -344,14 +485,12 @@ test("routeWorkflowRun ignores already-promoted green SHAs", () => {
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "abc123"
+      head_sha: "abc123",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("repairing", 0, { lastReadySha: "abc123" }),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("repairing", 0, { lastReadySha: "abc123" })
+    })
   });
 
   assert.equal(result.action, "noop");
@@ -364,15 +503,37 @@ test("routeWorkflowRun blocks after exceeding repair limit", () => {
       name: "CI",
       conclusion: "failure",
       event: "pull_request",
-      head_branch: "factory/12-sample"
+      head_branch: "factory/12-sample",
+      repository: { full_name: "example/repo" }
     },
-    pullRequest: {
-      number: 33,
-      body: managedPrBody("repairing", 3),
-      labels: managedLabels(),
-      head: { ref: "factory/12-sample" }
-    }
+    pullRequest: basePullRequest({
+      body: managedPrBody("repairing", 3)
+    })
   });
 
   assert.equal(result.action, "blocked");
+});
+
+test("routeWorkflowRun returns noop for fork-backed PRs", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 88,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "abc123",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest({
+      head: sameRepoHead({
+        repo: {
+          full_name: "attacker/repo",
+          fork: true
+        }
+      })
+    })
+  });
+
+  assert.equal(result.action, "noop");
 });

@@ -401,10 +401,9 @@ function renderFailureContext({
       800
     );
     lines.push(`- Invalid review artifacts${capturedAt}: ${summary}`);
-    const phase = `${artifactFailure.phase || ""}`.trim();
 
-    if (phase) {
-      lines.push(`  - Phase: ${phase}`);
+    if (`${artifactFailure.phase || ""}`.trim()) {
+      lines.push(`  - Phase: ${artifactFailure.phase}`);
     }
 
     lines.push("  - Files: review.json, review.md");
