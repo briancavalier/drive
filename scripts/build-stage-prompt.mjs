@@ -414,10 +414,10 @@ function renderFailureContext({
       lines.push("");
     }
 
-    const jobLines = [`- Workflow run id: ${ciRunId}`];
     const failedJobs = jobsPayload.jobs.filter(
       (job) => job.conclusion && job.conclusion !== "success"
     );
+    const jobLines = [`- Workflow run id: ${ciRunId}`];
 
     for (const job of failedJobs) {
       jobLines.push(`- ${job.name}: ${job.conclusion}`);

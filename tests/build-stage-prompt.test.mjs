@@ -656,6 +656,13 @@ test("repair prompt surfaces stored review artifact failure details", () => {
     message: "review.json must contain an object",
     capturedAt: "2026-03-19T12:34:56.000Z"
   };
+  const metadata = defaultPrMetadata({
+    issueNumber: 1,
+    artifactsPath: artifactsDir,
+    status: "repairing",
+    lastFailureType: FAILURE_TYPES.reviewArtifactContract,
+    lastReviewArtifactFailure: failure
+  });
   const result = buildStagePrompt({
     mode: "repair",
     issueNumber: 1,
@@ -668,13 +675,7 @@ test("repair prompt surfaces stored review artifact failure details", () => {
       branch: "factory/1-sample",
       repositoryUrl: "https://github.com/example/repo",
       artifactsPath: artifactsDir,
-      metadata: defaultPrMetadata({
-        issueNumber: 1,
-        artifactsPath: artifactsDir,
-        status: "repairing",
-        lastFailureType: FAILURE_TYPES.reviewArtifactContract,
-        lastReviewArtifactFailure: failure
-      })
+      metadata
     }),
     budgets: {
       plan: 20000,
