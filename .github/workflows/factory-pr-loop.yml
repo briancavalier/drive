@@ -1,4 +1,29 @@
 name: Factory PR Loop
+run-name: >-
+  ${{
+    github.event_name == 'pull_request' &&
+    format('Factory: implementing {0}', github.event.pull_request.title) ||
+    github.event_name == 'pull_request_review' &&
+    format('Factory: repairing {0}', github.event.pull_request.title) ||
+    github.event_name == 'workflow_run' &&
+    github.event.workflow_run.event == 'pull_request' &&
+    (
+      github.event.workflow_run.conclusion == 'success' &&
+      format(
+        'Factory: reviewing {0}',
+        github.event.workflow_run.display_title || github.event.workflow_run.head_branch
+      ) ||
+      contains(
+        fromJSON('["failure","timed_out","action_required"]'),
+        github.event.workflow_run.conclusion
+      ) &&
+      format(
+        'Factory: repairing {0}',
+        github.event.workflow_run.display_title || github.event.workflow_run.head_branch
+      )
+    ) ||
+    'Factory PR Loop'
+  }}
 
 on:
   pull_request:
