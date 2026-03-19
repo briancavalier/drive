@@ -4,7 +4,11 @@ import {
   FACTORY_LABELS,
   assertFactoryPrStatus
 } from "./lib/factory-config.mjs";
-import { extractPrMetadata, renderPrBody } from "./lib/pr-metadata.mjs";
+import {
+  canonicalizePrMetadata,
+  extractPrMetadata,
+  renderPrBody
+} from "./lib/pr-metadata.mjs";
 import {
   addLabels,
   commentOnIssue,
@@ -149,6 +153,10 @@ export function applyCostEstimateMetadata(metadata, env = {}) {
   return nextMetadata;
 }
 
+export function canonicalizeUpdatedMetadata(metadata) {
+  return canonicalizePrMetadata(metadata, metadata?.issueNumber);
+}
+
 function applyStageCounter(metadata, envValue, key) {
   if (envValue === undefined) {
     return metadata;
@@ -176,6 +184,38 @@ function applyStageCounter(metadata, envValue, key) {
   return {
     ...metadata,
     [key]: parsed
+  };
+}
+
+export function applyLastReviewArtifactFailure(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      lastReviewArtifactFailure: null
+    };
+  }
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("FACTORY_LAST_REVIEW_ARTIFACT_FAILURE must be valid JSON when provided");
+  }
+
+  return {
+    ...metadata,
+    lastReviewArtifactFailure: parsed
   };
 }
 
@@ -226,6 +266,11 @@ export async function main(env = process.env) {
     }
   }
 
+  nextMetadata = applyLastReviewArtifactFailure(
+    nextMetadata,
+    env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE
+  );
+
   nextMetadata = applyTransientRetryAttempts(
     nextMetadata,
     env.FACTORY_TRANSIENT_RETRY_ATTEMPTS
@@ -241,6 +286,7 @@ export async function main(env = process.env) {
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_NOOP_ATTEMPTS, "stageNoopAttempts");
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_SETUP_ATTEMPTS, "stageSetupAttempts");
+  nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
 
   const body = renderPrBody({
     issueNumber: nextMetadata.issueNumber,

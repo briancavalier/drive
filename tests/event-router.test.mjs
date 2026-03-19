@@ -8,7 +8,8 @@ import {
   routePullRequestLabeled,
   routePullRequestReview,
   routeWorkflowRun,
-  validateFactoryRepoTrust
+  validateFactoryRepoTrust,
+  validateTrustedFactoryContext
 } from "../scripts/lib/event-router.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
@@ -30,6 +31,22 @@ function managedPrBody(status = "plan_ready", repairAttempts = 0, overrides = {}
       ...overrides
     }
   });
+}
+
+function malformedManagedPrBody() {
+  return [
+    "# Broken",
+    "",
+    "<!-- factory-state {not-json} -->"
+  ].join("\n");
+}
+
+function rawManagedPrBody(metadata) {
+  return [
+    "# Managed PR",
+    "",
+    `<!-- factory-state ${JSON.stringify(metadata)} -->`
+  ].join("\n");
 }
 
 function managedLabels(extra = []) {
@@ -132,6 +149,65 @@ test("validateFactoryRepoTrust rejects missing head repo metadata", () => {
 
   assert.equal(result.trusted, false);
   assert.match(result.reason, /missing pull request head repository metadata/);
+});
+
+test("validateTrustedFactoryContext accepts canonical factory identity", () => {
+  const result = validateTrustedFactoryContext({
+    payload: { repositoryFullName: "example/repo" },
+    pullRequest: basePullRequest(),
+    candidateBranch: "factory/12-sample",
+    candidateIssueNumber: 12,
+    candidateArtifactsPath: ".factory/runs/12"
+  });
+
+  assert.equal(result.trusted, true);
+  assert.equal(result.issueNumber, 12);
+  assert.equal(result.branch, "factory/12-sample");
+  assert.equal(result.artifactsPath, ".factory/runs/12");
+});
+
+test("validateTrustedFactoryContext rejects malformed PR metadata", () => {
+  const result = validateTrustedFactoryContext({
+    payload: { repositoryFullName: "example/repo" },
+    pullRequest: basePullRequest({
+      body: malformedManagedPrBody()
+    })
+  });
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /missing or invalid factory PR metadata/);
+});
+
+test("validateTrustedFactoryContext rejects non-positive issue numbers", () => {
+  const result = validateTrustedFactoryContext({
+    payload: { repositoryFullName: "example/repo" },
+    pullRequest: basePullRequest({
+      body: rawManagedPrBody({
+        issueNumber: 0,
+        artifactsPath: ".factory/runs/12",
+        status: "plan_ready"
+      })
+    })
+  });
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /issueNumber must be a positive integer/);
+});
+
+test("validateTrustedFactoryContext rejects non-canonical artifacts paths", () => {
+  const result = validateTrustedFactoryContext({
+    payload: { repositoryFullName: "example/repo" },
+    pullRequest: basePullRequest({
+      body: rawManagedPrBody({
+        issueNumber: 12,
+        artifactsPath: ".factory/runs/999",
+        status: "plan_ready"
+      })
+    })
+  });
+
+  assert.equal(result.trusted, false);
+  assert.match(result.reason, /does not match canonical path \.factory\/runs\/12/);
 });
 
 test("routePullRequestLabeled starts implementation for approved managed PRs", () => {
@@ -272,6 +348,38 @@ test("routePullRequestLabeled returns noop when head repo metadata is missing", 
   assert.equal(result.action, "noop");
 });
 
+test("routePullRequestLabeled returns noop for malformed metadata", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      body: malformedManagedPrBody(),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routePullRequestLabeled returns noop for non-canonical metadata artifacts paths", () => {
+  const result = routePullRequestLabeled({
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      body: rawManagedPrBody({
+        issueNumber: 12,
+        artifactsPath: ".factory/runs/999",
+        status: "plan_ready"
+      }),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
 test("isTrustedReviewTrigger trusts maintainers and automation actors", () => {
   assert.equal(isTrustedReviewTrigger({ reviewerPermission: "write" }), true);
   assert.equal(isTrustedReviewTrigger({ reviewerPermission: "maintain" }), true);
@@ -381,6 +489,24 @@ test("routePullRequestReview returns noop for repo-mismatched heads", () => {
   assert.equal(result.action, "noop");
 });
 
+test("routePullRequestReview returns noop for malformed metadata", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    reviewerPermission: "write",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 60,
+      state: "changes_requested",
+      user: { login: "maintainer" }
+    },
+    pull_request: basePullRequest({
+      body: malformedManagedPrBody()
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
 test("routeWorkflowRun routes successful CI to review stage", () => {
   const result = routeWorkflowRun({
     workflowRun: {
@@ -394,6 +520,29 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
     },
     pullRequest: basePullRequest({
       body: managedPrBody("repairing")
+    })
+  });
+
+  assert.equal(result.action, "review");
+});
+
+test("routeWorkflowRun resumes review after successful repair cleanup", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 178,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "resume123",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest({
+      body: managedPrBody("repairing", 1, {
+        lastFailureType: null,
+        lastReviewArtifactFailure: null,
+        lastProcessedWorkflowRunId: "177"
+      })
     })
   });
 
@@ -533,6 +682,23 @@ test("routeWorkflowRun returns noop for fork-backed PRs", () => {
         }
       })
     })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun returns noop when workflow branch drifts from the PR head", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 89,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/other-branch",
+      head_sha: "abc123",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest()
   });
 
   assert.equal(result.action, "noop");

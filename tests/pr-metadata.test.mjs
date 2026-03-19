@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildPlanReadyPrMetadata,
+  canonicalizePrMetadata,
   defaultPrMetadata,
   extractPrMetadata,
   renderPrBody
@@ -28,6 +29,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.lastReadySha, null);
   assert.equal(metadata.lastProcessedWorkflowRunId, null);
   assert.equal(metadata.lastFailureType, null);
+  assert.equal(metadata.lastReviewArtifactFailure, null);
   assert.equal(metadata.transientRetryAttempts, 0);
   assert.equal(metadata.pendingReviewSha, null);
   assert.equal(metadata.costEstimateUsd, 0);
@@ -63,4 +65,49 @@ test("buildPlanReadyPrMetadata preserves existing max repair attempts", () => {
   });
 
   assert.equal(metadata.maxRepairAttempts, 7);
+});
+
+test("buildPlanReadyPrMetadata rewrites drifted artifacts paths to the canonical issue path", () => {
+  const metadata = buildPlanReadyPrMetadata({
+    metadata: defaultPrMetadata({
+      artifactsPath: ".factory/runs/999"
+    }),
+    issueNumber: 7,
+    artifactsPath: ".factory/runs/999",
+    preparedMaxRepairAttempts: 5
+  });
+
+  assert.equal(metadata.artifactsPath, ".factory/runs/7");
+});
+
+test("renderPrBody rewrites metadata and links to the canonical artifacts path", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/999",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/999",
+      status: "plan_ready"
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.artifactsPath, ".factory/runs/7");
+  assert.match(body, /\.factory\/runs\/7\/spec\.md/);
+});
+
+test("canonicalizePrMetadata preserves unrelated metadata fields while fixing artifacts path", () => {
+  const metadata = canonicalizePrMetadata({
+    issueNumber: 7,
+    artifactsPath: ".factory/runs/999",
+    status: "reviewing",
+    stageNoopAttempts: 2
+  });
+
+  assert.equal(metadata.artifactsPath, ".factory/runs/7");
+  assert.equal(metadata.status, "reviewing");
+  assert.equal(metadata.stageNoopAttempts, 2);
 });
