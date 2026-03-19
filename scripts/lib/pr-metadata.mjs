@@ -2,7 +2,8 @@ import {
   APPROVED_ISSUE_FILE_NAME,
   PR_STATE_MARKER,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
-  FACTORY_PR_STATUSES
+  FACTORY_PR_STATUSES,
+  issueArtifactsPath
 } from "./factory-config.mjs";
 import { renderPrBody as renderGithubPrBody } from "./github-messages.mjs";
 
@@ -18,6 +19,7 @@ export function defaultPrMetadata(overrides = {}) {
     lastReadySha: null,
     lastProcessedWorkflowRunId: null,
     lastFailureType: null,
+    lastReviewArtifactFailure: null,
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
@@ -70,18 +72,38 @@ export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   };
 }
 
+function normalizeIssueNumber(value) {
+  const parsed = Number(value);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function canonicalizePrMetadata(metadata = {}, issueNumber = metadata?.issueNumber) {
+  const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
+  const canonicalArtifactsPath = normalizedIssueNumber
+    ? issueArtifactsPath(normalizedIssueNumber)
+    : metadata.artifactsPath ?? null;
+
+  return defaultPrMetadata({
+    ...metadata,
+    issueNumber: normalizedIssueNumber ?? metadata.issueNumber ?? null,
+    artifactsPath: canonicalArtifactsPath
+  });
+}
+
 export function buildPlanReadyPrMetadata({
   metadata = {},
   issueNumber,
   artifactsPath,
   preparedMaxRepairAttempts
 }) {
-  const nextMetadata = defaultPrMetadata({
-    ...metadata,
-    issueNumber,
-    artifactsPath,
-    status: FACTORY_PR_STATUSES.planReady
-  });
+  const nextMetadata = canonicalizePrMetadata(
+    {
+      ...metadata,
+      status: FACTORY_PR_STATUSES.planReady
+    },
+    issueNumber
+  );
 
   if (metadata.maxRepairAttempts == null && preparedMaxRepairAttempts != null) {
     nextMetadata.maxRepairAttempts = preparedMaxRepairAttempts;
@@ -98,12 +120,18 @@ export function renderPrBody({
   metadata,
   ciStatus = "pending"
 }, options = {}) {
+  const nextMetadata = canonicalizePrMetadata(metadata, issueNumber);
+  const resolvedIssueNumber = normalizeIssueNumber(issueNumber) ?? nextMetadata.issueNumber;
+  const resolvedArtifactsPath = resolvedIssueNumber
+    ? issueArtifactsPath(resolvedIssueNumber)
+    : artifactsPath;
+
   return renderGithubPrBody({
-    issueNumber,
+    issueNumber: resolvedIssueNumber,
     branch,
     repositoryUrl,
-    artifactsPath,
-    metadata,
+    artifactsPath: resolvedArtifactsPath,
+    metadata: nextMetadata,
     ciStatus
   }, options);
 }
