@@ -75,6 +75,27 @@ test("factory stage workflow creates the stage artifacts path before Codex runs"
   );
 });
 
+test("factory stage workflow validates live PR context before building prompts", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+  const validateIndex = workflowText.indexOf("name: Validate factory context");
+  const buildIndex = workflowText.indexOf("name: Build stage prompt");
+
+  assert.ok(validateIndex >= 0);
+  assert.ok(buildIndex > validateIndex);
+  assert.match(
+    workflowText,
+    /name:\s+Validate factory context[\s\S]*if:\s*inputs\.pr_number > 0[\s\S]*node scripts\/validate-factory-context\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Validate factory context[\s\S]*FACTORY_PR_NUMBER:\s*\$\{\{\s*inputs\.pr_number\s*\}\}[\s\S]*FACTORY_ISSUE_NUMBER:\s*\$\{\{\s*inputs\.issue_number\s*\}\}[\s\S]*FACTORY_BRANCH:\s*\$\{\{\s*inputs\.branch\s*\}\}[\s\S]*FACTORY_ARTIFACTS_PATH:\s*\$\{\{\s*inputs\.artifacts_path\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on factory context validation failure[\s\S]*if:\s*steps\.validate_context\.outcome == 'failure'/
+  );
+});
+
 test("factory stage workflow pins the Codex CLI to the last known good version", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
@@ -152,11 +173,11 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
 
   assert.match(
     workflowText,
-    /failure_type:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_type \|\|/
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\|/
   );
   assert.match(
     workflowText,
-    /failure_message:\s*\$\{\{\s*steps\.model_preflight\.outputs\.failure_message \|\|/
+    /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\|/
   );
 });
 

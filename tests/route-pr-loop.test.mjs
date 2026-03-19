@@ -22,6 +22,14 @@ function managedPrBody(status = "plan_ready") {
   });
 }
 
+function malformedManagedPrBody() {
+  return "<!-- factory-state {not-json} -->";
+}
+
+function rawManagedPrBody(metadata) {
+  return `<!-- factory-state ${JSON.stringify(metadata)} -->`;
+}
+
 function managedLabels(extra = []) {
   return [{ name: FACTORY_LABELS.managed }, ...extra];
 }
@@ -29,6 +37,7 @@ function managedLabels(extra = []) {
 function sameRepoHead(overrides = {}) {
   return {
     ref: "factory/12-sample",
+    sha: "live123",
     repo: {
       full_name: "example/repo",
       fork: false
@@ -254,6 +263,115 @@ test("routeEvent downgrades review to noop when live PR head repo mismatches", a
         base: sameRepoBase()
       }),
       getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent downgrades implement to noop when live PR metadata is malformed", async () => {
+  const payload = {
+    action: "labeled",
+    label: { name: FACTORY_LABELS.implement },
+    repository: { full_name: "example/repo" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody(),
+      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+      head: sameRepoHead(),
+      base: sameRepoBase()
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: malformedManagedPrBody(),
+        labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+        head: sameRepoHead(),
+        base: sameRepoBase()
+      })
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent downgrades review to noop when live PR artifacts path is non-canonical", async () => {
+  const payload = {
+    action: "submitted",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 59,
+      state: "changes_requested",
+      user: { login: "maintainer" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: sameRepoHead(),
+      base: sameRepoBase()
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request_review",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: rawManagedPrBody({
+          issueNumber: 12,
+          artifactsPath: ".factory/runs/999",
+          status: "implementing",
+          repairAttempts: 0,
+          maxRepairAttempts: 3,
+          lastFailureSignature: null,
+          repeatedFailureCount: 0
+        }),
+        labels: managedLabels(),
+        head: sameRepoHead(),
+        base: sameRepoBase()
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent downgrades workflow_run to noop when the workflow head SHA is stale", async () => {
+  const payload = {
+    workflow_run: {
+      id: 77,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "stale123",
+      repository: { full_name: "example/repo" },
+      pull_requests: [{ number: 33 }]
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "workflow_run",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody("repairing"),
+        labels: managedLabels(),
+        head: sameRepoHead({
+          sha: "live123"
+        }),
+        base: sameRepoBase()
+      }),
+      findOpenPullRequestByHead: async () => null
     }
   });
 

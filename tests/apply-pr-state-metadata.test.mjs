@@ -5,6 +5,7 @@ import {
   applyLastReviewArtifactFailure,
   applyPendingReviewSha,
   applyTransientRetryAttempts,
+  canonicalizeUpdatedMetadata,
   resolveNextStatus
 } from "../scripts/apply-pr-state.mjs";
 import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
@@ -145,6 +146,20 @@ test("applyCostEstimateMetadata updates advisory cost fields", () => {
   assert.equal(nextMetadata.lastStageCostEstimateUsd, 0.42);
 });
 
+test("canonicalizeUpdatedMetadata rewrites drifted artifacts paths and preserves other fields", () => {
+  const metadata = defaultPrMetadata({
+    issueNumber: 12,
+    artifactsPath: ".factory/runs/999",
+    status: FACTORY_PR_STATUSES.reviewing,
+    stageSetupAttempts: 2
+  });
+
+  const nextMetadata = canonicalizeUpdatedMetadata(metadata);
+
+  assert.equal(nextMetadata.artifactsPath, ".factory/runs/12");
+  assert.equal(nextMetadata.status, FACTORY_PR_STATUSES.reviewing);
+  assert.equal(nextMetadata.stageSetupAttempts, 2);
+});
 test("applyLastReviewArtifactFailure leaves metadata unchanged when env undefined", () => {
   const metadata = defaultPrMetadata({
     lastReviewArtifactFailure: { type: "review_artifact_contract" }
