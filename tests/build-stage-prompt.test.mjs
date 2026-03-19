@@ -415,6 +415,7 @@ test("review prompt embeds methodology instructions and metadata", () => {
     }
   });
 
+  assert.ok(result.prompt.length <= 8000, `prompt length ${result.prompt.length}`);
   assert.match(result.prompt, /Autonomous review stage/i);
   assert.match(result.prompt, /Review against these dimensions:/);
   assert.match(result.prompt, /review\.json/);
