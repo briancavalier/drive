@@ -87,6 +87,7 @@ async function handlePass({
     FACTORY_LAST_READY_SHA: currentHead,
     FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: env.FACTORY_CI_RUN_ID || "",
     FACTORY_LAST_FAILURE_TYPE: "",
+    FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__",
     FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0",
     FACTORY_LAST_REFRESHED_SHA: env.FACTORY_LAST_REFRESHED_SHA || "",
     FACTORY_COMMENT: "",
@@ -142,7 +143,7 @@ export function classifyReviewArtifactsFailure(message) {
   }
 
   return {
-    failureType: FAILURE_TYPES.contentOrLogic,
+    failureType: FAILURE_TYPES.reviewArtifactContract,
     failurePhase: "review"
   };
 }

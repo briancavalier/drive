@@ -9,6 +9,7 @@ import {
   main as processReviewMain,
   processReview
 } from "../scripts/process-review.mjs";
+import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function renderReviewMarkdown(reviewJson, extras = {}) {
@@ -139,6 +140,7 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
+  assert.equal(execCalls[0].options.env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE, "__CLEAR__");
   assert.equal(execCalls[0].options.env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, "0");
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
   assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
@@ -571,16 +573,16 @@ test("processReview main writes failure message output for workflow follow-up", 
   }
 });
 
-test("classifyProcessReviewFailure marks review artifact validation failures as review content issues", () => {
+test("classifyProcessReviewFailure propagates review artifact contract failures", () => {
   const failure = classifyProcessReviewFailure(
     {
-      factoryFailureType: "content_or_logic",
+      factoryFailureType: FAILURE_TYPES.reviewArtifactContract,
       factoryFailurePhase: "review"
     }
   );
 
   assert.deepEqual(failure, {
-    failureType: "content_or_logic",
+    failureType: FAILURE_TYPES.reviewArtifactContract,
     failurePhase: "review"
   });
 });
@@ -605,13 +607,13 @@ test("classifyReviewArtifactsFailure keeps invalid methodology failures in revie
   });
 });
 
-test("classifyReviewArtifactsFailure treats review artifact content failures as review-phase content issues", () => {
+test("classifyReviewArtifactsFailure treats review artifact content failures as contract errors", () => {
   const failure = classifyReviewArtifactsFailure(
     "review.md must include the canonical Traceability section derived from review.json"
   );
 
   assert.deepEqual(failure, {
-    failureType: "content_or_logic",
+    failureType: FAILURE_TYPES.reviewArtifactContract,
     failurePhase: "review"
   });
 });

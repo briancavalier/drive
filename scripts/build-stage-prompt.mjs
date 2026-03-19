@@ -380,52 +380,85 @@ function renderFailureContext({
   ciRunId,
   jobsPayload,
   review,
-  reviewComments
+  reviewComments,
+  metadata
 }) {
   if (mode !== "repair") {
     return "";
   }
 
+  const lines = [];
+  const artifactFailure =
+    metadata?.lastFailureType === FAILURE_TYPES.reviewArtifactContract &&
+    metadata?.lastReviewArtifactFailure
+      ? metadata.lastReviewArtifactFailure
+      : null;
+
+  if (artifactFailure) {
+    const capturedAt = artifactFailure.capturedAt ? ` (${artifactFailure.capturedAt})` : "";
+    const summary = truncateText(
+      artifactFailure.message || "(no failure message captured)",
+      800
+    );
+    lines.push(`- Invalid review artifacts${capturedAt}: ${summary}`);
+
+    if (`${artifactFailure.phase || ""}`.trim()) {
+      lines.push(`  - Phase: ${artifactFailure.phase}`);
+    }
+
+    lines.push("  - Files: review.json, review.md");
+  }
+
   if (jobsPayload?.jobs?.length) {
-    const lines = [`- Workflow run id: ${ciRunId}`];
+    if (lines.length > 0) {
+      lines.push("");
+    }
+
+    const jobLines = [`- Workflow run id: ${ciRunId}`];
     const failedJobs = jobsPayload.jobs.filter(
       (job) => job.conclusion && job.conclusion !== "success"
     );
 
     for (const job of failedJobs) {
-      lines.push(`- ${job.name}: ${job.conclusion}`);
+      jobLines.push(`- ${job.name}: ${job.conclusion}`);
 
       for (const step of (job.steps || []).filter(
         (item) => item.conclusion && item.conclusion !== "success"
       )) {
-        lines.push(`  - ${step.name}: ${step.conclusion}`);
+        jobLines.push(`  - ${step.name}: ${step.conclusion}`);
       }
     }
 
+    lines.push(...jobLines);
     return lines.join("\n");
   }
 
   if (review) {
-    const lines = [
+    const reviewLines = [
       `- Review state: ${review.state}`,
       `- Review body: ${truncateText(review.body || "(empty)", 1800)}`
     ];
 
     if (reviewComments.length) {
-      lines.push("");
-      lines.push("Review comments:");
+      reviewLines.push("");
+      reviewLines.push("Review comments:");
 
       for (const comment of reviewComments.slice(0, 8)) {
-        lines.push(
+        reviewLines.push(
           `- ${comment.path || "general"}: ${truncateText(comment.body || "", 220)}`
         );
       }
     }
 
+    if (lines.length > 0) {
+      lines.push("");
+    }
+
+    lines.push(...reviewLines);
     return lines.join("\n");
   }
 
-  return "";
+  return lines.join("\n");
 }
 
 function renderCiEvidence({ ciRunId, jobsPayload }) {
@@ -635,7 +668,8 @@ function buildSectionsForMode({
             ciRunId,
             jobsPayload,
             review,
-            reviewComments
+            reviewComments,
+            metadata
           })
         )
       );

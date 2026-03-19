@@ -160,7 +160,6 @@ test("canonicalizeUpdatedMetadata rewrites drifted artifacts paths and preserves
   assert.equal(nextMetadata.status, FACTORY_PR_STATUSES.reviewing);
   assert.equal(nextMetadata.stageSetupAttempts, 2);
 });
-
 test("applyLastReviewArtifactFailure leaves metadata unchanged when env undefined", () => {
   const metadata = defaultPrMetadata({
     lastReviewArtifactFailure: { type: "review_artifact_contract" }
