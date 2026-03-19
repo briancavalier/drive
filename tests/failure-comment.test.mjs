@@ -42,6 +42,22 @@ test("review-mode fallback comment includes review artifacts", () => {
   assert.match(comment, /\[review\.json\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/34-sample\/\.factory\/runs\/34\/review\.json\)/);
 });
 
+test("review artifact contract failures surface targeted recovery guidance", () => {
+  const comment = buildFailureComment({
+    action: "review",
+    failureType: FAILURE_TYPES.reviewArtifactContract,
+    failureMessage: "review.json must contain an object",
+    runUrl: "https://github.com/example/repo/actions/runs/111",
+    branch: "factory/54-repair",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/54"
+  });
+
+  assert.match(comment, /Autonomous review artifacts were invalid/i);
+  assert.match(comment, /review\.json/);
+  assert.match(comment, /Update the autonomous review generator or branch content/i);
+});
+
 test("valid Codex advisory is merged into the failure comment", () => {
   const comment = buildFailureComment({
     action: "review",
