@@ -457,3 +457,126 @@ jobs:
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+
+  review-artifact-repair-succeeded:
+    if: needs.review-processing-failed.outputs.schedule_repair == 'true' && needs.review-artifact-repair.result == 'success'
+    needs:
+      - route
+      - review-processing-failed
+      - review-artifact-repair
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Record successful repair metadata
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
+          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+
+  review-artifact-repair-failed:
+    if: always() && needs.review-processing-failed.outputs.schedule_repair == 'true' && needs.review-artifact-repair.result == 'failure'
+    needs:
+      - route
+      - review-processing-failed
+      - review-artifact-repair
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build failure diagnosis prompt
+        id: diagnosis_prompt
+        run: node scripts/build-failure-diagnosis-prompt.mjs
+        env:
+          FACTORY_FAILURE_PHASE: stage
+          FACTORY_FAILED_ACTION: repair
+          FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs.review-artifact-repair.outputs.failure_message }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
+          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
+
+      - name: Decide whether to run failure diagnosis
+        id: diagnosis_gate
+        env:
+          FACTORY_ENABLE_FAILURE_DIAGNOSIS: ${{ vars.FACTORY_ENABLE_FAILURE_DIAGNOSIS || 'true' }}
+          FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
+        run: |
+          run_diagnosis=true
+          case "${FACTORY_ENABLE_FAILURE_DIAGNOSIS,,}" in
+            false|0|no|off)
+              run_diagnosis=false
+              ;;
+          esac
+          case "${FACTORY_FAILURE_TYPE}" in
+            configuration|transient_infra|stale_branch_conflict|stale_stage_push|stage_noop|stage_setup)
+              run_diagnosis=false
+              ;;
+          esac
+          echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex failure diagnosis
+        id: diagnosis
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          sandbox: workspace-write
+          model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
+          codex-version: 0.114.0
+          codex-args: --full-auto
+
+      - name: Handle classified repair failure
+        run: node scripts/handle-stage-failure.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_FAILURE_PHASE: stage
+          FACTORY_FAILED_ACTION: repair
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.review-processing-failed.outputs.repair_attempts }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.review-processing-failed.outputs.repeated_failure_count }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.review-processing-failed.outputs.last_failure_signature }}
+          FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs.review-artifact-repair.outputs.failure_message }}
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.review-artifact-repair.outputs.transient_retry_attempts || '0' }}
+          FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
+          FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
+          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
