@@ -28,6 +28,14 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
    - `findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`.
    - `findings` must use `blocking` or `non_blocking`.
 
+Execution requirements:
+
+- Write the final `review.md` and `review.json` directly into the current checkout at `{{ARTIFACTS_PATH}}/`.
+- Stay on the checked-out branch and working tree. Do not create extra git worktrees, branches, clones, or patches outside this repository state.
+- Do not stop with a prose response that says what you would write. The task is only complete when both files exist on disk with final content.
+- Prefer direct file writes or straightforward edits over multi-step shell quoting tricks or heredocs.
+- Do not run `git commit` or `git push`; the workflow handles that after validation.
+
 Validation:
 
 - The control plane renders canonical traceability in `review.md` from `review.json` after the run.
