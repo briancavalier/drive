@@ -130,7 +130,8 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
         workflowRun?.repository?.full_name || pullRequest?.base?.repo?.full_name || ""
     },
     pullRequest,
-    candidateBranch: workflowRun.head_branch
+    candidateBranch: workflowRun.head_branch,
+    candidateHeadSha: workflowRun.head_sha
   });
 
   if (!trustedContext.trusted) {

@@ -37,6 +37,7 @@ function managedLabels(extra = []) {
 function sameRepoHead(overrides = {}) {
   return {
     ref: "factory/12-sample",
+    sha: "live123",
     repo: {
       full_name: "example/repo",
       fork: false
@@ -337,6 +338,40 @@ test("routeEvent downgrades review to noop when live PR artifacts path is non-ca
         base: sameRepoBase()
       }),
       getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeEvent downgrades workflow_run to noop when the workflow head SHA is stale", async () => {
+  const payload = {
+    workflow_run: {
+      id: 77,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "stale123",
+      repository: { full_name: "example/repo" },
+      pull_requests: [{ number: 33 }]
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "workflow_run",
+    payload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody("repairing"),
+        labels: managedLabels(),
+        head: sameRepoHead({
+          sha: "live123"
+        }),
+        base: sameRepoBase()
+      }),
+      findOpenPullRequestByHead: async () => null
     }
   });
 

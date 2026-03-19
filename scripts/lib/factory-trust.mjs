@@ -13,6 +13,10 @@ function normalizeArtifactsPath(value) {
   return `${value || ""}`.trim();
 }
 
+function normalizeSha(value) {
+  return `${value || ""}`.trim();
+}
+
 function normalizePositiveInteger(value) {
   const parsed = Number(value);
 
@@ -80,6 +84,7 @@ export function validateTrustedFactoryContext({
   payload = {},
   pullRequest,
   candidateBranch = "",
+  candidateHeadSha = "",
   candidateIssueNumber = null,
   candidateArtifactsPath = ""
 } = {}) {
@@ -158,6 +163,26 @@ export function validateTrustedFactoryContext({
     };
   }
 
+  const normalizedCandidateHeadSha = normalizeSha(candidateHeadSha);
+  const liveHeadSha = normalizeSha(pullRequest?.head?.sha);
+
+  if (normalizedCandidateHeadSha) {
+    if (!liveHeadSha) {
+      return {
+        trusted: false,
+        reason: "missing pull request head SHA"
+      };
+    }
+
+    if (normalizedCandidateHeadSha !== liveHeadSha) {
+      return {
+        trusted: false,
+        reason:
+          `workflow run head SHA ${normalizedCandidateHeadSha} does not match pull request head SHA ${liveHeadSha}`
+      };
+    }
+  }
+
   if (candidateIssueNumber !== null && candidateIssueNumber !== undefined && `${candidateIssueNumber}` !== "") {
     const normalizedCandidateIssueNumber = normalizePositiveInteger(candidateIssueNumber);
 
@@ -192,6 +217,7 @@ export function validateTrustedFactoryContext({
     repositoryFullName: repoTrust.repositoryFullName,
     issueNumber,
     branch,
+    headSha: liveHeadSha,
     artifactsPath,
     metadata
   };

@@ -56,6 +56,7 @@ function managedLabels(extra = []) {
 function sameRepoHead(overrides = {}) {
   return {
     ref: "factory/12-sample",
+    sha: "live123",
     repo: {
       full_name: "example/repo",
       fork: false
@@ -508,6 +509,7 @@ test("routePullRequestReview returns noop for malformed metadata", () => {
 });
 
 test("routeWorkflowRun routes successful CI to review stage", () => {
+  const headSha = "abc123";
   const result = routeWorkflowRun({
     workflowRun: {
       id: 77,
@@ -515,10 +517,13 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "abc123",
+      head_sha: headSha,
       repository: { full_name: "example/repo" }
     },
     pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: headSha
+      }),
       body: managedPrBody("repairing")
     })
   });
@@ -527,6 +532,7 @@ test("routeWorkflowRun routes successful CI to review stage", () => {
 });
 
 test("routeWorkflowRun resumes review after successful repair cleanup", () => {
+  const headSha = "resume123";
   const result = routeWorkflowRun({
     workflowRun: {
       id: 178,
@@ -534,10 +540,13 @@ test("routeWorkflowRun resumes review after successful repair cleanup", () => {
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "resume123",
+      head_sha: headSha,
       repository: { full_name: "example/repo" }
     },
     pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: headSha
+      }),
       body: managedPrBody("repairing", 1, {
         lastFailureType: null,
         lastReviewArtifactFailure: null,
@@ -550,6 +559,7 @@ test("routeWorkflowRun resumes review after successful repair cleanup", () => {
 });
 
 test("routeWorkflowRun also reruns review for managed PRs already reviewing", () => {
+  const headSha = "def456";
   const result = routeWorkflowRun({
     workflowRun: {
       id: 177,
@@ -557,10 +567,13 @@ test("routeWorkflowRun also reruns review for managed PRs already reviewing", ()
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "def456",
+      head_sha: headSha,
       repository: { full_name: "example/repo" }
     },
     pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: headSha
+      }),
       body: managedPrBody("reviewing")
     })
   });
@@ -589,6 +602,7 @@ test("routeWorkflowRun ignores CI completions for pending autonomous review comm
 });
 
 test("routeWorkflowRun still triggers review when CI head SHA differs from pending marker", () => {
+  const headSha = "def456";
   const result = routeWorkflowRun({
     workflowRun: {
       id: 201,
@@ -596,10 +610,13 @@ test("routeWorkflowRun still triggers review when CI head SHA differs from pendi
       conclusion: "success",
       event: "pull_request",
       head_branch: "factory/12-sample",
-      head_sha: "def456",
+      head_sha: headSha,
       repository: { full_name: "example/repo" }
     },
     pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: headSha
+      }),
       body: managedPrBody("reviewing", 0, { pendingReviewSha: "abc123" })
     })
   });
@@ -699,6 +716,50 @@ test("routeWorkflowRun returns noop when workflow branch drifts from the PR head
       repository: { full_name: "example/repo" }
     },
     pullRequest: basePullRequest()
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun returns noop when workflow head SHA is stale", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 90,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "stale123",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: "live123"
+      }),
+      body: managedPrBody("repairing")
+    })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeWorkflowRun returns noop for stale failure runs against an updated PR head", () => {
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 91,
+      name: "CI",
+      conclusion: "failure",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "stale123",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest({
+      head: sameRepoHead({
+        sha: "live123"
+      }),
+      body: managedPrBody("repairing")
+    })
   });
 
   assert.equal(result.action, "noop");
