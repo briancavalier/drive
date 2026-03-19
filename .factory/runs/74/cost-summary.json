@@ -1,6 +1,6 @@
 {
   "issueNumber": 74,
-  "prNumber": null,
+  "prNumber": 75,
   "branch": "factory/74-improve-pr-review-traceability-scanability",
   "estimated": true,
   "thresholds": {
@@ -17,18 +17,18 @@
     }
   },
   "current": {
-    "stage": "plan",
+    "stage": "implement",
     "model": "gpt-5-codex",
-    "stageEstimateUsd": 0.0019,
-    "stageEstimateUsdBeforeCalibration": 0.0019,
-    "totalEstimatedUsd": 0.0019,
+    "stageEstimateUsd": 0.0036,
+    "stageEstimateUsdBeforeCalibration": 0.0036,
+    "totalEstimatedUsd": 0.0055,
     "band": "low",
     "emoji": "🟢",
     "pricingSource": "model",
     "calibrationMultiplier": 1,
     "calibrationSource": "default",
     "calibrationSampleSize": 0,
-    "calibrationKey": "plan:gpt-5-codex",
+    "calibrationKey": "implement:gpt-5-codex",
     "calibrationGeneratedAt": ""
   },
   "stages": {
@@ -45,6 +45,21 @@
       "calibrationSource": "default",
       "calibrationSampleSize": 0,
       "calibrationKey": "plan:gpt-5-codex",
+      "calibrationGeneratedAt": ""
+    },
+    "implement": {
+      "mode": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2910,
+      "estimatedInputTokens": 728,
+      "multiplier": 4,
+      "estimatedUsdBeforeCalibration": 0.0036,
+      "estimatedUsd": 0.0036,
+      "pricingSource": "model",
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "implement:gpt-5-codex",
       "calibrationGeneratedAt": ""
     }
   },
@@ -73,6 +88,31 @@
       "actualUsd": null,
       "actualSource": "",
       "recordedAt": "2026-03-19T17:38:23.742Z"
+    },
+    {
+      "issueNumber": 74,
+      "prNumber": 75,
+      "branch": "factory/74-improve-pr-review-traceability-scanability",
+      "runId": "23309888418",
+      "runAttempt": 1,
+      "stage": "implement",
+      "model": "gpt-5-codex",
+      "promptChars": 2910,
+      "estimatedInputTokens": 728,
+      "stageMultiplier": 4,
+      "pricingSource": "model",
+      "estimatedUsdBeforeCalibration": 0.0036,
+      "estimatedUsd": 0.0036,
+      "calibrationMultiplier": 1,
+      "calibrationSource": "default",
+      "calibrationSampleSize": 0,
+      "calibrationKey": "implement:gpt-5-codex",
+      "calibrationGeneratedAt": "",
+      "outcome": "succeeded",
+      "actualInputTokens": null,
+      "actualUsd": null,
+      "actualSource": "",
+      "recordedAt": "2026-03-19T18:18:53.254Z"
     }
   ]
 }

@@ -270,12 +270,10 @@ test("processReview accepts legacy string evidence by normalizing to arrays", as
       "## 🧭 Traceability",
       "",
       "<details>",
-      "<summary>🧭 Traceability: Acceptance Criteria</summary>",
+      "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
       "",
-      "- Requirement: A factory-managed PR that reaches green CI enters review.",
-      "  - Status: `satisfied`",
-      "  - Evidence:",
-      "    - Verified by CI routing and review stage tests.",
+      "- ✅ **Satisfied**: A factory-managed PR that reaches green CI enters review.",
+      "  - **Evidence:** Verified by CI routing and review stage tests.",
       "",
       "</details>"
     ].join("\n")
@@ -395,9 +393,20 @@ test("processReview normalizes mixed-case enums before rendering request changes
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
   assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
   assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /`not_satisfied`/);
-  assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria/);
-  assert.match(reviewPayload.body, /  - Evidence:\n    - Negative-path coverage is missing\.\n    - ci \/ test did not cover the negative path\./);
+  assert.doesNotMatch(reviewPayload.body, /`not_satisfied`/);
+  assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria \(❌ 1\)/);
+  assert.match(
+    reviewPayload.body,
+    /- ❌ \*\*Not satisfied\*\*: Acceptance criteria are fully covered by tests\./
+  );
+  assert.match(
+    reviewPayload.body,
+    /  - \*\*Evidence:\*\* Negative-path coverage is missing\./
+  );
+  assert.match(
+    reviewPayload.body,
+    /  - \*\*Evidence:\*\* ci \/ test did not cover the negative path\./
+  );
 });
 
 test("processReview rejects pass decision when mixed-case unmet requirement checks exist", async () => {
@@ -769,7 +778,10 @@ test("processReview accepts review markdown missing traceability by normalizing 
 
   const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
   assert.match(normalizedReviewMarkdown, /## 🧭 Traceability/);
-  assert.match(normalizedReviewMarkdown, /- Requirement: A factory-managed PR that reaches green CI enters review\./);
+  assert.match(
+    normalizedReviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: A factory-managed PR that reaches green CI enters review\./
+  );
 });
 
 test("processReview accepts drifted traceability by normalizing it to review.json", async () => {
@@ -814,6 +826,20 @@ test("processReview accepts drifted traceability by normalizing it to review.jso
   const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
   assert.doesNotMatch(normalizedReviewMarkdown, /Drifted evidence that does not match review\.json\./);
   assert.match(normalizedReviewMarkdown, /Verified by CI routing and review stage tests\./);
+  assert.match(
+    normalizedReviewMarkdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
+  );
+  assert.match(
+    normalizedReviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: A factory-managed PR that reaches green CI enters review\./
+  );
+  assert.match(
+    normalizedReviewMarkdown,
+    /  - \*\*Evidence:\*\* Verified by CI routing and review stage tests\./
+  );
+  assert.doesNotMatch(normalizedReviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(normalizedReviewMarkdown, /- Status:/);
 });
 
 test("processReview rejects invalid requirement check type or status", async () => {

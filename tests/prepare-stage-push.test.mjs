@@ -348,8 +348,20 @@ test("prepare-stage-push normalizes drifted review traceability before git", () 
   assert.doesNotMatch(thrown.message, /canonical Traceability section/);
 
   const normalizedReviewMarkdown = fs.readFileSync(path.join(artifactsDir, "review.md"), "utf8");
-  assert.match(normalizedReviewMarkdown, /- Requirement: Validation runs before push\./);
-  assert.match(normalizedReviewMarkdown, /  - Status: `satisfied`/);
+  assert.match(
+    normalizedReviewMarkdown,
+    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
+  );
+  assert.match(
+    normalizedReviewMarkdown,
+    /- ✅ \*\*Satisfied\*\*: Validation runs before push\./
+  );
+  assert.match(
+    normalizedReviewMarkdown,
+    /  - \*\*Evidence:\*\* Guarded by prepare-stage-push\./
+  );
+  assert.doesNotMatch(normalizedReviewMarkdown, /- Requirement:/);
+  assert.doesNotMatch(normalizedReviewMarkdown, /- Status:/);
   assert.doesNotMatch(normalizedReviewMarkdown, /Methodology used: default\./);
 });
 

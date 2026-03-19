@@ -92,6 +92,9 @@ instructs the agent to produce two durable artifacts inside the run directory:
 
 - `review.md` — human-readable summary with decision and findings first, plus a
   canonical traceability section rendered with collapsible `<details>` blocks.
+  Each `<summary>` now lists per-status counts (❌/⚠️/✅/⬜), and every
+  requirement bullet leads with an emoji-backed status label followed by
+  per-item **Evidence** bullets to improve scanability inside GitHub comments.
 - `review.json` — machine-readable decision payload with severity-classified
   findings plus required `requirement_checks` linking requirements to evidence.
 
