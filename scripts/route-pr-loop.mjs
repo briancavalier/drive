@@ -30,6 +30,8 @@ export async function routeEvent({
 
     return routePullRequestLabeled({
       ...payload,
+      repositoryFullName:
+        payload.repository?.full_name || process.env.GITHUB_REPOSITORY || "",
       pull_request: livePullRequest || payload.pull_request
     });
   }
@@ -56,6 +58,8 @@ export async function routeEvent({
 
     return routePullRequestReview({
       ...payload,
+      repositoryFullName:
+        payload.repository?.full_name || process.env.GITHUB_REPOSITORY || "",
       pull_request: livePullRequest || payload.pull_request,
       reviewerPermission
     });
@@ -70,7 +74,13 @@ export async function routeEvent({
         ? await githubClient.findOpenPullRequestByHead(workflowRun.head_branch)
         : null;
 
-    return routeWorkflowRun({ workflowRun, pullRequest });
+    return routeWorkflowRun({
+      workflowRun: {
+        ...workflowRun,
+        repository: payload.repository || workflowRun.repository || null
+      },
+      pullRequest
+    });
   }
 
   return { action: "noop" };

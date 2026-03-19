@@ -16,6 +16,71 @@ function hasLabel(labels, labelName) {
   return labels.some((label) => label.name === labelName);
 }
 
+function normalizeRepositoryFullName(value) {
+  return `${value || ""}`.trim();
+}
+
+function resolveExpectedRepositoryFullName(payload, pullRequest) {
+  return (
+    normalizeRepositoryFullName(payload?.repositoryFullName) ||
+    normalizeRepositoryFullName(payload?.repository?.full_name) ||
+    normalizeRepositoryFullName(pullRequest?.base?.repo?.full_name)
+  );
+}
+
+function resolveHeadRepositoryContext(pullRequest) {
+  return {
+    fullName: normalizeRepositoryFullName(pullRequest?.head?.repo?.full_name),
+    fork: pullRequest?.head?.repo?.fork === true
+  };
+}
+
+export function validateFactoryRepoTrust(payload, pullRequest) {
+  const expectedRepositoryFullName = resolveExpectedRepositoryFullName(
+    payload,
+    pullRequest
+  );
+  const headRepository = resolveHeadRepositoryContext(pullRequest);
+
+  if (!expectedRepositoryFullName) {
+    return {
+      trusted: false,
+      reason: "missing expected repository metadata"
+    };
+  }
+
+  if (!headRepository.fullName) {
+    return {
+      trusted: false,
+      reason: "missing pull request head repository metadata"
+    };
+  }
+
+  if (headRepository.fork) {
+    return {
+      trusted: false,
+      reason: `fork-backed PR head ${headRepository.fullName}`
+    };
+  }
+
+  if (headRepository.fullName !== expectedRepositoryFullName) {
+    return {
+      trusted: false,
+      reason:
+        `pull request head repo ${headRepository.fullName} does not match expected repository ${expectedRepositoryFullName}`
+    };
+  }
+
+  return {
+    trusted: true,
+    repositoryFullName: expectedRepositoryFullName
+  };
+}
+
+function logRepoTrustNoop(trigger, reason) {
+  console.info(`Ignoring ${trigger}: ${reason}.`);
+}
+
 function isManaged(labels, branchName, metadata) {
   return (
     isFactoryBranch(branchName) &&
@@ -38,6 +103,13 @@ export function isTrustedReviewTrigger({ reviewerLogin, reviewerPermission } = {
 
 export function routePullRequestLabeled(payload) {
   const pullRequest = payload.pull_request;
+  const repoTrust = validateFactoryRepoTrust(payload, pullRequest);
+
+  if (!repoTrust.trusted) {
+    logRepoTrustNoop("factory implement trigger", repoTrust.reason);
+    return { action: "noop" };
+  }
+
   const metadata = extractPrMetadata(pullRequest.body);
 
   if (
@@ -63,6 +135,13 @@ export function routePullRequestLabeled(payload) {
 
 export function routePullRequestReview(payload) {
   const pullRequest = payload.pull_request;
+  const repoTrust = validateFactoryRepoTrust(payload, pullRequest);
+
+  if (!repoTrust.trusted) {
+    logRepoTrustNoop("factory review trigger", repoTrust.reason);
+    return { action: "noop" };
+  }
+
   const metadata = extractPrMetadata(pullRequest.body);
   const reviewerLogin = payload.review?.user?.login || "";
   const reviewerPermission = payload.reviewerPermission;
@@ -98,6 +177,19 @@ export function routePullRequestReview(payload) {
 
 export function routeWorkflowRun({ workflowRun, pullRequest }) {
   if (!pullRequest) {
+    return { action: "noop" };
+  }
+
+  const repoTrust = validateFactoryRepoTrust(
+    {
+      repositoryFullName:
+        workflowRun?.repository?.full_name || pullRequest?.base?.repo?.full_name || ""
+    },
+    pullRequest
+  );
+
+  if (!repoTrust.trusted) {
+    logRepoTrustNoop("factory workflow_run trigger", repoTrust.reason);
     return { action: "noop" };
   }
 
