@@ -179,6 +179,38 @@ function applyStageCounter(metadata, envValue, key) {
   };
 }
 
+export function applyLastReviewArtifactFailure(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      lastReviewArtifactFailure: null
+    };
+  }
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("FACTORY_LAST_REVIEW_ARTIFACT_FAILURE must be valid JSON when provided");
+  }
+
+  return {
+    ...metadata,
+    lastReviewArtifactFailure: parsed
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -225,6 +257,8 @@ export async function main(env = process.env) {
       nextMetadata.lastFailureType = env.FACTORY_LAST_FAILURE_TYPE || null;
     }
   }
+
+  nextMetadata = applyLastReviewArtifactFailure(nextMetadata, env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE);
 
   nextMetadata = applyTransientRetryAttempts(
     nextMetadata,

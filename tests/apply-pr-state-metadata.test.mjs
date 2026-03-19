@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   applyCostEstimateMetadata,
+  applyLastReviewArtifactFailure,
   applyPendingReviewSha,
   applyTransientRetryAttempts,
   resolveNextStatus
@@ -142,4 +143,44 @@ test("applyCostEstimateMetadata updates advisory cost fields", () => {
   assert.equal(nextMetadata.lastEstimatedStage, "plan");
   assert.equal(nextMetadata.lastEstimatedModel, "gpt-5-codex");
   assert.equal(nextMetadata.lastStageCostEstimateUsd, 0.42);
+});
+
+test("applyLastReviewArtifactFailure leaves metadata unchanged when env undefined", () => {
+  const metadata = defaultPrMetadata({
+    lastReviewArtifactFailure: { type: "review_artifact_contract" }
+  });
+  const nextMetadata = applyLastReviewArtifactFailure(metadata, undefined);
+
+  assert.equal(nextMetadata.lastReviewArtifactFailure.type, "review_artifact_contract");
+});
+
+test("applyLastReviewArtifactFailure clears metadata when empty value provided", () => {
+  const metadata = defaultPrMetadata({
+    lastReviewArtifactFailure: { type: "review_artifact_contract" }
+  });
+  const nextMetadata = applyLastReviewArtifactFailure(metadata, "");
+
+  assert.equal(nextMetadata.lastReviewArtifactFailure, null);
+});
+
+test("applyLastReviewArtifactFailure applies parsed JSON record", () => {
+  const metadata = defaultPrMetadata();
+  const failure = {
+    type: "review_artifact_contract",
+    phase: "review",
+    message: "review.json missing",
+    capturedAt: "2026-03-19T11:22:33.000Z"
+  };
+  const nextMetadata = applyLastReviewArtifactFailure(metadata, JSON.stringify(failure));
+
+  assert.deepEqual(nextMetadata.lastReviewArtifactFailure, failure);
+});
+
+test("applyLastReviewArtifactFailure rejects invalid JSON", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.throws(
+    () => applyLastReviewArtifactFailure(metadata, "{not-json"),
+    /FACTORY_LAST_REVIEW_ARTIFACT_FAILURE must be valid JSON/
+  );
 });

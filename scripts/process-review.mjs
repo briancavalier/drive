@@ -142,7 +142,7 @@ export function classifyReviewArtifactsFailure(message) {
   }
 
   return {
-    failureType: FAILURE_TYPES.contentOrLogic,
+    failureType: FAILURE_TYPES.reviewArtifactContract,
     failurePhase: "review"
   };
 }

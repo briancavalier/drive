@@ -53,6 +53,7 @@ export const FAILURE_TYPES = {
   staleBranchConflict: "stale_branch_conflict",
   staleStagePush: "stale_stage_push",
   configuration: "configuration",
+  reviewArtifactContract: "review_artifact_contract",
   stageNoop: "stage_noop",
   stageSetup: "stage_setup",
   contentOrLogic: "content_or_logic"

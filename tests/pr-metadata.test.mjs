@@ -28,6 +28,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.lastReadySha, null);
   assert.equal(metadata.lastProcessedWorkflowRunId, null);
   assert.equal(metadata.lastFailureType, null);
+  assert.equal(metadata.lastReviewArtifactFailure, null);
   assert.equal(metadata.transientRetryAttempts, 0);
   assert.equal(metadata.pendingReviewSha, null);
   assert.equal(metadata.costEstimateUsd, 0);

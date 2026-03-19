@@ -232,6 +232,28 @@ jobs:
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
 
+  review-artifact-repair:
+    if: needs.review-processing-failed.outputs.schedule_repair == 'true'
+    needs:
+      - route
+      - review-processing-failed
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/_factory-stage.yml
+    with:
+      mode: repair
+      issue_number: ${{ fromJSON(needs.route.outputs.issue_number) }}
+      pr_number: ${{ fromJSON(needs.route.outputs.pr_number) }}
+      branch: ${{ needs.route.outputs.branch }}
+      artifacts_path: ${{ needs.route.outputs.artifacts_path }}
+      max_repair_attempts: 3
+      ci_run_id: ${{ needs.route.outputs.ci_run_id }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+
   block:
     if: needs.route.outputs.action == 'blocked'
     needs: route
@@ -322,6 +344,12 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+    outputs:
+      schedule_repair: ${{ steps.prepare_repair.outcome == 'success' && steps.prepare_repair.outputs.blocked == 'false' }}
+      repair_attempts: ${{ steps.prepare_repair.outputs.repair_attempts }}
+      repeated_failure_count: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
+      last_failure_signature: ${{ steps.prepare_repair.outputs.last_failure_signature }}
+      failure_metadata: ${{ steps.prepare_repair.outputs.failure_metadata }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -379,7 +407,38 @@ jobs:
           codex-version: 0.114.0
           codex-args: --full-auto
 
+      - name: Prepare review artifact repair state
+        id: prepare_repair
+        if: needs['process-review'].outputs.failure_type == 'review_artifact_contract'
+        run: node scripts/prepare-review-artifact-repair.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type }}
+          FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review' }}
+          FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
+
+      - name: Update PR metadata for review artifact repair
+        if: steps.prepare_repair.outcome == 'success' && steps.prepare_repair.outputs.blocked == 'false'
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: repairing
+          FACTORY_REPAIR_ATTEMPTS: ${{ steps.prepare_repair.outputs.repair_attempts }}
+          FACTORY_REPEATED_FAILURE_COUNT: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
+          FACTORY_LAST_FAILURE_SIGNATURE: ${{ steps.prepare_repair.outputs.last_failure_signature }}
+          FACTORY_LAST_FAILURE_TYPE: review_artifact_contract
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outputs.failure_metadata }}
+          FACTORY_REMOVE_LABELS: factory:blocked
+          FACTORY_CI_STATUS: pending
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+
       - name: Mark PR as blocked after review processing failure
+        if: steps.prepare_repair.outcome != 'success' || steps.prepare_repair.outputs.blocked == 'true'
         run: node scripts/handle-stage-failure.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -396,3 +455,4 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outcome == 'success' && steps.prepare_repair.outputs.failure_metadata || '__UNCHANGED__' }}

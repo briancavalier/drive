@@ -13,6 +13,7 @@ import { APPROVED_ISSUE_FILE_NAME } from "../scripts/lib/factory-config.mjs";
 import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { parseIssueForm } from "../scripts/lib/issue-form.mjs";
 import { resolveReviewMethodology } from "../scripts/lib/review-methods.mjs";
+import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
 
 const fixturesDir = path.join(process.cwd(), "tests", "fixtures", "prompt");
 const implementTemplate = fs.readFileSync(
@@ -635,6 +636,49 @@ test("repair prompt includes failure context and capped repair-log tail", () => 
   assert.match(result.prompt, /Repair Log Tail/);
   assert.match(result.prompt, /\.\.\.\[tail\]/);
   assert.ok((result.prompt.match(/extra diagnostic context/g) || []).length < 40);
+});
+
+test("repair prompt surfaces stored review artifact failure details", () => {
+  const artifactsDir = makeArtifactsDir();
+  const failure = {
+    type: FAILURE_TYPES.reviewArtifactContract,
+    phase: "review",
+    message: "review.json must contain an object",
+    capturedAt: "2026-03-19T12:34:56.000Z"
+  };
+  const metadata = defaultPrMetadata({
+    issueNumber: 1,
+    artifactsPath: artifactsDir,
+    status: "repairing",
+    lastFailureType: FAILURE_TYPES.reviewArtifactContract,
+    lastReviewArtifactFailure: failure
+  });
+  const result = buildStagePrompt({
+    mode: "repair",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: renderPrBody({
+      issueNumber: 1,
+      branch: "factory/1-sample",
+      repositoryUrl: "https://github.com/example/repo",
+      artifactsPath: artifactsDir,
+      metadata
+    }),
+    templateText: repairTemplate,
+    budgets: {
+      plan: 20000,
+      implement: 12000,
+      repair: 6500,
+      hardMax: 6500
+    }
+  });
+
+  assert.match(result.prompt, /Invalid review artifacts/);
+  assert.match(result.prompt, /review\.json/);
+  assert.match(result.prompt, /2026-03-19T12:34:56\.000Z/);
 });
 
 test("writePromptArtifacts emits prompt-meta.json", () => {
