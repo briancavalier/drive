@@ -23,6 +23,10 @@ function buildHeadline({ action, phase, failureType, retryAttempts }) {
     return "Autonomous review artifacts were generated, but GitHub review delivery failed.";
   }
 
+  if (failureType === FAILURE_TYPES.reviewArtifactContract) {
+    return "Autonomous review artifacts were invalid and could not be published.";
+  }
+
   if (failureType === FAILURE_TYPES.staleBranchConflict) {
     return "Factory could not refresh the branch from `origin/main` before continuing.";
   }
@@ -60,6 +64,14 @@ function buildDeterministicRecoverySteps({ action, phase, failureType }) {
       "Open the failing Factory PR Loop run and inspect the review-delivery failure alongside the generated review artifacts.",
       "Fix the delivery or configuration issue; if it lives in factory workflows or scripts, merge the fix to `main` first.",
       "Re-trigger autonomous review after the branch has a fresh successful PR CI run."
+    ];
+  }
+
+  if (failureType === FAILURE_TYPES.reviewArtifactContract) {
+    return [
+      "Open the failing Factory PR Loop run and inspect `review.json` and `review.md` to pinpoint the contract violation.",
+      "Update the autonomous review generator or branch content so the artifacts satisfy the schema and traceability requirements.",
+      "Push the corrected artifacts and re-trigger autonomous review after CI succeeds."
     ];
   }
 

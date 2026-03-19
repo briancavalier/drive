@@ -18,6 +18,7 @@ export function defaultPrMetadata(overrides = {}) {
     lastReadySha: null,
     lastProcessedWorkflowRunId: null,
     lastFailureType: null,
+    lastReviewArtifactFailure: null,
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
