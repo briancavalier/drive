@@ -71,7 +71,11 @@ export function parseChangedFiles(value) {
 
   return normalizeChangedFiles(value).map((entry) => {
     const [status = "", ...pathParts] = `${entry}`.split("\t");
-    const path = pathParts.join("\t").trim();
+    const normalizedStatus = status.trim();
+    const isRenameOrCopy =
+      normalizedStatus.startsWith("R") || normalizedStatus.startsWith("C");
+    const normalizedPath = isRenameOrCopy ? pathParts.at(-1) || "" : pathParts.join("\t");
+    const path = normalizedPath.trim();
 
     if (!path) {
       return {
@@ -81,7 +85,7 @@ export function parseChangedFiles(value) {
     }
 
     return {
-      status: status.trim(),
+      status: normalizedStatus,
       path
     };
   });

@@ -53,6 +53,12 @@ test("parseChangedFiles supports raw paths and name-status entries", () => {
     { status: "M", path: "README.md" },
     { status: "D", path: ".factory/tmp/prompt.md" }
   ]);
+  assert.deepEqual(parseChangedFiles(["R100\tREADME.md\tscripts/self-modify.mjs"]), [
+    { status: "R100", path: "scripts/self-modify.mjs" }
+  ]);
+  assert.deepEqual(parseChangedFiles(["C100\tREADME.md\t.github/workflows/test.yml"]), [
+    { status: "C100", path: ".github/workflows/test.yml" }
+  ]);
 });
 
 test("hasTempFactoryArtifactWrites only matches temp additions or modifications", () => {
@@ -86,6 +92,20 @@ test("getProtectedPathChanges reports protected control-plane paths", () => {
       paths: ["scripts/apply-pr-state.mjs"]
     }
   ]);
+  assert.deepEqual(getProtectedPathChanges(["R100\tREADME.md\tscripts/self-modify.mjs"]), [
+    {
+      kind: "scripts",
+      label: "scripts/**",
+      paths: ["scripts/self-modify.mjs"]
+    }
+  ]);
+});
+
+test("hasWorkflowFileChanges treats renames into workflows as workflow changes", () => {
+  assert.equal(
+    hasWorkflowFileChanges(["R100\tREADME.md\t.github/workflows/factory-pr-loop.yml"]),
+    true
+  );
 });
 
 test("evaluateStagePush allows product changes without self-modify mode", () => {
@@ -136,6 +156,18 @@ test("evaluateStagePush blocks protected-path edits without FACTORY_GITHUB_TOKEN
   assert.equal(result.allowed, false);
   assert.equal(result.workflowChanges, true);
   assert.match(result.reason, /FACTORY_GITHUB_TOKEN/);
+});
+
+test("evaluateStagePush blocks renames into protected paths without authorization", () => {
+  const result = evaluateStagePush({
+    changedFiles: ["R100\tREADME.md\tscripts/self-modify.mjs"],
+    hasFactoryToken: true,
+    selfModifyEnabled: false,
+    hasSelfModifyLabel: true
+  });
+
+  assert.equal(result.allowed, false);
+  assert.match(result.reason, /FACTORY_ENABLE_SELF_MODIFY/);
 });
 
 test("evaluateStagePush allows protected-path edits when self-modify mode is fully authorized", () => {
