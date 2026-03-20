@@ -209,6 +209,7 @@ test("factory stage workflow records estimated cost only after a successful push
     workflowText,
     /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
   );
+  assert.match(workflowText, /name:\s+Budget preflight hook[\s\S]*Budget enforcement hook not configured/);
 });
 
 test("factory PR loop failure jobs build diagnosis prompts and gate Codex advisories", () => {
@@ -251,6 +252,8 @@ test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of r
 
   assert.doesNotMatch(workflowText, /prompt-file:\s*\.factory\/tmp\//);
   assert.doesNotMatch(workflowText, /FACTORY_FAILURE_ADVISORY_PATH:\s*\.factory\/tmp\//);
+  const preflightHooks = workflowText.match(/name:\s+Budget preflight hook/g) || [];
+  assert.equal(preflightHooks.length, 3);
 });
 
 test("factory PR loop failure jobs check out the failing branch before diagnosis", () => {

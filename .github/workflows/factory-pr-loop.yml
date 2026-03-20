@@ -88,7 +88,7 @@ jobs:
     needs: route
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     steps:
@@ -99,6 +99,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Update PR status before stage run
         run: node scripts/apply-pr-state.mjs
@@ -175,7 +180,7 @@ jobs:
       - stage
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     steps:
@@ -189,6 +194,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Build failure diagnosis prompt
         id: diagnosis_prompt
@@ -224,6 +234,9 @@ jobs:
           esac
           echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
 
+      - name: Budget preflight hook
+        run: echo "Budget enforcement hook not configured."
+
       - name: Run Codex failure diagnosis
         id: diagnosis
         if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
@@ -236,6 +249,67 @@ jobs:
           model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
+
+      - name: Record failed stage usage event
+        run: node scripts/record-usage-event.mjs
+        env:
+          FACTORY_USAGE_CATEGORY: stage
+          FACTORY_USAGE_OUTCOME: failed
+          FACTORY_MODE: ${{ needs.route.outputs.action }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_STAGE_MODEL: ${{ needs.stage.outputs.stage_model }}
+          FACTORY_PROMPT_CHARS: ${{ needs.stage.outputs.prompt_chars }}
+          FACTORY_ESTIMATED_INPUT_TOKENS: ${{ needs.stage.outputs.estimated_input_tokens }}
+          FACTORY_ESTIMATED_CACHED_INPUT_TOKENS: ${{ needs.stage.outputs.estimated_cached_input_tokens }}
+          FACTORY_ESTIMATED_OUTPUT_TOKENS: ${{ needs.stage.outputs.estimated_output_tokens }}
+          FACTORY_ESTIMATED_INPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.stage.outputs.estimated_input_tokens_before_calibration }}
+          FACTORY_ESTIMATED_CACHED_INPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.stage.outputs.estimated_cached_input_tokens_before_calibration }}
+          FACTORY_ESTIMATED_OUTPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.stage.outputs.estimated_output_tokens_before_calibration }}
+          FACTORY_USAGE_PROVIDER: ${{ needs.stage.outputs.usage_provider }}
+          FACTORY_USAGE_API_SURFACE: ${{ needs.stage.outputs.usage_api_surface }}
+          FACTORY_COST_PRICING_SOURCE: model
+          FACTORY_USAGE_CALIBRATION_BUCKET: ${{ needs.stage.outputs.usage_calibration_key }}
+          FACTORY_USAGE_CALIBRATION_SOURCE: ${{ needs.stage.outputs.usage_calibration_source }}
+          FACTORY_USAGE_CALIBRATION_SAMPLE_SIZE: ${{ needs.stage.outputs.usage_calibration_sample_size }}
+          FACTORY_USAGE_CALIBRATION_INPUT_MULTIPLIER: ${{ needs.stage.outputs.usage_calibration_input_multiplier }}
+          FACTORY_USAGE_CALIBRATION_CACHED_INPUT_MULTIPLIER: ${{ needs.stage.outputs.usage_calibration_cached_input_multiplier }}
+          FACTORY_USAGE_CALIBRATION_OUTPUT_MULTIPLIER: ${{ needs.stage.outputs.usage_calibration_output_multiplier }}
+          FACTORY_USAGE_CALIBRATION_GENERATED_AT: ${{ needs.stage.outputs.usage_calibration_generated_at }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Record failure diagnosis usage event
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
+        run: node scripts/record-usage-event.mjs
+        env:
+          FACTORY_USAGE_CATEGORY: failure_diagnosis
+          FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
+          FACTORY_FAILURE_KIND: stage_failure
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
+          FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Commit usage events
+        run: |
+          if [ -d .factory/usage-events ]; then
+            git add .factory/usage-events
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "factory(telemetry): record usage events"
+
+      - name: Push usage events
+        run: node scripts/push-stage-output.mjs
+        env:
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Handle classified stage failure
         run: node scripts/handle-stage-failure.mjs
@@ -263,7 +337,7 @@ jobs:
     needs: route
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     steps:
@@ -274,6 +348,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Mark PR as blocked
         run: node scripts/apply-pr-state.mjs
@@ -398,6 +477,9 @@ jobs:
           esac
           echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
 
+      - name: Budget preflight hook
+        run: echo "Budget enforcement hook not configured."
+
       - name: Run Codex failure diagnosis
         id: diagnosis
         if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
@@ -410,6 +492,37 @@ jobs:
           model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
+
+      - name: Record failure diagnosis usage event
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
+        run: node scripts/record-usage-event.mjs
+        env:
+          FACTORY_USAGE_CATEGORY: failure_diagnosis
+          FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
+          FACTORY_FAILURE_KIND: review_processing_failure
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
+          FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Commit usage events
+        run: |
+          if [ -d .factory/usage-events ]; then
+            git add .factory/usage-events
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "factory(telemetry): record usage events"
+
+      - name: Push usage events
+        run: node scripts/push-stage-output.mjs
+        env:
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Prepare review artifact repair state
         id: prepare_repair
@@ -572,6 +685,9 @@ jobs:
           esac
           echo "run_diagnosis=${run_diagnosis}" >> "$GITHUB_OUTPUT"
 
+      - name: Budget preflight hook
+        run: echo "Budget enforcement hook not configured."
+
       - name: Run Codex failure diagnosis
         id: diagnosis
         if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
@@ -584,6 +700,67 @@ jobs:
           model: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           codex-version: 0.114.0
           codex-args: --full-auto
+
+      - name: Record failed repair stage usage event
+        run: node scripts/record-usage-event.mjs
+        env:
+          FACTORY_USAGE_CATEGORY: stage
+          FACTORY_USAGE_OUTCOME: failed
+          FACTORY_MODE: repair
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_STAGE_MODEL: ${{ needs.review-artifact-repair.outputs.stage_model }}
+          FACTORY_PROMPT_CHARS: ${{ needs.review-artifact-repair.outputs.prompt_chars }}
+          FACTORY_ESTIMATED_INPUT_TOKENS: ${{ needs.review-artifact-repair.outputs.estimated_input_tokens }}
+          FACTORY_ESTIMATED_CACHED_INPUT_TOKENS: ${{ needs.review-artifact-repair.outputs.estimated_cached_input_tokens }}
+          FACTORY_ESTIMATED_OUTPUT_TOKENS: ${{ needs.review-artifact-repair.outputs.estimated_output_tokens }}
+          FACTORY_ESTIMATED_INPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.review-artifact-repair.outputs.estimated_input_tokens_before_calibration }}
+          FACTORY_ESTIMATED_CACHED_INPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.review-artifact-repair.outputs.estimated_cached_input_tokens_before_calibration }}
+          FACTORY_ESTIMATED_OUTPUT_TOKENS_BEFORE_CALIBRATION: ${{ needs.review-artifact-repair.outputs.estimated_output_tokens_before_calibration }}
+          FACTORY_USAGE_PROVIDER: ${{ needs.review-artifact-repair.outputs.usage_provider }}
+          FACTORY_USAGE_API_SURFACE: ${{ needs.review-artifact-repair.outputs.usage_api_surface }}
+          FACTORY_COST_PRICING_SOURCE: model
+          FACTORY_USAGE_CALIBRATION_BUCKET: ${{ needs.review-artifact-repair.outputs.usage_calibration_key }}
+          FACTORY_USAGE_CALIBRATION_SOURCE: ${{ needs.review-artifact-repair.outputs.usage_calibration_source }}
+          FACTORY_USAGE_CALIBRATION_SAMPLE_SIZE: ${{ needs.review-artifact-repair.outputs.usage_calibration_sample_size }}
+          FACTORY_USAGE_CALIBRATION_INPUT_MULTIPLIER: ${{ needs.review-artifact-repair.outputs.usage_calibration_input_multiplier }}
+          FACTORY_USAGE_CALIBRATION_CACHED_INPUT_MULTIPLIER: ${{ needs.review-artifact-repair.outputs.usage_calibration_cached_input_multiplier }}
+          FACTORY_USAGE_CALIBRATION_OUTPUT_MULTIPLIER: ${{ needs.review-artifact-repair.outputs.usage_calibration_output_multiplier }}
+          FACTORY_USAGE_CALIBRATION_GENERATED_AT: ${{ needs.review-artifact-repair.outputs.usage_calibration_generated_at }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Record failure diagnosis usage event
+        if: steps.diagnosis_gate.outputs.run_diagnosis == 'true'
+        run: node scripts/record-usage-event.mjs
+        env:
+          FACTORY_USAGE_CATEGORY: failure_diagnosis
+          FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
+          FACTORY_FAILURE_KIND: review_artifact_repair_failure
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
+          FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Commit usage events
+        run: |
+          if [ -d .factory/usage-events ]; then
+            git add .factory/usage-events
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "factory(telemetry): record usage events"
+
+      - name: Push usage events
+        run: node scripts/push-stage-output.mjs
+        env:
+          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Handle classified repair failure
         run: node scripts/handle-stage-failure.mjs

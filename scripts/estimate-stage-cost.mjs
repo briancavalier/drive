@@ -58,7 +58,10 @@ export function main(env = process.env) {
 
   const metadata = buildCostMetadataFromSummary(summary);
   const labels = buildCostLabelUpdate(summary);
-  const calibrationMultiplier = Number(summary.current?.calibrationMultiplier) || 1;
+  const calibration = summary.current?.usageCalibration || {};
+  const usage = summary.current?.estimatedUsage || {};
+  const usageBeforeCalibration =
+    summary.current?.estimatedUsageBeforeCalibration || {};
 
   setOutputs({
     cost_estimate_usd: String(metadata.costEstimateUsd),
@@ -72,25 +75,57 @@ export function main(env = process.env) {
     last_stage_cost_estimate_usd: String(metadata.lastStageCostEstimateUsd),
     cost_summary_path: costSummaryPath,
     stage_estimate_usd_before_calibration: String(
-      Number(summary.current?.stageEstimateUsdBeforeCalibration) || 0
+      Number(summary.current?.derivedCost?.stageUsdBeforeCalibration) || 0
     ),
-    cost_calibration_multiplier: String(calibrationMultiplier),
-    cost_calibration_source: summary.current?.calibrationSource || "default",
+    cost_calibration_multiplier: String(
+      Number(calibration.multipliers?.outputTokens) || 1
+    ),
+    cost_calibration_source: calibration.source || "default",
     cost_calibration_sample_size: String(
-      Number(summary.current?.calibrationSampleSize) || 0
+      Number(calibration.sampleSize) || 0
     ),
-    cost_calibration_key: summary.current?.calibrationKey || "",
+    cost_calibration_key: calibration.bucket || "",
+    prompt_chars: String(Number(summary.current?.promptChars) || 0),
+    estimated_input_tokens: String(Number(usage.inputTokens) || 0),
+    estimated_cached_input_tokens: String(Number(usage.cachedInputTokens) || 0),
+    estimated_output_tokens: String(Number(usage.outputTokens) || 0),
+    estimated_reasoning_tokens: String(Number(usage.reasoningTokens) || 0),
+    estimated_input_tokens_before_calibration: String(
+      Number(usageBeforeCalibration.inputTokens) || 0
+    ),
+    estimated_cached_input_tokens_before_calibration: String(
+      Number(usageBeforeCalibration.cachedInputTokens) || 0
+    ),
+    estimated_output_tokens_before_calibration: String(
+      Number(usageBeforeCalibration.outputTokens) || 0
+    ),
+    estimated_reasoning_tokens_before_calibration: String(
+      Number(usageBeforeCalibration.reasoningTokens) || 0
+    ),
+    usage_provider: summary.provider || "",
+    usage_api_surface: summary.apiSurface || "",
+    usage_pricing_version: summary.pricing?.version || "",
+    usage_calibration_input_multiplier: String(
+      Number(calibration.multipliers?.inputTokens) || 1
+    ),
+    usage_calibration_cached_input_multiplier: String(
+      Number(calibration.multipliers?.cachedInputTokens) || 1
+    ),
+    usage_calibration_output_multiplier: String(
+      Number(calibration.multipliers?.outputTokens) || 1
+    ),
+    usage_calibration_generated_at: calibration.generatedAt || "",
     cost_label_to_add: labels.addLabel,
     cost_labels_to_remove: labels.removeLabels.join(",")
   });
 
   const calibrationNote =
-    calibrationMultiplier !== 1
-      ? ` (calibrated x${calibrationMultiplier.toFixed(3)})`
+    (Number(calibration.multipliers?.outputTokens) || 1) !== 1
+      ? ` (calibrated x${(Number(calibration.multipliers?.outputTokens) || 1).toFixed(3)})`
       : "";
   console.log(
-    `Estimated ${mode} cost: ${summary.current.emoji} $${formatEstimatedUsd(summary.current.stageEstimateUsd)} ` +
-      `(total $${formatEstimatedUsd(summary.current.totalEstimatedUsd)}) using ${model}${calibrationNote}`
+    `Estimated ${mode} cost: ${summary.current.derivedCost.emoji} $${formatEstimatedUsd(summary.current.derivedCost.stageUsd)} ` +
+      `(total $${formatEstimatedUsd(summary.current.derivedCost.totalEstimatedUsd)}) using ${model}${calibrationNote}`
   );
 }
 

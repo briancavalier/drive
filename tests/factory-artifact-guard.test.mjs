@@ -136,7 +136,24 @@ test("guard ignores calibration artifact at the factory root", () => {
       eventName: "pull_request",
       baseRef: "main",
       headRef: "codex/fix",
-      changes: [{ status: "A", path: ".factory/cost-calibration.json" }]
+      changes: [{ status: "A", path: ".factory/usage-calibration.json" }]
+    }),
+    false
+  );
+});
+
+test("guard ignores immutable usage events outside run artifacts", () => {
+  assert.equal(
+    shouldBlockFactoryRunArtifacts({
+      eventName: "pull_request",
+      baseRef: "main",
+      headRef: "codex/fix",
+      changes: [
+        {
+          status: "A",
+          path: ".factory/usage-events/2026-03-19/run-1-1-stage-implement.json"
+        }
+      ]
     }),
     false
   );

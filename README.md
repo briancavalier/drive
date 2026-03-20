@@ -132,6 +132,10 @@ Only these files are allowed to persist there:
 - `review.md`
 - `review.json`
 
+Provider-native usage telemetry is stored separately as immutable event files
+under `.factory/usage-events/YYYY-MM-DD/*.json`, and derived repo-wide
+calibration data is written to `.factory/usage-calibration.json`.
+
 All files under `.factory/tmp/**` are scratch space only. Stage push validation
 and CI both reject added or modified temp artifacts, while allowing cleanup
 deletions.
@@ -170,27 +174,28 @@ transient retries are recorded in the PR metadata as `lastFailureType` and
 
 Factory stages also write an advisory `cost-summary.json` artifact and surface a
 three-band emoji cost estimate in the PR status. These values are heuristic
-estimates, not billed usage. The summary file now includes an append-only
-`telemetry` array where each stage run records its GitHub context (issue, PR,
-branch, workflow run id), resolved model, prompt size, estimated tokens/price,
-calibration metadata, and placeholders for `actualInputTokens`/`actualUsd`. The
-placeholders default to `null` so operators can backfill real usage data later
-without reshaping the schema.
+estimates, not billed usage. The canonical telemetry now lives in immutable
+provider-native usage event files under `.factory/usage-events/`, one JSON file
+per Codex invocation. These event files cover both stage runs and failure
+diagnosis runs, and record provider/model metadata, estimated usage buckets,
+optional actual usage buckets, derived USD, and calibration metadata. The
+per-issue `.factory/runs/<issue>/cost-summary.json` file remains as a derived
+operator-facing summary for PR status and artifact browsing.
 
-When you have reliable billing data for a stage, update the corresponding
-telemetry entry in `.factory/runs/<issue>/cost-summary.json` with the observed
-token and USD values. After backfilling any entries, run the calibration helper:
+When you have reliable billing data for a stage or diagnosis run, update the
+corresponding usage event with observed usage buckets. After backfilling any
+entries, run the calibration helper:
 
 ```bash
-node scripts/calibrate-cost-estimates.mjs
+node scripts/calibrate-usage-estimates.mjs
 ```
 
-The script scans all run telemetry, computes per `{stage, model}` correction
-factors, and writes them to `.factory/cost-calibration.json` (tracked in-repo).
-Cost estimation automatically loads this file on subsequent runs and reports
-which multiplier was applied so you can confirm that historical data is being
-used. Entries without actual usage remain in the telemetry history but are
-ignored by the calibration pass, so partial backfills are safe.
+The script scans `.factory/usage-events/**`, computes per-provider usage-bucket
+correction factors, and writes them to `.factory/usage-calibration.json`
+(tracked in-repo). Cost estimation automatically loads this file on subsequent
+runs and reports which multiplier bucket was applied so you can confirm that
+historical data is being used. Entries without actual usage remain in the event
+history but are ignored by the calibration pass, so partial backfills are safe.
 
 When stage/review failures block a PR, the failure comment now includes a
 stable "Where to look" section with the failing Factory PR Loop run, branch,
