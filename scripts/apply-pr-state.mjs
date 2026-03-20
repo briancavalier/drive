@@ -326,6 +326,7 @@ export async function main(env = process.env) {
 
   const body = renderPrBody({
     issueNumber: nextMetadata.issueNumber,
+    prNumber: pullRequest.number,
     branch: pullRequest.head.ref,
     repositoryUrl,
     artifactsPath: nextMetadata.artifactsPath,

@@ -122,6 +122,7 @@ export function buildPlanReadyPrMetadata({
 
 export function renderPrBody({
   issueNumber,
+  prNumber,
   branch,
   repositoryUrl,
   artifactsPath,
@@ -137,6 +138,7 @@ export function renderPrBody({
 
   return renderGithubPrBody({
     issueNumber: resolvedIssueNumber,
+    prNumber: prNumber ?? null,
     branch,
     repositoryUrl,
     artifactsPath: resolvedArtifactsPath,

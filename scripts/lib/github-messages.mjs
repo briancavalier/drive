@@ -252,6 +252,7 @@ function serializePrState(state) {
 export function renderPrBody(
   {
     issueNumber,
+    prNumber,
     branch,
     repositoryUrl,
     artifactsPath,
@@ -267,12 +268,13 @@ export function renderPrBody(
     ...metadata
   });
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
+  const resolvedPrNumber = prNumber ?? issueNumber ?? null;
   const controlPanel = buildControlPanel({
     metadata: state,
     labels,
     repositoryUrl,
     branch,
-    prNumber: issueNumber,
+    prNumber: resolvedPrNumber,
     artifactLinks: links
   });
   const artifactLine = controlPanel.artifacts.length
@@ -323,6 +325,7 @@ export function renderPrBody(
       : null;
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
+    PR_NUMBER: resolvedPrNumber != null ? String(resolvedPrNumber) : "",
     BRANCH: branch,
     REPOSITORY_URL: repositoryUrl,
     ARTIFACTS_PATH: artifactsPath,

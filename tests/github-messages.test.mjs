@@ -160,6 +160,20 @@ test("renderPrBody renders control panel for plan_ready status", () => {
   assert.deepEqual(actionLabels, ["▶ Start implement", "⏸ Pause", "📄 Open plan artifacts"]);
 });
 
+test("renderPrBody wiring uses prNumber when provided for control panel actions", () => {
+  const body = renderPrBody({
+    ...prBodyInput(),
+    prNumber: 81
+  });
+  const startLine = body
+    .split("\n")
+    .find((line) => line.includes("▶ Start implement"));
+
+  assert.ok(startLine, "expected Start implement action line");
+  assert.match(startLine, /pr_number=81/);
+  assert.ok(!/pr_number=7/.test(startLine));
+});
+
 test("renderPrBody falls back to raw status when emoji mapping is missing", () => {
   const fallbackInput = prBodyInput();
   fallbackInput.metadata = {
