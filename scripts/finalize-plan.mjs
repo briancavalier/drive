@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   FACTORY_LABELS,
   FACTORY_COST_LABELS,
@@ -22,82 +24,117 @@ import {
   findOpenPullRequestByHead,
   getIssue,
   getPullRequest,
+  removeLabel,
   updatePullRequest
 } from "./lib/github.mjs";
 
-const issueNumber = Number(process.env.FACTORY_ISSUE_NUMBER);
-const inputPrNumber = Number(process.env.FACTORY_PR_NUMBER);
-const branch = process.env.FACTORY_BRANCH;
-const artifactsPath = process.env.FACTORY_ARTIFACTS_PATH;
-const preparedMaxRepairAttempts =
-  Number(process.env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
-const defaultBranch = process.env.GITHUB_REF_NAME || "main";
-const issue = await getIssue(issueNumber);
-const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
-const existingPullRequest =
-  inputPrNumber > 0
-    ? await getPullRequest(inputPrNumber)
-    : await findOpenPullRequestByHead(branch);
-const metadata = extractPrMetadata(existingPullRequest?.body) || defaultPrMetadata();
-const costSummary = loadExistingCostSummary(artifactsPath);
-const costMetadata = costSummary ? buildCostMetadataFromSummary(costSummary) : {};
-const title = `Factory: ${`${issue.title || ""}`.replace(/^\[factory\]\s*/i, "").trim() || issue.title}`;
-const planReadyMetadata = buildPlanReadyPrMetadata({
-  metadata: {
-    ...metadata,
-    ...costMetadata
-  },
-  issueNumber,
-  artifactsPath,
-  preparedMaxRepairAttempts
-});
-const initialLabels = existingPullRequest?.labels ?? [];
-const initialBody = renderPrBody({
-  issueNumber,
-  prNumber: existingPullRequest?.number ?? null,
-  branch,
-  repositoryUrl,
-  artifactsPath,
-  metadata: planReadyMetadata,
-  labels: initialLabels
-});
-const pullRequest =
-  existingPullRequest ||
-  (await createPullRequest({
-    title,
-    head: branch,
-    base: defaultBranch,
-    body: initialBody,
-    draft: true
-  }));
+export async function finalizePlan({
+  env = process.env,
+  getIssueImpl = getIssue,
+  getPullRequestImpl = getPullRequest,
+  findOpenPullRequestByHeadImpl = findOpenPullRequestByHead,
+  createPullRequestImpl = createPullRequest,
+  updatePullRequestImpl = updatePullRequest,
+  addLabelsImpl = addLabels,
+  removeLabelImpl = removeLabel,
+  commentOnIssueImpl = commentOnIssue,
+  loadExistingCostSummaryImpl = loadExistingCostSummary,
+  buildCostMetadataFromSummaryImpl = buildCostMetadataFromSummary,
+  buildCostLabelUpdateImpl = buildCostLabelUpdate,
+  renderPlanReadyIssueCommentImpl = renderPlanReadyIssueComment,
+  buildPlanReadyPrMetadataImpl = buildPlanReadyPrMetadata,
+  defaultPrMetadataImpl = defaultPrMetadata,
+  extractPrMetadataImpl = extractPrMetadata,
+  renderPrBodyImpl = renderPrBody
+} = {}) {
+  const issueNumber = Number(env.FACTORY_ISSUE_NUMBER);
+  const inputPrNumber = Number(env.FACTORY_PR_NUMBER);
+  const branch = env.FACTORY_BRANCH;
+  const artifactsPath = env.FACTORY_ARTIFACTS_PATH;
+  const preparedMaxRepairAttempts =
+    Number(env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
+  const defaultBranch = env.GITHUB_REF_NAME || "main";
+  const issue = await getIssueImpl(issueNumber);
+  const repositoryUrl = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`;
+  const existingPullRequest =
+    inputPrNumber > 0
+      ? await getPullRequestImpl(inputPrNumber)
+      : await findOpenPullRequestByHeadImpl(branch);
+  const metadata = extractPrMetadataImpl(existingPullRequest?.body) || defaultPrMetadataImpl();
+  const costSummary = loadExistingCostSummaryImpl(artifactsPath);
+  const costMetadata = costSummary ? buildCostMetadataFromSummaryImpl(costSummary) : {};
+  const title = `Factory: ${`${issue.title || ""}`.replace(/^\[factory\]\s*/i, "").trim() || issue.title}`;
+  const planReadyMetadata = buildPlanReadyPrMetadataImpl({
+    metadata: {
+      ...metadata,
+      ...costMetadata
+    },
+    issueNumber,
+    artifactsPath,
+    preparedMaxRepairAttempts
+  });
+  const initialLabels = existingPullRequest?.labels ?? [];
+  const initialBody = renderPrBodyImpl({
+    issueNumber,
+    prNumber: existingPullRequest?.number ?? null,
+    branch,
+    repositoryUrl,
+    artifactsPath,
+    metadata: planReadyMetadata,
+    labels: initialLabels
+  });
+  const pullRequest =
+    existingPullRequest ||
+    (await createPullRequestImpl({
+      title,
+      head: branch,
+      base: defaultBranch,
+      body: initialBody,
+      draft: true
+    }));
 
-const resolvedLabels = pullRequest.labels ?? initialLabels;
-const finalBody = renderPrBody({
-  issueNumber,
-  prNumber: pullRequest.number,
-  branch,
-  repositoryUrl,
-  artifactsPath,
-  metadata: planReadyMetadata,
-  labels: resolvedLabels
-});
+  const resolvedLabels = pullRequest.labels ?? initialLabels;
+  const finalBody = renderPrBodyImpl({
+    issueNumber,
+    prNumber: pullRequest.number,
+    branch,
+    repositoryUrl,
+    artifactsPath,
+    metadata: planReadyMetadata,
+    labels: resolvedLabels
+  });
 
-await updatePullRequest({ prNumber: pullRequest.number, body: finalBody });
-const nextCostLabel = costSummary ? buildCostLabelUpdate(costSummary).addLabel : "";
+  await updatePullRequestImpl({ prNumber: pullRequest.number, body: finalBody });
+  const nextCostLabel = costSummary ? buildCostLabelUpdateImpl(costSummary).addLabel : "";
 
-for (const label of FACTORY_COST_LABELS) {
-  if (label !== nextCostLabel) {
-    await removeLabel(pullRequest.number, label);
+  for (const label of FACTORY_COST_LABELS) {
+    if (label !== nextCostLabel) {
+      await removeLabelImpl(pullRequest.number, label);
+    }
   }
+  await addLabelsImpl(
+    pullRequest.number,
+    [FACTORY_LABELS.managed, FACTORY_LABELS.planReady, nextCostLabel].filter(Boolean)
+  );
+  await commentOnIssueImpl(
+    issueNumber,
+    renderPlanReadyIssueCommentImpl({
+      prNumber: pullRequest.number
+    })
+  );
 }
 
-await addLabels(
-  pullRequest.number,
-  [FACTORY_LABELS.managed, FACTORY_LABELS.planReady, nextCostLabel].filter(Boolean)
-);
-await commentOnIssue(
-  issueNumber,
-  renderPlanReadyIssueComment({
-    prNumber: pullRequest.number
-  })
-);
+export async function main() {
+  await finalizePlan();
+}
+
+const isDirectExecution =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectExecution) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

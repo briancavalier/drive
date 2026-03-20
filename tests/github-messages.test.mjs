@@ -168,7 +168,10 @@ test("renderPrBody renders control panel for plan_ready status", () => {
     return match ? match[1] : line;
   });
 
-  assert.deepEqual(actionLabels, ["▶ Start implement", "⏸ Pause", "📄 Open plan artifacts"]);
+  assert.deepEqual(
+    actionLabels,
+    ["▶ Comment /factory implement", "⏸ Comment /factory pause", "📄 Open plan artifacts"]
+  );
 });
 
 test("renderPrBody wiring uses prNumber when provided for control panel actions", () => {
@@ -178,11 +181,11 @@ test("renderPrBody wiring uses prNumber when provided for control panel actions"
   });
   const startLine = body
     .split("\n")
-    .find((line) => line.includes("▶ Start implement"));
+    .find((line) => line.includes("▶ Comment /factory implement"));
 
-  assert.ok(startLine, "expected Start implement action line");
-  assert.match(startLine, /pr_number=81/);
-  assert.ok(!/pr_number=7/.test(startLine));
+  assert.ok(startLine, "expected implement action line");
+  assert.match(startLine, /\/pull\/81/);
+  assert.ok(!/\/pull\/7/.test(startLine));
 });
 
 test("renderPrBody falls back to raw status when emoji mapping is missing", () => {
