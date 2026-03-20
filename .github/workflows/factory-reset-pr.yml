@@ -31,12 +31,12 @@ on:
         default: true
         type: boolean
       add_plan_ready_label:
-        description: "Add the factory:plan-ready label"
+        description: "Retained for backward compatibility; plan-ready is projected from metadata"
         required: true
         default: true
         type: boolean
       remove_pause_label:
-        description: "Remove the factory:paused label too"
+        description: "Also clear paused state"
         required: true
         default: false
         type: boolean
@@ -75,9 +75,8 @@ jobs:
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '__UNCHANGED__' }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_LAST_READY_SHA: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_PAUSED: ${{ inputs.remove_pause_label && 'false' || '__UNCHANGED__' }}
           FACTORY_CI_STATUS: pending
-          FACTORY_ADD_LABELS: ${{ inputs.add_plan_ready_label && 'factory:plan-ready' || '' }}
-          FACTORY_REMOVE_LABELS: ${{ inputs.remove_pause_label && 'factory:implement,factory:blocked,factory:paused' || 'factory:implement,factory:blocked' }}
           FACTORY_CONVERT_TO_DRAFT: ${{ inputs.convert_to_draft && 'true' || 'false' }}
           FACTORY_COMMENT: ${{ inputs.comment || format('Factory PR reset via workflow_dispatch. Status set to {0}.', inputs.status) }}
 

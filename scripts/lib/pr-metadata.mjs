@@ -23,6 +23,7 @@ export function defaultPrMetadata(overrides = {}) {
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
+    paused: false,
     costEstimateUsd: 0,
     costEstimateBand: "",
     costEstimateEmoji: "",

@@ -22,7 +22,6 @@ import {
   findOpenPullRequestByHead,
   getIssue,
   getPullRequest,
-  removeLabel,
   updatePullRequest
 } from "./lib/github.mjs";
 
@@ -81,11 +80,9 @@ await addLabels(
   pullRequest.number,
   [FACTORY_LABELS.managed, FACTORY_LABELS.planReady, nextCostLabel].filter(Boolean)
 );
-await removeLabel(issueNumber, FACTORY_LABELS.start);
 await commentOnIssue(
   issueNumber,
   renderPlanReadyIssueComment({
-    prNumber: pullRequest.number,
-    implementLabel: FACTORY_LABELS.implement
+    prNumber: pullRequest.number
   })
 );

@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 import {
   APPROVED_ISSUE_FILE_NAME,
   DEFAULT_MAX_REPAIR_ATTEMPTS,
+  FACTORY_COMMAND_CONTEXTS,
+  FACTORY_COMMANDS,
   FACTORY_LABELS,
+  FACTORY_SLASH_COMMANDS,
   PR_STATE_MARKER
 } from "./factory-config.mjs";
 import { formatEstimatedUsd } from "./cost-estimation.mjs";
@@ -288,8 +291,14 @@ export function renderPrBody(
     COST_SUMMARY_URL: links.costSummary,
     REVIEW_URL: links.review,
     REVIEW_JSON_URL: links.reviewJson,
-    IMPLEMENT_LABEL: FACTORY_LABELS.implement,
-    PAUSED_LABEL: FACTORY_LABELS.paused,
+    IMPLEMENT_COMMAND:
+      FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement],
+    RESUME_COMMAND:
+      FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume],
+    PAUSE_COMMAND:
+      FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause],
+    RESET_COMMAND:
+      FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
     LAST_FAILURE_TYPE: state.lastFailureType || "",
     TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
     STATUS_SECTION: [
@@ -319,9 +328,10 @@ export function renderPrBody(
     ].join("\n"),
     OPERATOR_NOTES_SECTION: [
       "## Operator Notes",
-      `- ▶️ Apply \`${FACTORY_LABELS.implement}\` to start coding after plan review.`,
-      `- ⏸️ Apply \`${FACTORY_LABELS.paused}\` to pause autonomous work.`,
-      `- ▶️ Remove \`${FACTORY_LABELS.paused}\` and re-apply \`${FACTORY_LABELS.implement}\` to resume.`,
+      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}\` to start coding after plan review.`,
+      `- ⏸️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}\` to pause autonomous work.`,
+      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a recoverable blocked run.`,
+      `- 🔁 Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]}\` to reset the PR back to plan-ready.`,
       "- 💸 Cost values are advisory estimates, not billed usage."
     ].join("\n")
   };
@@ -331,14 +341,18 @@ export function renderPrBody(
 }
 
 export function renderPlanReadyIssueComment(
-  { prNumber, implementLabel = FACTORY_LABELS.implement },
+  {
+    prNumber,
+    implementCommand =
+      FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]
+  },
   options = {}
 ) {
   return renderMessage(
     "plan-ready-issue-comment",
     {
       PR_NUMBER: String(prNumber),
-      IMPLEMENT_LABEL: implementLabel
+      IMPLEMENT_COMMAND: implementCommand
     },
     options
   );

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   isTrustedReviewTrigger,
-  routePullRequestLabeled,
+  routeIssueComment,
   routePullRequestReview,
   routeWorkflowRun,
   validateFactoryRepoTrust,
@@ -92,6 +92,24 @@ function makeOverrides(files = {}) {
   }
 
   return dir;
+}
+
+function issueCommentPayload(body, actor = "maintainer") {
+  return {
+    action: "created",
+    repository: { full_name: "example/repo" },
+    issue: {
+      number: 33,
+      pull_request: {
+        url: "https://api.github.com/repos/example/repo/pulls/33"
+      }
+    },
+    comment: {
+      body,
+      user: { login: actor }
+    },
+    sender: { login: actor }
+  };
 }
 
 test("validateFactoryRepoTrust accepts same-repo PR heads", () => {
@@ -211,14 +229,10 @@ test("validateTrustedFactoryContext rejects non-canonical artifacts paths", () =
   assert.match(result.reason, /does not match canonical path \.factory\/runs\/12/);
 });
 
-test("routePullRequestLabeled starts implementation for approved managed PRs", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
-    })
+test("routeIssueComment starts implementation for trusted plan-ready PR commands", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () => basePullRequest(),
+    getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
   assert.equal(result.action, "implement");
@@ -226,20 +240,19 @@ test("routePullRequestLabeled starts implementation for approved managed PRs", (
   assert.equal(result.prNumber, 33);
 });
 
-test("routePullRequestLabeled ignores stale implement events when the label is no longer present", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      body: managedPrBody("implementing")
-    })
+test("routeIssueComment ignores implement commands outside the plan-ready state", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        body: managedPrBody("implementing")
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
   assert.equal(result.action, "noop");
 });
 
-test("routePullRequestLabeled still parses metadata from custom PR body templates", () => {
+test("routeIssueComment still parses metadata from custom PR body templates", async () => {
   const overridesRoot = makeOverrides({
     "pr-body.md": [
       "# Custom",
@@ -249,133 +262,105 @@ test("routePullRequestLabeled still parses metadata from custom PR body template
       "{{STATUS_SECTION}}"
     ].join("\n")
   });
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      body: renderPrBody(
-        {
-          issueNumber: 12,
-          branch: "factory/12-sample",
-          repositoryUrl: "https://github.com/example/repo",
-          artifactsPath: ".factory/runs/12",
-          metadata: {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        body: renderPrBody(
+          {
             issueNumber: 12,
+            branch: "factory/12-sample",
+            repositoryUrl: "https://github.com/example/repo",
             artifactsPath: ".factory/runs/12",
-            status: "plan_ready",
-            repairAttempts: 0,
-            maxRepairAttempts: 3,
-            lastFailureSignature: null,
-            repeatedFailureCount: 0
-          }
-        },
-        { overridesRoot }
-      ),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
-    })
-  });
-
-  assert.equal(result.action, "implement");
-  assert.equal(result.issueNumber, 12);
-  assert.equal(result.prNumber, 33);
-});
-
-test("routePullRequestLabeled retries implementation for managed PRs already marked implementing", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      body: managedPrBody("implementing"),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
-    })
-  });
-
-  assert.equal(result.action, "implement");
-  assert.equal(result.issueNumber, 12);
-  assert.equal(result.prNumber, 33);
-});
-
-test("routePullRequestLabeled returns noop for fork-backed PRs", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: sameRepoHead({
-        repo: {
-          full_name: "attacker/repo",
-          fork: true
-        }
-      })
-    })
-  });
-
-  assert.equal(result.action, "noop");
-});
-
-test("routePullRequestLabeled returns noop for same-branch different-repo heads", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: sameRepoHead({
-        repo: {
-          full_name: "other/repo",
-          fork: false
-        }
-      })
-    })
-  });
-
-  assert.equal(result.action, "noop");
-});
-
-test("routePullRequestLabeled returns noop when head repo metadata is missing", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: { ref: "factory/12-sample" }
-    })
-  });
-
-  assert.equal(result.action, "noop");
-});
-
-test("routePullRequestLabeled returns noop for malformed metadata", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      body: malformedManagedPrBody(),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
-    })
-  });
-
-  assert.equal(result.action, "noop");
-});
-
-test("routePullRequestLabeled returns noop for non-canonical metadata artifacts paths", () => {
-  const result = routePullRequestLabeled({
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: basePullRequest({
-      body: rawManagedPrBody({
-        issueNumber: 12,
-        artifactsPath: ".factory/runs/999",
-        status: "plan_ready"
+            metadata: {
+              issueNumber: 12,
+              artifactsPath: ".factory/runs/12",
+              status: "plan_ready",
+              repairAttempts: 0,
+              maxRepairAttempts: 3,
+              lastFailureSignature: null,
+              repeatedFailureCount: 0
+            }
+          },
+          { overridesRoot }
+        )
       }),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }])
-    })
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(result.action, "implement");
+  assert.equal(result.issueNumber, 12);
+  assert.equal(result.prNumber, 33);
+});
+
+test("routeIssueComment returns noop for fork-backed PRs", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        head: sameRepoHead({
+          repo: {
+            full_name: "attacker/repo",
+            fork: true
+          }
+        })
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeIssueComment returns noop for same-branch different-repo heads", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        head: sameRepoHead({
+          repo: {
+            full_name: "other/repo",
+            fork: false
+          }
+        })
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeIssueComment returns noop when head repo metadata is missing", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        head: { ref: "factory/12-sample" }
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeIssueComment returns noop for malformed metadata", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        body: malformedManagedPrBody()
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(result.action, "noop");
+});
+
+test("routeIssueComment returns noop for non-canonical metadata artifacts paths", async () => {
+  const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
+    getPullRequest: async () =>
+      basePullRequest({
+        body: rawManagedPrBody({
+          issueNumber: 12,
+          artifactsPath: ".factory/runs/999",
+          status: "plan_ready"
+        })
+      }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
   assert.equal(result.action, "noop");

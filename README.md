@@ -77,12 +77,12 @@ Configure these before using the scaffold in a live repository:
 ## Factory operator flow
 
 1. Open a "Factory Request" issue from a trusted collaborator account with `write`, `maintain`, or `admin` access.
-2. Apply the `factory:start` label from a trusted collaborator account with `write`, `maintain`, or `admin` access.
+2. Comment `/factory start` on the issue from a trusted collaborator account with `write`, `maintain`, or `admin` access.
 3. Review the generated draft PR and its planning artifacts.
-4. Apply the `factory:implement` label to start coding.
+4. Comment `/factory implement` on the PR to start coding.
 5. Review the ready-for-review PR and merge manually when satisfied.
 
-For public repositories, maintainers cannot sponsor outsider-authored factory issues into execution. Intake now requires both the issue author and the actor applying `factory:start` to be trusted collaborators. Factory automation also ignores fork-backed pull requests entirely, so outsider PRs cannot trigger implement, repair, or review stages.
+For public repositories, maintainers cannot sponsor outsider-authored factory issues into execution. Intake now requires both the issue author and the actor commenting `/factory start` to be trusted collaborators. Factory automation also ignores fork-backed pull requests entirely, so outsider PRs cannot trigger implement, repair, or review stages.
 
 ## Autonomous review stage
 
@@ -165,7 +165,7 @@ the label or disabling the variable immediately re-locks later reruns.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair
-counters, and convert it back to draft before retrying `factory:implement`.
+counters, and convert it back to draft before retrying `/factory implement`.
 
 The stage runner automatically retries known transient infrastructure failures
 such as GitHub API/network push errors before blocking the PR. Exhausted
@@ -210,7 +210,7 @@ Factory Request issue so recurring outages get durable tracking:
 - Every follow-up issue includes the blocked PR number, workflow run link, failure category, and artifacts evidence, along with a hidden signature used for deduplication.
 - If an open issue already carries the same signature, the factory skips creation and simply references the existing issue in the failure comment.
 - The failure comment always notes the issue that captured the follow-up, putting operators one click away from the backlog entry.
-- Newly opened issues still require a human to apply `factory:start` when execution is ready to resume.
+- Newly opened issues still require a human to comment `/factory start` when execution is ready to resume.
 
 Stage runs now distinguish between no-op outputs and setup prerequisites:
 
@@ -219,13 +219,13 @@ Stage runs now distinguish between no-op outputs and setup prerequisites:
 
 ## Labels
 
+Command execution is comment-driven. Labels now reflect durable projected state or explicit authorization; they do not start work.
+
 The workflows create and manage these labels automatically:
 
-- `factory:start`
 - `factory:managed`
 - `factory:self-modify`
 - `factory:plan-ready`
-- `factory:implement`
 - `factory:blocked`
 - `factory:paused`
 - `factory:intake-rejected` (intake was rejected before planning; the issue needs updates)
