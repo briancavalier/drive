@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "plan",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 84,
+  "prNumber": 0,
+  "branch": "factory/84-redesign-factory-pr-body-to-consolidate-status-a",
+  "runId": "23354963596",
+  "runAttempt": 1,
+  "promptChars": 5261,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1316,
+    "cachedInputTokens": 0,
+    "outputTokens": 197,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1316,
+    "cachedInputTokens": 0,
+    "outputTokens": 197,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:plan:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0036,
+    "estimatedUsd": 0.0036,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-20T17:37:39.059Z"
+}
