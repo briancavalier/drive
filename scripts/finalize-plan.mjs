@@ -43,20 +43,24 @@ const metadata = extractPrMetadata(existingPullRequest?.body) || defaultPrMetada
 const costSummary = loadExistingCostSummary(artifactsPath);
 const costMetadata = costSummary ? buildCostMetadataFromSummary(costSummary) : {};
 const title = `Factory: ${`${issue.title || ""}`.replace(/^\[factory\]\s*/i, "").trim() || issue.title}`;
-const body = renderPrBody({
+const planReadyMetadata = buildPlanReadyPrMetadata({
+  metadata: {
+    ...metadata,
+    ...costMetadata
+  },
   issueNumber,
+  artifactsPath,
+  preparedMaxRepairAttempts
+});
+const initialLabels = existingPullRequest?.labels ?? [];
+const initialBody = renderPrBody({
+  issueNumber,
+  prNumber: existingPullRequest?.number ?? null,
   branch,
   repositoryUrl,
   artifactsPath,
-  metadata: buildPlanReadyPrMetadata({
-    metadata: {
-      ...metadata,
-      ...costMetadata
-    },
-    issueNumber,
-    artifactsPath,
-    preparedMaxRepairAttempts
-  })
+  metadata: planReadyMetadata,
+  labels: initialLabels
 });
 const pullRequest =
   existingPullRequest ||
@@ -64,11 +68,22 @@ const pullRequest =
     title,
     head: branch,
     base: defaultBranch,
-    body,
+    body: initialBody,
     draft: true
   }));
 
-await updatePullRequest({ prNumber: pullRequest.number, body });
+const resolvedLabels = pullRequest.labels ?? initialLabels;
+const finalBody = renderPrBody({
+  issueNumber,
+  prNumber: pullRequest.number,
+  branch,
+  repositoryUrl,
+  artifactsPath,
+  metadata: planReadyMetadata,
+  labels: resolvedLabels
+});
+
+await updatePullRequest({ prNumber: pullRequest.number, body: finalBody });
 const nextCostLabel = costSummary ? buildCostLabelUpdate(costSummary).addLabel : "";
 
 for (const label of FACTORY_COST_LABELS) {
