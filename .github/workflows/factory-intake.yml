@@ -75,7 +75,9 @@ jobs:
 
   plan:
     if: needs.route.outputs.action == 'start'
-    needs: prepare
+    needs:
+      - route
+      - prepare
     permissions:
       contents: write
       issues: write
