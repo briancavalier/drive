@@ -73,6 +73,7 @@ export function renderStageDiagnostics({
   remoteHead,
   hasFactoryToken,
   workflowChanges = false,
+  protectedPathChanges = false,
   statusSampleLimit = 5,
   diffSampleLimit = 5
 } = {}) {
@@ -98,6 +99,7 @@ export function renderStageDiagnostics({
     `worktree files: ${statusEntries.filter((entry) => entry.worktree).length}`,
     `FACTORY_GITHUB_TOKEN available: ${hasFactoryToken ? "yes" : "no"}`,
     `workflow changes detected: ${workflowChanges ? "yes" : "no"}`,
+    `protected path changes detected: ${protectedPathChanges ? "yes" : "no"}`,
     "status sample:",
     ...summarizeEntries(statusEntries, statusSampleLimit),
     "staged diff sample:",

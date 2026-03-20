@@ -32,6 +32,7 @@ const ARTIFACT_FILES = [
   "acceptance-tests.md",
   "repair-log.md"
 ];
+const FACTORY_POLICY_PATH = path.join(".factory", "FACTORY.md");
 
 const STAGE_NOOP_ATTEMPT_LIMIT = 2;
 
@@ -47,9 +48,10 @@ const ISSUE_SECTION_CONFIG = [
 
 const STAGE_SECTION_CONFIG = {
   [FACTORY_STAGE_MODES.plan]: {
-    order: ["run-metadata", "problem", "goals", "acceptance", "constraints", "risk", "affected-area", "non-goals", "artifacts"],
+    order: ["run-metadata", "factory-policy", "problem", "goals", "acceptance", "constraints", "risk", "affected-area", "non-goals", "artifacts"],
     preferredChars: {
       "run-metadata": 500,
+      "factory-policy": 1200,
       problem: 3500,
       goals: 2500,
       acceptance: 2500,
@@ -61,6 +63,7 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
+      "factory-policy": 300,
       problem: 500,
       goals: 300,
       acceptance: 300,
@@ -70,26 +73,29 @@ const STAGE_SECTION_CONFIG = {
       "non-goals": 0,
       artifacts: 0
     },
-    dropPriority: ["non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem"]
+    dropPriority: ["non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem", "factory-policy"]
   },
   [FACTORY_STAGE_MODES.implement]: {
-    order: ["run-metadata", "issue-synopsis", "artifact-index"],
+    order: ["run-metadata", "factory-policy", "issue-synopsis", "artifact-index"],
     preferredChars: {
       "run-metadata": 500,
+      "factory-policy": 900,
       "issue-synopsis": 1200,
       "artifact-index": 5000
     },
     minChars: {
       "run-metadata": 200,
+      "factory-policy": 250,
       "issue-synopsis": 200,
       "artifact-index": 800
     },
-    dropPriority: ["issue-synopsis", "artifact-index"]
+    dropPriority: ["issue-synopsis", "artifact-index", "factory-policy"]
   },
   [FACTORY_STAGE_MODES.repair]: {
-    order: ["run-metadata", "failure-context", "artifact-index", "repair-log-tail", "issue-synopsis"],
+    order: ["run-metadata", "factory-policy", "failure-context", "artifact-index", "repair-log-tail", "issue-synopsis"],
     preferredChars: {
       "run-metadata": 500,
+      "factory-policy": 900,
       "failure-context": 5000,
       "artifact-index": 3500,
       "repair-log-tail": 1200,
@@ -97,17 +103,19 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
+      "factory-policy": 250,
       "failure-context": 800,
       "artifact-index": 600,
       "repair-log-tail": 0,
       "issue-synopsis": 120
     },
-    dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context"]
+    dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context", "factory-policy"]
   },
   [FACTORY_STAGE_MODES.review]: {
-    order: ["run-metadata", "ci-evidence", "issue-synopsis", "artifact-index", "repair-log-tail"],
+    order: ["run-metadata", "factory-policy", "ci-evidence", "issue-synopsis", "artifact-index", "repair-log-tail"],
     preferredChars: {
       "run-metadata": 500,
+      "factory-policy": 900,
       "ci-evidence": 800,
       "issue-synopsis": 1200,
       "artifact-index": 5000,
@@ -115,12 +123,13 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
+      "factory-policy": 250,
       "ci-evidence": 200,
       "issue-synopsis": 200,
       "artifact-index": 800,
       "repair-log-tail": 0
     },
-    dropPriority: ["repair-log-tail", "artifact-index", "ci-evidence", "issue-synopsis"]
+    dropPriority: ["repair-log-tail", "artifact-index", "ci-evidence", "issue-synopsis", "factory-policy"]
   }
 };
 
@@ -333,6 +342,10 @@ function renderArtifactIndex(artifactsPath) {
       return parts.join("\n");
     })
     .join("\n");
+}
+
+function renderFactoryPolicy() {
+  return maybeRead(FACTORY_POLICY_PATH);
 }
 
 function renderRunMetadata({
@@ -598,6 +611,10 @@ function buildSectionsForMode({
       "Run Metadata",
       renderRunMetadata({ mode, issueNumber, prNumber, branch, metadata })
     )
+  );
+
+  sections.push(
+    buildSection("factory-policy", "Factory Policy", renderFactoryPolicy())
   );
 
   if (mode === FACTORY_STAGE_MODES.plan) {

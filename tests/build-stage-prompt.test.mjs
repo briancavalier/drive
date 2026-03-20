@@ -32,6 +32,7 @@ const reviewTemplate = fs.readFileSync(
   path.join(process.cwd(), ".factory", "prompts", "review.md"),
   "utf8"
 );
+const policyPath = path.join(process.cwd(), ".factory", "FACTORY.md");
 
 function fixture(name) {
   return fs.readFileSync(path.join(fixturesDir, name), "utf8");
@@ -332,6 +333,102 @@ test("implement prompt excludes PR body and full artifact bodies", () => {
   );
   assert.match(result.prompt, /Artifact Index/);
   assert.match(result.prompt, /headings: Summary \| Workflow Flow/);
+});
+
+test("stage prompts include factory policy context ahead of stage-specific sections", () => {
+  const artifactsDir = makeArtifactsDir();
+  const implementResult = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      review: 8000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.match(implementResult.prompt, /## Factory Policy/);
+  assert.ok(implementResult.meta.includedSections.includes("factory-policy"));
+  assert.ok(
+    implementResult.meta.includedSections.indexOf("factory-policy") <
+      implementResult.meta.includedSections.indexOf("issue-synopsis")
+  );
+
+  const reviewMethodology = resolveReviewMethodology({ requested: "default" });
+  const reviewResult = buildStagePrompt({
+    mode: "review",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    templateText: reviewTemplate,
+    templateVariables: {
+      METHODOLOGY_NAME: reviewMethodology.name,
+      METHODOLOGY_INSTRUCTIONS: reviewMethodology.instructions.trim(),
+      METHODOLOGY_NOTE: "",
+      METHODOLOGY_REQUESTED: reviewMethodology.requested,
+      METHODOLOGY_FALLBACK: "false"
+    },
+    jobsPayload: {
+      jobs: [{ name: "ci / test", conclusion: "success", steps: [] }]
+    },
+    ciRunId: "123456789",
+    budgets: {
+      plan: 20000,
+      implement: 12000,
+      repair: 14000,
+      review: 8000,
+      hardMax: 8000
+    }
+  });
+
+  assert.ok(
+    reviewResult.meta.includedSections.indexOf("factory-policy") <
+      reviewResult.meta.includedSections.indexOf("ci-evidence")
+  );
+});
+
+test("factory policy context is optional when the policy file is absent", () => {
+  const existing = fs.readFileSync(policyPath, "utf8");
+  const backupPath = `${policyPath}.bak-test`;
+  fs.renameSync(policyPath, backupPath);
+
+  try {
+    const artifactsDir = makeArtifactsDir();
+    const result = buildStagePrompt({
+      mode: "implement",
+      issueNumber: 1,
+      prNumber: 9,
+      branch: "factory/1-sample",
+      artifactsPath: artifactsDir,
+      issueBody: fixture("long-issue-body.md"),
+      pullRequestBody: "",
+      budgets: {
+        plan: 20000,
+        implement: 7000,
+        repair: 14000,
+        review: 8000,
+        hardMax: 7000
+      },
+      templateText: implementTemplate
+    });
+
+    assert.doesNotMatch(result.prompt, /## Factory Policy/);
+    assert.ok(result.meta.omittedSections.includes("factory-policy"));
+  } finally {
+    fs.renameSync(backupPath, policyPath);
+    assert.equal(fs.readFileSync(policyPath, "utf8"), existing);
+  }
 });
 
 test("implement prompt metadata lists last failure type and stage counters", () => {

@@ -14,6 +14,7 @@ Actions, and the Codex GitHub Action.
 - A reusable stage runner that invokes `openai/codex-action`
 - A minimal `CI` workflow so the repair loop has a concrete workflow target
 - Node-based helper scripts and tests with no runtime dependencies
+- A protected factory policy file under `.factory/FACTORY.md`
 - Repo-local GitHub message template overrides under `.factory/messages/`
 - A pluggable autonomous review methodology with durable `review.md` and
   `review.json` artifacts
@@ -29,7 +30,7 @@ Configure these before using the scaffold in a live repository:
 3. Add the optional `FACTORY_GITHUB_TOKEN` repository secret if you want the
    factory to modify protected factory control-plane paths such as
    `scripts/**`, `.factory/prompts/**`, `.factory/review-methods/**`,
-   `.factory/messages/**`, or `.github/workflows/**`.
+   `.factory/messages/**`, `.factory/FACTORY.md`, or `.github/workflows/**`.
    Create a fine-grained personal access token scoped only to this repository
    with `Contents: Read/Write`, `Pull requests: Read/Write`, `Issues: Read/Write`,
    `Workflows: Read/Write`, and `Metadata: Read`.
@@ -151,6 +152,7 @@ Protected factory control-plane paths are locked by default:
 - `.factory/prompts/**`
 - `.factory/review-methods/**`
 - `.factory/messages/**`
+- `.factory/FACTORY.md`
 - `.github/workflows/**`
 
 If a factory run touches any of those paths, the stage will stop before
@@ -162,6 +164,21 @@ If a factory run touches any of those paths, the stage will stop before
 
 This gate is checked from live PR state during stage preparation, so removing
 the label or disabling the variable immediately re-locks later reruns.
+
+The factory also supports a protected cross-run policy file at
+`.factory/FACTORY.md`. This file is human-authored durable factory policy,
+loaded into stage prompts as trusted control-plane context, and is not part of
+the per-run artifact set.
+
+Prompt precedence for unattended runs is:
+
+1. Stage prompt templates and enforced control-plane logic
+2. `.factory/FACTORY.md`
+3. Current-run artifacts under `.factory/runs/<issue>/`
+4. Stage-specific live evidence such as CI results or review feedback
+
+Existing `AGENTS.md` files remain advisory for human/Codex workspace use and
+are not auto-ingested into unattended stage prompts.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair
