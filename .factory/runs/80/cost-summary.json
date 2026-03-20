@@ -28,17 +28,17 @@
     "provider": "openai",
     "apiSurface": "codex-action",
     "model": "gpt-5-codex",
-    "promptChars": 2627,
+    "promptChars": 2736,
     "estimatedUsageBeforeCalibration": {
-      "inputTokens": 657,
+      "inputTokens": 684,
       "cachedInputTokens": 0,
-      "outputTokens": 526,
+      "outputTokens": 547,
       "reasoningTokens": null
     },
     "estimatedUsage": {
-      "inputTokens": 657,
+      "inputTokens": 684,
       "cachedInputTokens": 0,
-      "outputTokens": 526,
+      "outputTokens": 547,
       "reasoningTokens": null
     },
     "usageCalibration": {
@@ -53,14 +53,14 @@
       }
     },
     "derivedCost": {
-      "stageUsdBeforeCalibration": 0.0061,
-      "stageUsd": 0.0061,
-      "totalEstimatedUsd": 0.0221,
+      "stageUsdBeforeCalibration": 0.0063,
+      "stageUsd": 0.0063,
+      "totalEstimatedUsd": 0.0223,
       "band": "low",
       "emoji": "🟢",
       "pricingSource": "model"
     },
-    "sourceEventPath": ".factory/usage-events/2026-03-20/23345480425-1-stage-repair.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-20/23345551716-1-stage-repair.json"
   },
   "stages": {
     "plan": {
@@ -140,17 +140,17 @@
       "provider": "openai",
       "apiSurface": "codex-action",
       "model": "gpt-5-codex",
-      "promptChars": 2627,
+      "promptChars": 2736,
       "estimatedUsageBeforeCalibration": {
-        "inputTokens": 657,
+        "inputTokens": 684,
         "cachedInputTokens": 0,
-        "outputTokens": 526,
+        "outputTokens": 547,
         "reasoningTokens": null
       },
       "estimatedUsage": {
-        "inputTokens": 657,
+        "inputTokens": 684,
         "cachedInputTokens": 0,
-        "outputTokens": 526,
+        "outputTokens": 547,
         "reasoningTokens": null
       },
       "usageCalibration": {
@@ -165,11 +165,11 @@
         }
       },
       "derivedCost": {
-        "stageUsdBeforeCalibration": 0.0061,
-        "stageUsd": 0.0061,
+        "stageUsdBeforeCalibration": 0.0063,
+        "stageUsd": 0.0063,
         "pricingSource": "model"
       },
-      "sourceEventPath": ".factory/usage-events/2026-03-20/23345480425-1-stage-repair.json"
+      "sourceEventPath": ".factory/usage-events/2026-03-20/23345551716-1-stage-repair.json"
     }
   }
 }

@@ -1,1 +1,2 @@
 - Fixed actionlint failure by wrapping workflow step conditions in `${{ }}` expressions.
+- Fixed actionlint failure by using `format()` for workflow run URL env vars instead of concatenating multiple expressions.
