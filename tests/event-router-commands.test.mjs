@@ -68,16 +68,43 @@ test("routeIssueComment routes trusted implement commands from plan-ready PRs", 
 
 test("routeIssueComment routes trusted resume commands only for resumable blocked PRs", async () => {
   const route = await routeIssueComment(prCommandPayload("/factory resume"), {
-    getPullRequest: async () => managedPr("blocked", { lastFailureType: "stage_setup" }),
+    getPullRequest: async () =>
+      managedPr("blocked", { lastFailureType: "stage_setup", blockedAction: "implement" }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
   assert.equal(route.action, "implement");
 });
 
+test("routeIssueComment resumes repair and review runs to their blocked action", async () => {
+  const repairRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("blocked", { lastFailureType: "stage_setup", blockedAction: "repair" }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+  const reviewRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("blocked", { lastFailureType: "transient_infra", blockedAction: "review" }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(repairRoute.action, "repair");
+  assert.equal(reviewRoute.action, "review");
+});
+
 test("routeIssueComment leaves unrecoverable blocked PRs unchanged on resume", async () => {
   const route = await routeIssueComment(prCommandPayload("/factory resume"), {
-    getPullRequest: async () => managedPr("blocked", { lastFailureType: "content_or_logic" }),
+    getPullRequest: async () =>
+      managedPr("blocked", { lastFailureType: "content_or_logic", blockedAction: "repair" }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(route.action, "noop");
+});
+
+test("routeIssueComment leaves blocked PRs unchanged when blocked action is missing", async () => {
+  const route = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () => managedPr("blocked", { lastFailureType: "stage_setup" }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 

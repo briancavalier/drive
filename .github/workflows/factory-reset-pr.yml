@@ -72,6 +72,7 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ inputs.clear_repair_state && '0' || '' }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_LAST_FAILURE_TYPE: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
+          FACTORY_BLOCKED_ACTION: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '__UNCHANGED__' }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_LAST_READY_SHA: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}

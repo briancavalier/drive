@@ -261,6 +261,23 @@ export function applyLastReviewArtifactFailure(metadata, envValue) {
   };
 }
 
+export function applyBlockedAction(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    blockedAction: normalized ? normalized : null
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -307,6 +324,8 @@ export async function main(env = process.env) {
       nextMetadata.lastFailureType = env.FACTORY_LAST_FAILURE_TYPE || null;
     }
   }
+
+  nextMetadata = applyBlockedAction(nextMetadata, env.FACTORY_BLOCKED_ACTION);
 
   nextMetadata = applyLastReviewArtifactFailure(
     nextMetadata,

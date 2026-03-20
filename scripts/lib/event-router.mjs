@@ -134,13 +134,14 @@ export async function routeIssueComment(payload, githubClient = {}) {
   if (parsedCommand.command === FACTORY_COMMANDS.resume) {
     if (
       metadata?.status !== FACTORY_PR_STATUSES.blocked ||
-      !FACTORY_RESUMABLE_FAILURE_TYPES.includes(metadata?.lastFailureType || "")
+      !FACTORY_RESUMABLE_FAILURE_TYPES.includes(metadata?.lastFailureType || "") ||
+      ![FACTORY_COMMANDS.implement, "repair", "review"].includes(metadata?.blockedAction || "")
     ) {
       return { action: "noop" };
     }
 
     return {
-      action: FACTORY_COMMANDS.implement,
+      action: metadata.blockedAction,
       prNumber: pullRequest.number,
       issueNumber: trustedContext.issueNumber,
       branch: trustedContext.branch,

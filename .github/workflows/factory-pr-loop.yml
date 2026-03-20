@@ -240,6 +240,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
@@ -440,8 +441,8 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
           FACTORY_LAST_FAILURE_TYPE: content_or_logic
+          FACTORY_BLOCKED_ACTION: repair
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
-          FACTORY_ADD_LABELS: factory:blocked
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
   process-review:
@@ -630,9 +631,9 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ steps.prepare_repair.outputs.last_failure_signature }}
           FACTORY_LAST_FAILURE_TYPE: review_artifact_contract
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outputs.failure_metadata }}
-          FACTORY_REMOVE_LABELS: factory:blocked
           FACTORY_CI_STATUS: pending
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
 
@@ -704,6 +705,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyBlockedAction,
   applyPaused,
   applyCostEstimateMetadata,
   applyLastReviewArtifactFailure,
@@ -169,6 +170,14 @@ test("applyPaused updates metadata from the explicit env override", () => {
   assert.equal(applyPaused(metadata, "true").paused, true);
   assert.equal(applyPaused(metadata, "false").paused, false);
   assert.equal(applyPaused({ ...metadata, paused: true }, "__UNCHANGED__").paused, true);
+});
+
+test("applyBlockedAction updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata({ blockedAction: "repair" });
+
+  assert.equal(applyBlockedAction(metadata, "review").blockedAction, "review");
+  assert.equal(applyBlockedAction(metadata, "").blockedAction, null);
+  assert.equal(applyBlockedAction(metadata, "__UNCHANGED__").blockedAction, "repair");
 });
 
 test("buildProjectedLabels maps metadata state into projected status labels", () => {
