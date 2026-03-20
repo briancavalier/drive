@@ -14,6 +14,7 @@ Actions, and the Codex GitHub Action.
 - A reusable stage runner that invokes `openai/codex-action`
 - A minimal `CI` workflow so the repair loop has a concrete workflow target
 - Node-based helper scripts and tests with no runtime dependencies
+- A protected factory policy file under `.factory/FACTORY.md`
 - Repo-local GitHub message template overrides under `.factory/messages/`
 - A pluggable autonomous review methodology with durable `review.md` and
   `review.json` artifacts
@@ -29,7 +30,7 @@ Configure these before using the scaffold in a live repository:
 3. Add the optional `FACTORY_GITHUB_TOKEN` repository secret if you want the
    factory to modify protected factory control-plane paths such as
    `scripts/**`, `.factory/prompts/**`, `.factory/review-methods/**`,
-   `.factory/messages/**`, or `.github/workflows/**`.
+   `.factory/messages/**`, `.factory/FACTORY.md`, or `.github/workflows/**`.
    Create a fine-grained personal access token scoped only to this repository
    with `Contents: Read/Write`, `Pull requests: Read/Write`, `Issues: Read/Write`,
    `Workflows: Read/Write`, and `Metadata: Read`.
@@ -151,6 +152,7 @@ Protected factory control-plane paths are locked by default:
 - `.factory/prompts/**`
 - `.factory/review-methods/**`
 - `.factory/messages/**`
+- `.factory/FACTORY.md`
 - `.github/workflows/**`
 
 If a factory run touches any of those paths, the stage will stop before
@@ -162,6 +164,26 @@ If a factory run touches any of those paths, the stage will stop before
 
 This gate is checked from live PR state during stage preparation, so removing
 the label or disabling the variable immediately re-locks later reruns.
+
+The factory also supports a protected cross-run policy file at
+`.factory/FACTORY.md`. This file is human-authored durable factory policy,
+loaded into stage prompts as trusted control-plane context from reviewed
+`origin/main`, and is not part of the per-run artifact set.
+
+Prompt precedence tiers for unattended runs are:
+
+1. Stage prompt templates and enforced control-plane logic
+2. `.factory/FACTORY.md`
+3. Stage-specific task context, including current-run artifacts under `.factory/runs/<issue>/` and live evidence such as CI results or review feedback
+
+The exact ordering within stage-specific task context is stage-dependent and is
+defined in `scripts/build-stage-prompt.mjs`.
+
+Existing `AGENTS.md` files remain advisory for human/Codex workspace use and
+are not auto-ingested into unattended stage prompts.
+
+When prompt budgets are tight, factory policy is additive only: it is trimmed
+or dropped before request-specific issue, artifact, and evidence context.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair
@@ -232,6 +254,37 @@ The workflows create and manage these labels automatically:
 - `factory:cost-low`
 - `factory:cost-medium`
 - `factory:cost-high`
+
+## Factory Control Panel
+
+Every factory-managed pull request now includes a durable **Factory Control Panel**
+section near the top of the PR body. The panel summarizes the current automation
+state and surfaces the safest next actions for operators:
+
+- **State / Waiting on** — reflects the underlying factory status and overlays
+  `paused` whenever the `factory:paused` label is present.
+- **Last completed stage** — records the most recent stage that finished. This is
+  updated by the planning workflow, stage runner, and review handler.
+- **Reason** — highlights classified failure context, pause notes, or pending review
+  SHAs when the PR is waiting on humans.
+- **Recommended next step** — concise guidance that matches the current state.
+- **Latest run / Artifacts** — deep links to the most recent workflow run and the
+  canonical plan/spec/acceptance test artifacts.
+- **Actions** — a short list of state-appropriate controls. State-change actions
+  open the new [`Factory Control Action`](./.github/workflows/factory-control-action.yml)
+  workflow with the relevant parameters pre-filled; informational actions link directly
+  to branches, artifacts, diagnostics, or existing workflows (e.g., Factory Reset PR).
+
+Common actions include starting implementation, pausing/resuming automation,
+retrying a blocked stage, re-running review processing, or resetting the PR back to
+`plan_ready`. Guardrail-specific actions such as **Approve self-modify** post manual
+instructions—per repository policy the `factory:self-modify` label still must be
+applied by a human operator. The **Escalate to human-only** action parks the PR in
+`blocked`, converts it back to draft, and adds a durable note for manual follow-up.
+
+All actions accept an optional free-form comment. When no comment is supplied,
+the workflow writes a default note so reviewers can audit why the state changed.
+
 
 ## GitHub message templates
 

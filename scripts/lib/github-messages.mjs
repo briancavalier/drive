@@ -12,6 +12,7 @@ import {
 } from "./factory-config.mjs";
 import { formatEstimatedUsd } from "./cost-estimation.mjs";
 import { normalizeNewlines } from "./review-output.mjs";
+import { buildControlPanel } from "./control-panel.mjs";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TEMPLATES_ROOT = path.resolve(
@@ -41,7 +42,7 @@ const CI_STATUS_EMOJI = Object.freeze({
 const MESSAGE_SPECS = Object.freeze({
   "pr-body": {
     fileName: "pr-body.md",
-    requiredTokens: ["STATUS_SECTION", "ARTIFACTS_SECTION"]
+    requiredTokens: ["CONTROL_PANEL_SECTION", "STATUS_SECTION", "ARTIFACTS_SECTION"]
   },
   "plan-ready-issue-comment": {
     fileName: "plan-ready-issue-comment.md",
@@ -213,6 +214,10 @@ function defaultPrMetadata(overrides = {}) {
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
+    lastCompletedStage: null,
+    lastRunId: null,
+    lastRunUrl: null,
+    pauseReason: null,
     costEstimateUsd: 0,
     costEstimateBand: "",
     costEstimateEmoji: "",
@@ -250,11 +255,13 @@ function serializePrState(state) {
 export function renderPrBody(
   {
     issueNumber,
+    prNumber,
     branch,
     repositoryUrl,
     artifactsPath,
     metadata,
-    ciStatus = "pending"
+    ciStatus = "pending",
+    labels = []
   },
   options = {}
 ) {
@@ -264,6 +271,50 @@ export function renderPrBody(
     ...metadata
   });
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
+  const resolvedPrNumber = prNumber ?? issueNumber ?? null;
+  const controlPanel = buildControlPanel({
+    metadata: state,
+    labels,
+    repositoryUrl,
+    branch,
+    prNumber: resolvedPrNumber,
+    artifactLinks: links
+  });
+  const artifactLine = controlPanel.artifacts.length
+    ? controlPanel.artifacts
+        .map(({ label, url }) => `[${label}](${url})`)
+        .join(", ")
+    : "";
+  const actionLines = controlPanel.actions.map((action) => {
+    if (!action?.url) {
+      return null;
+    }
+
+    const link = `[${action.label}](${action.url})`;
+
+    if (action.kind === "mutation") {
+      return `- ${link} *(state change)*`;
+    }
+
+    return `- ${link}`;
+  }).filter(Boolean);
+  const controlPanelSection = [
+    "## Factory Control Panel",
+    `- **State:** ${controlPanel.stateDisplay || "unknown"}`,
+    `- **Waiting on:** ${controlPanel.waitingOn || "operator"}`,
+    `- **Last completed stage:** ${controlPanel.lastCompletedStage || "—"}`,
+    controlPanel.reason ? `- **Reason:** ${controlPanel.reason}` : null,
+    `- **Recommended next step:** ${controlPanel.recommendedNextStep || "Monitor automation progress."}`,
+    controlPanel.latestRun
+      ? `- **Latest run:** [${controlPanel.latestRun.label}](${controlPanel.latestRun.url})`
+      : null,
+    artifactLine ? `- **Artifacts:** ${artifactLine}` : null,
+    actionLines.length ? "" : null,
+    actionLines.length ? "**Actions**" : null,
+    ...actionLines
+  ]
+    .filter(Boolean)
+    .join("\n");
   const stageStatusDisplay = formatWithEmoji(STAGE_STATUS_EMOJI, state.status, "unknown");
   const ciStatusDisplay = formatWithEmoji(CI_STATUS_EMOJI, ciStatus, "pending");
   const hasCostEstimate = Number.isFinite(Number(state.costEstimateUsd)) && Number(state.costEstimateUsd) > 0;
@@ -277,6 +328,7 @@ export function renderPrBody(
       : null;
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
+    PR_NUMBER: resolvedPrNumber != null ? String(resolvedPrNumber) : "",
     BRANCH: branch,
     REPOSITORY_URL: repositoryUrl,
     ARTIFACTS_PATH: artifactsPath,
@@ -301,6 +353,7 @@ export function renderPrBody(
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
     LAST_FAILURE_TYPE: state.lastFailureType || "",
     TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
+    CONTROL_PANEL_SECTION: controlPanelSection,
     STATUS_SECTION: [
       "## Status",
       `- Stage: ${stageStatusDisplay}`,
@@ -328,6 +381,7 @@ export function renderPrBody(
     ].join("\n"),
     OPERATOR_NOTES_SECTION: [
       "## Operator Notes",
+      "- Use the control panel above for start, pause, retry, and reset actions.",
       `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}\` to start coding after plan review.`,
       `- ⏸️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}\` to pause autonomous work.`,
       `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a recoverable blocked run.`,

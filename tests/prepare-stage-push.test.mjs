@@ -15,6 +15,16 @@ import {
 } from "../scripts/prepare-stage-push.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 
+const TEST_OUTPUT_PATH = path.join(os.tmpdir(), "factory-actions-output.txt");
+
+try {
+  fs.unlinkSync(TEST_OUTPUT_PATH);
+} catch {
+  // ignore missing file
+}
+
+process.env.GITHUB_OUTPUT = TEST_OUTPUT_PATH;
+
 function git(cwd, args) {
   return execFileSync("git", args, {
     cwd,
@@ -493,6 +503,7 @@ test("prepare-stage-push reports stage_noop diagnostics when branch is unchanged
   assert.match(error.message, /Stage diagnostics:/);
   assert.match(error.message, /commits ahead of origin\/factory\/stage-noop-check: 0/);
   assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
+  assert.match(error.message, /protected path changes detected: no/);
 });
 
 test("prepare-stage-push reports stage_setup diagnostics for workflow changes without factory token", async () => {
@@ -528,6 +539,7 @@ test("prepare-stage-push reports stage_setup diagnostics for workflow changes wi
   assert.match(error.message, /Stage setup prerequisites failed:/);
   assert.match(error.message, /FACTORY_GITHUB_TOKEN available: no/);
   assert.match(error.message, /workflow changes detected: yes/);
+  assert.match(error.message, /protected path changes detected: yes/);
   assert.match(error.message, /\.github\/workflows\/test\.yml/);
 });
 
@@ -671,4 +683,48 @@ test("prepare-stage-push allows protected-path changes when self-modify mode is 
   } finally {
     process.chdir(originalCwd);
   }
+});
+
+test("prepare-stage-push blocks FACTORY.md changes when self-modify mode is disabled", async () => {
+  const branch = "factory/factory-policy-disabled";
+  const { repoDir } = initTestRepo(branch);
+  const originalCwd = process.cwd();
+  let error = null;
+
+  try {
+    process.chdir(repoDir);
+    fs.mkdirSync(path.join(repoDir, ".factory"), { recursive: true });
+    fs.writeFileSync(
+      path.join(repoDir, ".factory", "FACTORY.md"),
+      "## Factory Policy\n\n- Guard this file.\n"
+    );
+    await prepareStagePushMain({
+      FACTORY_BRANCH: branch,
+      FACTORY_MODE: "implement",
+      FACTORY_ISSUE_NUMBER: "507",
+      FACTORY_ISSUE_TITLE: "Factory policy gate",
+      FACTORY_ARTIFACTS_PATH: "",
+      FACTORY_COST_SUMMARY_PATH: "",
+      FACTORY_PR_NUMBER: "48",
+      FACTORY_ENABLE_SELF_MODIFY: "",
+      FACTORY_GITHUB_TOKEN: "pat_mock",
+      GITHUB_TOKEN: "ghs_mock"
+    }, {
+      githubClient: {
+        getPullRequest: async () => ({
+          labels: [{ name: FACTORY_LABELS.selfModify }]
+        })
+      }
+    });
+  } catch (thrown) {
+    error = thrown;
+  } finally {
+    process.chdir(originalCwd);
+  }
+
+  assert.ok(error, "expected stage_setup failure");
+  assert.match(error.message, /\.factory\/FACTORY\.md/);
+  assert.match(error.message, /FACTORY_ENABLE_SELF_MODIFY is not enabled/);
+  assert.match(error.message, /workflow changes detected: no/);
+  assert.match(error.message, /protected path changes detected: yes/);
 });

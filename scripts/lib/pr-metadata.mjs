@@ -25,6 +25,10 @@ export function defaultPrMetadata(overrides = {}) {
     lastRefreshedSha: null,
     pendingReviewSha: null,
     paused: false,
+    lastCompletedStage: null,
+    lastRunId: null,
+    lastRunUrl: null,
+    pauseReason: null,
     costEstimateUsd: 0,
     costEstimateBand: "",
     costEstimateEmoji: "",
@@ -107,6 +111,10 @@ export function buildPlanReadyPrMetadata({
     issueNumber
   );
 
+  if (!nextMetadata.lastCompletedStage) {
+    nextMetadata.lastCompletedStage = "plan";
+  }
+
   if (metadata.maxRepairAttempts == null && preparedMaxRepairAttempts != null) {
     nextMetadata.maxRepairAttempts = preparedMaxRepairAttempts;
   }
@@ -116,11 +124,13 @@ export function buildPlanReadyPrMetadata({
 
 export function renderPrBody({
   issueNumber,
+  prNumber,
   branch,
   repositoryUrl,
   artifactsPath,
   metadata,
-  ciStatus = "pending"
+  ciStatus = "pending",
+  labels = []
 }, options = {}) {
   const nextMetadata = canonicalizePrMetadata(metadata, issueNumber);
   const resolvedIssueNumber = normalizeIssueNumber(issueNumber) ?? nextMetadata.issueNumber;
@@ -130,10 +140,12 @@ export function renderPrBody({
 
   return renderGithubPrBody({
     issueNumber: resolvedIssueNumber,
+    prNumber: prNumber ?? null,
     branch,
     repositoryUrl,
     artifactsPath: resolvedArtifactsPath,
     metadata: nextMetadata,
-    ciStatus
+    ciStatus,
+    labels
   }, options);
 }

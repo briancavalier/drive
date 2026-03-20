@@ -4,7 +4,11 @@ import {
   applyBlockedAction,
   applyPaused,
   applyCostEstimateMetadata,
+  applyLastCompletedStage,
   applyLastReviewArtifactFailure,
+  applyLastRunId,
+  applyLastRunUrl,
+  applyPauseReason,
   applyPendingReviewSha,
   applyTransientRetryAttempts,
   buildProjectedLabels,
@@ -122,6 +126,56 @@ test("applyPendingReviewSha sets pending SHA when provided", () => {
   const nextMetadata = applyPendingReviewSha(metadata, "deadbeef");
 
   assert.equal(nextMetadata.pendingReviewSha, "deadbeef");
+});
+
+test("applyLastCompletedStage updates metadata when provided", () => {
+  const metadata = defaultPrMetadata({
+    lastCompletedStage: null
+  });
+
+  const nextMetadata = applyLastCompletedStage(metadata, "implement");
+
+  assert.equal(nextMetadata.lastCompletedStage, "implement");
+});
+
+test("applyLastCompletedStage clears value when empty", () => {
+  const metadata = defaultPrMetadata({
+    lastCompletedStage: "plan"
+  });
+
+  const nextMetadata = applyLastCompletedStage(metadata, "");
+
+  assert.equal(nextMetadata.lastCompletedStage, null);
+});
+
+test("applyLastRunId respects __UNCHANGED__", () => {
+  const metadata = defaultPrMetadata({
+    lastRunId: "123"
+  });
+
+  const nextMetadata = applyLastRunId(metadata, "__UNCHANGED__");
+
+  assert.equal(nextMetadata.lastRunId, "123");
+});
+
+test("applyLastRunUrl updates metadata with trimmed value", () => {
+  const metadata = defaultPrMetadata({
+    lastRunUrl: null
+  });
+
+  const nextMetadata = applyLastRunUrl(metadata, " https://example.com/run/1 ");
+
+  assert.equal(nextMetadata.lastRunUrl, "https://example.com/run/1");
+});
+
+test("applyPauseReason clears when requested", () => {
+  const metadata = defaultPrMetadata({
+    pauseReason: "manual"
+  });
+
+  const nextMetadata = applyPauseReason(metadata, " ");
+
+  assert.equal(nextMetadata.pauseReason, null);
 });
 
 test("applyCostEstimateMetadata updates advisory cost fields", () => {

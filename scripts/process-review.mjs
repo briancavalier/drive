@@ -72,6 +72,11 @@ async function handlePass({
   githubClient
 }) {
   let currentHead = "";
+  const workflowRunId = `${env.GITHUB_RUN_ID || env.FACTORY_CI_RUN_ID || ""}`.trim();
+  const workflowRunUrl =
+    workflowRunId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${workflowRunId}`
+      : "";
 
   try {
     currentHead = gitRevParse("HEAD");
@@ -92,7 +97,10 @@ async function handlePass({
     FACTORY_LAST_REFRESHED_SHA: env.FACTORY_LAST_REFRESHED_SHA || "",
     FACTORY_COMMENT: "",
     FACTORY_CLEAR_IMPLEMENT_LABEL: "false",
-    FACTORY_PENDING_REVIEW_SHA: ""
+    FACTORY_PENDING_REVIEW_SHA: "",
+    FACTORY_LAST_COMPLETED_STAGE: "review",
+    FACTORY_LAST_RUN_ID: workflowRunId,
+    FACTORY_LAST_RUN_URL: workflowRunUrl
   });
 
   const comment = buildReviewConversationBody({

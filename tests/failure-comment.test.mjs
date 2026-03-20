@@ -138,6 +138,7 @@ test("stage_noop failure comment surfaces diagnostics and targeted recovery", ()
     "commits ahead of origin/factory/77-noop: 0",
     "FACTORY_GITHUB_TOKEN available: no",
     "workflow changes detected: no",
+    "protected path changes detected: no",
     "status sample:",
     "  - (none)"
   ].join("\n");
@@ -159,7 +160,7 @@ test("stage_noop failure comment surfaces diagnostics and targeted recovery", ()
 
 test("stage_setup failure comment highlights prerequisite guidance", () => {
   const failureMessage = [
-    "Stage setup prerequisites failed: Factory stage output modifies .github/workflows/** but FACTORY_GITHUB_TOKEN is not configured.",
+    "Stage setup prerequisites failed: Factory stage output modifies protected control-plane paths (.github/workflows/**, .factory/FACTORY.md) but FACTORY_GITHUB_TOKEN is not configured.",
     "",
     "Stage diagnostics:",
     "branch: factory/78-setup",
@@ -168,6 +169,7 @@ test("stage_setup failure comment highlights prerequisite guidance", () => {
     "commits ahead of origin/factory/78-setup: 1",
     "FACTORY_GITHUB_TOKEN available: no",
     "workflow changes detected: yes",
+    "protected path changes detected: yes",
     "status sample:",
     "  - M  .github/workflows/test.yml"
   ].join("\n");
@@ -183,6 +185,6 @@ test("stage_setup failure comment highlights prerequisite guidance", () => {
 
   assert.match(comment, /Factory stage cannot start until setup prerequisites are satisfied\./);
   assert.match(comment, /Stage diagnostics/);
-  assert.match(comment, /Factory stage output modifies \.github\/workflows/);
+  assert.match(comment, /Factory stage output modifies protected control-plane paths/);
   assert.match(comment, /Fix the setup issue/);
 });

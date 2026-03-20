@@ -42,6 +42,11 @@ const PROTECTED_PATH_RULES = Object.freeze([
     label: ".factory/messages/**"
   },
   {
+    kind: "factoryPolicy",
+    prefix: ".factory/FACTORY.md",
+    label: ".factory/FACTORY.md"
+  },
+  {
     kind: "workflows",
     prefix: ".github/workflows/",
     label: ".github/workflows/**"

@@ -268,6 +268,21 @@ export async function main(env = process.env, dependencies = {}) {
       env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID;
   }
 
+  const runId = `${env.GITHUB_RUN_ID || ""}`.trim();
+  const explicitRunUrl = `${env.FACTORY_RUN_URL || ""}`.trim();
+  const inferredRunUrl =
+    runId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
+      : "";
+
+  if (runId) {
+    childEnv.FACTORY_LAST_RUN_ID = runId;
+  }
+
+  if (explicitRunUrl || inferredRunUrl) {
+    childEnv.FACTORY_LAST_RUN_URL = explicitRunUrl || inferredRunUrl;
+  }
+
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {
     env: childEnv,
     stdio: "inherit"

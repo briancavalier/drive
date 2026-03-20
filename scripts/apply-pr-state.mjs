@@ -104,6 +104,39 @@ export function applyPendingReviewSha(metadata, envValue) {
   return nextMetadata;
 }
 
+function applyMetadataString(metadata, envValue, key) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const value = `${envValue || ""}`.trim();
+
+  if (value === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    [key]: value || null
+  };
+}
+
+export function applyLastCompletedStage(metadata, envValue) {
+  return applyMetadataString(metadata, envValue, "lastCompletedStage");
+}
+
+export function applyLastRunId(metadata, envValue) {
+  return applyMetadataString(metadata, envValue, "lastRunId");
+}
+
+export function applyLastRunUrl(metadata, envValue) {
+  return applyMetadataString(metadata, envValue, "lastRunUrl");
+}
+
+export function applyPauseReason(metadata, envValue) {
+  return applyMetadataString(metadata, envValue, "pauseReason");
+}
+
 export function applyCostEstimateMetadata(metadata, env = {}) {
   let nextMetadata = { ...metadata };
 
@@ -324,9 +357,11 @@ export async function main(env = process.env) {
       nextMetadata.lastFailureType = env.FACTORY_LAST_FAILURE_TYPE || null;
     }
   }
-
   nextMetadata = applyBlockedAction(nextMetadata, env.FACTORY_BLOCKED_ACTION);
-
+  nextMetadata = applyLastCompletedStage(nextMetadata, env.FACTORY_LAST_COMPLETED_STAGE);
+  nextMetadata = applyLastRunId(nextMetadata, env.FACTORY_LAST_RUN_ID);
+  nextMetadata = applyLastRunUrl(nextMetadata, env.FACTORY_LAST_RUN_URL);
+  nextMetadata = applyPauseReason(nextMetadata, env.FACTORY_PAUSE_REASON);
   nextMetadata = applyLastReviewArtifactFailure(
     nextMetadata,
     env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE
@@ -352,11 +387,13 @@ export async function main(env = process.env) {
 
   const body = renderPrBody({
     issueNumber: nextMetadata.issueNumber,
+    prNumber: pullRequest.number,
     branch: pullRequest.head.ref,
     repositoryUrl,
     artifactsPath: nextMetadata.artifactsPath,
     metadata: nextMetadata,
-    ciStatus: env.FACTORY_CI_STATUS || "pending"
+    ciStatus: env.FACTORY_CI_STATUS || "pending",
+    labels: pullRequest.labels || []
   });
 
   await updatePullRequest({ prNumber, body });
