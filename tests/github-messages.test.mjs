@@ -118,7 +118,7 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   );
   assert.ok(
     lines.includes(
-      "- ▶️ Comment `/factory resume` to resume a recoverable blocked run."
+      "- ▶️ Comment `/factory resume` to resume a paused run or a recoverable blocked run."
     )
   );
   assert.ok(
