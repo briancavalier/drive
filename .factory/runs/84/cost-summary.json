@@ -60,7 +60,7 @@
       "emoji": "🟢",
       "pricingSource": "model"
     },
-    "sourceEventPath": ".factory/usage-events/2026-03-20/23360639093-1-stage-review.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-20/23360695515-1-stage-review.json"
   },
   "stages": {
     "plan": {
@@ -169,7 +169,7 @@
         "stageUsd": 0.0016,
         "pricingSource": "model"
       },
-      "sourceEventPath": ".factory/usage-events/2026-03-20/23360639093-1-stage-review.json"
+      "sourceEventPath": ".factory/usage-events/2026-03-20/23360695515-1-stage-review.json"
     }
   }
 }

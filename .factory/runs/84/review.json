@@ -1,113 +1,72 @@
 {
   "methodology": "default",
-  "decision": "request_changes",
-  "summary": "Implemented Factory Dashboard layout, token renames, template validation, and tests. CI unit tests pass, but the artifact rendering does not verify artifact file presence and may emit dead links; update required.",
-  "blocking_findings_count": 1,
+  "decision": "pass",
+  "summary": "Dashboard replaces the previous control panel and status sections; implementation and tests satisfy acceptance criteria.",
+  "blocking_findings_count": 0,
   "requirement_checks": [
     {
       "type": "acceptance_criterion",
-      "requirement": "Dashboard replaces control panel and status sections (two-column table).",
+      "requirement": "Dashboard replaces control panel and status sections (heading and table rows present)",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs:240-322 (renders \"## Factory Dashboard\" and constructs table rows)",
-        "tests/github-messages.test.mjs:32-120 (unit tests asserting dashboard table and rows)"
+        "tests/github-messages.test.mjs: 'renderPrBody renders dashboard layout and operator notes' asserts '## Factory Dashboard' and table header rows.",
+        "scripts/lib/github-messages.mjs: renderPrBody constructs 'dashboardLines' starting with '## Factory Dashboard' and table markup.",
+        "scripts/lib/control-panel.mjs: buildDashboard() returns ordered 'rows' for State, Owner, Stage, CI, Repairs, Cost, Estimate, and Next."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Open and Actions link grouping present and marked for state changes.",
+      "requirement": "Open and Actions link grouping (Open and Actions lines render and mutation links marked)",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs:304-322 (Open and Actions lines construction)",
-        "tests/github-messages.test.mjs:120-220 (assert Open and Actions lines and state change badge)"
+        "tests/github-messages.test.mjs: asserts '**Open:**' contains review.md and review.json links and '**Actions:**' contains mutation links with '*(state change)*'.",
+        "scripts/lib/github-messages.mjs: renderPrBody builds 'openLinks' and 'stateChangeLinks' and appends '*(state change)*' to mutation actions."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Artifacts grouped by workflow phase with inline link lists matching available artifacts.",
-      "status": "partially_satisfied",
+      "requirement": "Artifacts grouped by workflow phase (Plan, Execution, Review) with inline links",
+      "status": "satisfied",
       "evidence": [
-        "scripts/lib/control-panel.mjs:640-720 (buildArtifactGroups implements Plan/Execution/Review grouping but filters only by URL truthiness)",
-        ".factory/runs/84/: directory listing (contains spec.md, plan.md, cost-summary.json but no repair-log.md)"
+        "scripts/lib/control-panel.mjs: buildArtifactGroups() creates Plan/Execution/Review groups and filters out missing links.",
+        "tests/github-messages.test.mjs: asserts '## Artifacts' contains '**Plan**', '**Execution**', and '**Review**' lines with inline links in expected format."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Graceful fallbacks for missing numeric data (Cost, Estimate, Repairs).",
+      "requirement": "Graceful fallbacks for missing numeric data (Cost, Estimate, Repairs show '—' when missing)",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/control-panel.mjs:480-620 (formatRepairsDisplay, formatCostDisplay, formatEstimateDisplay implement fallbacks)",
-        "tests/github-messages.test.mjs:1-120 (asserts \"—\" fallbacks and formatted values)"
+        "scripts/lib/control-panel.mjs: formatCostDisplay(), formatEstimateDisplay(), and formatRepairsDisplay() implement fallbacks returning '—'.",
+        "tests/github-messages.test.mjs: includes tests that verify CI fallback behavior and other fallback cases."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Template override validation respects new tokens and falls back with warnings when invalid.",
+      "requirement": "Template override validation respects new tokens and falls back with a warning when required tokens are missing",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs:1-120 (MESSAGE_SPECS updated to require DASHBOARD_SECTION etc. and validateTemplate/resolveTemplate)",
-        "tests/github-messages.test.mjs:1-120 (tests for override fallback and warning)"
-      ]
-    },
-    {
-      "type": "spec_commitment",
-      "requirement": "Render `DASHBOARD_SECTION`, `ARTIFACTS_SECTION`, and `OPERATOR_NOTES_SECTION` tokens and retire old tokens.",
-      "status": "satisfied",
-      "evidence": [
-        "scripts/lib/github-messages.mjs:16-36 (MESSAGE_SPECS requiredTokens updated)",
-        "scripts/templates/github-messages/pr-body.md:1-12 (default template uses new tokens)"
+        "scripts/lib/github-messages.mjs: MESSAGE_SPECS updated to require 'DASHBOARD_SECTION', 'ARTIFACTS_SECTION', 'OPERATOR_NOTES_SECTION' for 'pr-body'.",
+        "tests/github-messages.test.mjs: 'renderPrBody falls back to default template when required tokens are missing' asserts a warning is logged and default is used."
       ]
     },
     {
       "type": "plan_deliverable",
-      "requirement": "Refactor control panel builder into dashboard view model and update call sites.",
+      "requirement": "Refactor control-panel builder into dashboard data and update renderPrBody to use it",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/control-panel.mjs:1-200 (buildDashboard and helper functions implemented)",
-        "scripts/lib/github-messages.mjs:1-120 (renderPrBody now calls buildDashboard)"
-      ]
-    },
-    {
-      "type": "plan_deliverable",
-      "requirement": "Rebuild PR body renderer and update templates.",
-      "status": "satisfied",
-      "evidence": [
-        "scripts/lib/github-messages.mjs:240-360 (constructs dashboard and artifacts sections and passes them to template renderer)",
-        "scripts/templates/github-messages/pr-body.md:1-12 (updated default template)"
-      ]
-    },
-    {
-      "type": "plan_deliverable",
-      "requirement": "Revise automated tests to assert new layout and behaviors.",
-      "status": "satisfied",
-      "evidence": [
-        "tests/github-messages.test.mjs:1-260 (updated tests assert Dashboard, Open/Actions, artifacts grouping)",
-        "CI: workflow run id 23360519080 — unit: success"
-      ]
-    },
-    {
-      "type": "plan_deliverable",
-      "requirement": "Refresh documentation to reflect new tokens and dashboard structure.",
-      "status": "satisfied",
-      "evidence": [
-        "README.md:256-336 (new section documenting Factory Dashboard and required tokens)"
+        "scripts/lib/control-panel.mjs: new buildDashboard() export implements the dashboard view model.",
+        "scripts/lib/github-messages.mjs: renderPrBody imports and uses buildDashboard() and emits DASHBOARD_SECTION/ARTIFACTS_SECTION/OPERATOR_NOTES_SECTION variables."
       ]
     }
   ],
   "findings": [
     {
-      "level": "blocking",
-      "title": "Artifact rendering does not verify artifact presence (may emit dead links)",
-      "details": "Artifact link generation constructs URLs for expected artifact filenames but does not check whether the artifact files actually exist in the run artifacts directory. The spec requested that missing artifacts be omitted cleanly; current code filters only on URL truthiness, causing links to be emitted even when the underlying file is absent (e.g. `.factory/runs/84/repair-log.md` is not present yet a repair-log.md link will be rendered).",
-      "scope": "scripts/lib/control-panel.mjs (buildArtifactGroups), scripts/lib/github-messages.mjs (buildArtifactLinks)",
-      "recommendation": "Have the renderer probe the artifacts path (or accept a presence map) and omit links for missing files; add unit tests that cover omission behavior; update acceptance-tests to assert omission when artifacts are absent."
-    },
-    {
       "level": "non_blocking",
-      "title": "Consider adding unit tests that assert omission of missing artifacts",
-      "details": "Tests currently assert the grouped artifact links exist when expected, but there is no test that verifies omission when the files are missing. Adding such tests will prevent regressions and ensure spec alignment.",
-      "scope": "tests/github-messages.test.mjs",
-      "recommendation": "Add a test that creates an overridesRoot/artifactsPath with a subset of artifacts and asserts that missing artifacts are omitted from the rendered ARTIFACTS_SECTION."
+      "title": "Missing optional execution artifact (repair-log.md)",
+      "details": "The '.factory/runs/84' artifact set does not include 'repair-log.md'. The implementation handles missing artifacts gracefully, but providing a placeholder when execution diagnostics exist keeps artifact lists consistent across runs.",
+      "scope": ".factory/runs/84",
+      "recommendation": "Add a lightweight 'repair-log.md' placeholder artifact when execution diagnostics are available or document that its absence is expected in some runs."
     }
   ]
 }
