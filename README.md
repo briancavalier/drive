@@ -170,12 +170,14 @@ The factory also supports a protected cross-run policy file at
 loaded into stage prompts as trusted control-plane context from reviewed
 `origin/main`, and is not part of the per-run artifact set.
 
-Prompt precedence for unattended runs is:
+Prompt precedence tiers for unattended runs are:
 
 1. Stage prompt templates and enforced control-plane logic
 2. `.factory/FACTORY.md`
-3. Current-run artifacts under `.factory/runs/<issue>/`
-4. Stage-specific live evidence such as CI results or review feedback
+3. Stage-specific task context, including current-run artifacts under `.factory/runs/<issue>/` and live evidence such as CI results or review feedback
+
+The exact ordering within stage-specific task context is stage-dependent and is
+defined in `scripts/build-stage-prompt.mjs`.
 
 Existing `AGENTS.md` files remain advisory for human/Codex workspace use and
 are not auto-ingested into unattended stage prompts.
