@@ -6,6 +6,7 @@ import {
   classifyCostBand,
   estimateInputTokensFromChars,
   estimateStageCost,
+  loadCostSummary,
   resolveCostThresholds
 } from "../scripts/lib/cost-estimation.mjs";
 
@@ -30,21 +31,47 @@ test("classifyCostBand uses warn and high thresholds", () => {
   assert.equal(classifyCostBand(1, thresholds), "high");
 });
 
-test("estimateStageCost rolls stage estimates into cumulative totals", () => {
+test("estimateStageCost records provider-native usage and derived USD totals", () => {
   const existingSummary = {
     stages: {
       plan: {
-        estimatedUsd: 0.2
+        mode: "plan",
+        provider: "openai",
+        apiSurface: "codex-action",
+        model: "gpt-5-codex",
+        promptChars: 4000,
+        estimatedUsageBeforeCalibration: {
+          inputTokens: 1000,
+          cachedInputTokens: 0,
+          outputTokens: 150,
+          reasoningTokens: null
+        },
+        estimatedUsage: {
+          inputTokens: 1000,
+          cachedInputTokens: 0,
+          outputTokens: 150,
+          reasoningTokens: null
+        },
+        usageCalibration: {
+          bucket: "plan:gpt-5-codex:openai",
+          sampleSize: 1,
+          generatedAt: "2026-03-01T00:00:00Z",
+          source: "telemetry",
+          multipliers: {
+            inputTokens: 1,
+            cachedInputTokens: 1,
+            outputTokens: 1
+          }
+        },
+        derivedCost: {
+          stageUsdBeforeCalibration: 0.0028,
+          stageUsd: 0.0028,
+          pricingSource: "model"
+        }
       }
-    },
-    telemetry: [
-      {
-        stage: "plan",
-        runId: "123",
-        runAttempt: 1
-      }
-    ]
+    }
   };
+
   const summary = estimateStageCost({
     mode: "implement",
     model: "gpt-5-codex",
@@ -57,10 +84,15 @@ test("estimateStageCost rolls stage estimates into cumulative totals", () => {
   });
 
   assert.equal(summary.current.stage, "implement");
-  assert.equal(summary.stages.plan.estimatedUsd, 0.2);
-  assert.ok(summary.current.stageEstimateUsd > 0);
-  assert.ok(summary.current.totalEstimatedUsd > summary.current.stageEstimateUsd);
-  assert.equal(summary.telemetry.length, 1);
+  assert.equal(summary.provider, "openai");
+  assert.equal(summary.apiSurface, "codex-action");
+  assert.equal(summary.stages.implement.estimatedUsage.inputTokens, 1000);
+  assert.equal(summary.stages.implement.estimatedUsage.outputTokens, 1250);
+  assert.ok(summary.current.derivedCost.stageUsd > 0);
+  assert.ok(
+    summary.current.derivedCost.totalEstimatedUsd >
+      summary.current.derivedCost.stageUsd
+  );
 });
 
 test("estimateStageCost marks unknown model pricing as fallback", () => {
@@ -74,21 +106,23 @@ test("estimateStageCost marks unknown model pricing as fallback", () => {
     calibration: null
   });
 
-  assert.equal(summary.current.pricingSource, "fallback");
-  assert.equal(summary.stages.review.pricingSource, "fallback");
+  assert.equal(summary.current.derivedCost.pricingSource, "fallback");
+  assert.equal(summary.stages.review.derivedCost.pricingSource, "fallback");
 });
 
 test("buildCostMetadataFromSummary extracts PR metadata fields", () => {
   const metadata = buildCostMetadataFromSummary({
     thresholds: { warnUsd: 0.25, highUsd: 1 },
     current: {
-      totalEstimatedUsd: 0.3,
-      band: "medium",
-      emoji: "🟡",
-      pricingSource: "model",
       stage: "plan",
       model: "gpt-5-codex",
-      stageEstimateUsd: 0.3
+      derivedCost: {
+        totalEstimatedUsd: 0.3,
+        band: "medium",
+        emoji: "🟡",
+        pricingSource: "model",
+        stageUsd: 0.3
+      }
     }
   });
 
@@ -99,7 +133,9 @@ test("buildCostMetadataFromSummary extracts PR metadata fields", () => {
 test("buildCostLabelUpdate returns one add label and removes the other bands", () => {
   const labels = buildCostLabelUpdate({
     current: {
-      band: "high"
+      derivedCost: {
+        band: "high"
+      }
     }
   });
 
@@ -110,7 +146,7 @@ test("buildCostLabelUpdate returns one add label and removes the other bands", (
   ]);
 });
 
-test("estimateStageCost records calibration metadata when a multiplier is available", () => {
+test("estimateStageCost applies per-bucket usage calibration", () => {
   const summary = estimateStageCost({
     mode: "implement",
     model: "gpt-5-codex",
@@ -121,8 +157,12 @@ test("estimateStageCost records calibration metadata when a multiplier is availa
     calibration: {
       generatedAt: "2026-03-01T00:00:00Z",
       buckets: {
-        "implement:gpt-5-codex": {
-          multiplier: 1.25,
+        "openai:stage:implement:gpt-5-codex": {
+          multipliers: {
+            inputTokens: 1.1,
+            cachedInputTokens: 1,
+            outputTokens: 1.25
+          },
           sampleSize: 4,
           source: "telemetry",
           generatedAt: "2026-03-01T00:00:00Z"
@@ -131,10 +171,16 @@ test("estimateStageCost records calibration metadata when a multiplier is availa
     }
   });
 
-  assert.equal(summary.current.calibrationMultiplier, 1.25);
-  assert.equal(summary.current.calibrationSource, "telemetry");
-  assert.equal(summary.current.calibrationSampleSize, 4);
-  assert.ok(summary.current.stageEstimateUsdBeforeCalibration > 0);
-  assert.ok(summary.current.stageEstimateUsd > summary.current.stageEstimateUsdBeforeCalibration);
-  assert.equal(summary.stages.implement.calibrationKey, "implement:gpt-5-codex");
+  assert.equal(summary.current.usageCalibration.sampleSize, 4);
+  assert.equal(summary.current.usageCalibration.multipliers.inputTokens, 1.1);
+  assert.equal(summary.current.usageCalibration.multipliers.outputTokens, 1.25);
+  assert.ok(
+    summary.current.derivedCost.stageUsd >
+      summary.current.derivedCost.stageUsdBeforeCalibration
+  );
+});
+
+test("loadCostSummary migrates legacy USD-first stage summaries", () => {
+  const summary = loadCostSummary("");
+  assert.equal(summary, null);
 });

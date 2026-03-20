@@ -60,6 +60,66 @@ on:
       refreshed_from_main:
         description: Indicates whether the branch was refreshed from origin/main.
         value: ${{ jobs.run.outputs.refreshed_from_main }}
+      stage_model:
+        description: Resolved model used for the stage.
+        value: ${{ jobs.run.outputs.stage_model }}
+      prompt_chars:
+        description: Estimated prompt size in characters for the stage invocation.
+        value: ${{ jobs.run.outputs.prompt_chars }}
+      estimated_input_tokens:
+        description: Calibrated estimated input tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_input_tokens }}
+      estimated_cached_input_tokens:
+        description: Calibrated estimated cached input tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_cached_input_tokens }}
+      estimated_output_tokens:
+        description: Calibrated estimated output tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_output_tokens }}
+      estimated_input_tokens_before_calibration:
+        description: Uncalibrated estimated input tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_input_tokens_before_calibration }}
+      estimated_cached_input_tokens_before_calibration:
+        description: Uncalibrated estimated cached input tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_cached_input_tokens_before_calibration }}
+      estimated_output_tokens_before_calibration:
+        description: Uncalibrated estimated output tokens for the stage invocation.
+        value: ${{ jobs.run.outputs.estimated_output_tokens_before_calibration }}
+      stage_estimate_usd:
+        description: Calibrated estimated USD cost for the stage invocation.
+        value: ${{ jobs.run.outputs.stage_estimate_usd }}
+      stage_estimate_usd_before_calibration:
+        description: Uncalibrated estimated USD cost for the stage invocation.
+        value: ${{ jobs.run.outputs.stage_estimate_usd_before_calibration }}
+      usage_provider:
+        description: Provider for the stage invocation.
+        value: ${{ jobs.run.outputs.usage_provider }}
+      usage_api_surface:
+        description: API surface for the stage invocation.
+        value: ${{ jobs.run.outputs.usage_api_surface }}
+      usage_pricing_version:
+        description: Pricing version used for derived cost.
+        value: ${{ jobs.run.outputs.usage_pricing_version }}
+      usage_calibration_key:
+        description: Calibration bucket applied to the stage invocation.
+        value: ${{ jobs.run.outputs.usage_calibration_key }}
+      usage_calibration_source:
+        description: Calibration source applied to the stage invocation.
+        value: ${{ jobs.run.outputs.usage_calibration_source }}
+      usage_calibration_sample_size:
+        description: Calibration sample size applied to the stage invocation.
+        value: ${{ jobs.run.outputs.usage_calibration_sample_size }}
+      usage_calibration_input_multiplier:
+        description: Calibration multiplier for estimated input tokens.
+        value: ${{ jobs.run.outputs.usage_calibration_input_multiplier }}
+      usage_calibration_cached_input_multiplier:
+        description: Calibration multiplier for estimated cached input tokens.
+        value: ${{ jobs.run.outputs.usage_calibration_cached_input_multiplier }}
+      usage_calibration_output_multiplier:
+        description: Calibration multiplier for estimated output tokens.
+        value: ${{ jobs.run.outputs.usage_calibration_output_multiplier }}
+      usage_calibration_generated_at:
+        description: Calibration generation timestamp.
+        value: ${{ jobs.run.outputs.usage_calibration_generated_at }}
     secrets:
       OPENAI_API_KEY:
         required: true
@@ -78,6 +138,26 @@ jobs:
       transient_retry_attempts: ${{ steps.model_preflight.outputs.transient_retry_attempts || steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
       refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
       refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}
+      stage_model: ${{ steps.model.outputs.model }}
+      prompt_chars: ${{ steps.cost.outputs.prompt_chars }}
+      estimated_input_tokens: ${{ steps.cost.outputs.estimated_input_tokens }}
+      estimated_cached_input_tokens: ${{ steps.cost.outputs.estimated_cached_input_tokens }}
+      estimated_output_tokens: ${{ steps.cost.outputs.estimated_output_tokens }}
+      estimated_input_tokens_before_calibration: ${{ steps.cost.outputs.estimated_input_tokens_before_calibration }}
+      estimated_cached_input_tokens_before_calibration: ${{ steps.cost.outputs.estimated_cached_input_tokens_before_calibration }}
+      estimated_output_tokens_before_calibration: ${{ steps.cost.outputs.estimated_output_tokens_before_calibration }}
+      stage_estimate_usd: ${{ steps.cost.outputs.last_stage_cost_estimate_usd }}
+      stage_estimate_usd_before_calibration: ${{ steps.cost.outputs.stage_estimate_usd_before_calibration }}
+      usage_provider: ${{ steps.cost.outputs.usage_provider }}
+      usage_api_surface: ${{ steps.cost.outputs.usage_api_surface }}
+      usage_pricing_version: ${{ steps.cost.outputs.usage_pricing_version }}
+      usage_calibration_key: ${{ steps.cost.outputs.cost_calibration_key }}
+      usage_calibration_source: ${{ steps.cost.outputs.cost_calibration_source }}
+      usage_calibration_sample_size: ${{ steps.cost.outputs.cost_calibration_sample_size }}
+      usage_calibration_input_multiplier: ${{ steps.cost.outputs.usage_calibration_input_multiplier }}
+      usage_calibration_cached_input_multiplier: ${{ steps.cost.outputs.usage_calibration_cached_input_multiplier }}
+      usage_calibration_output_multiplier: ${{ steps.cost.outputs.usage_calibration_output_multiplier }}
+      usage_calibration_generated_at: ${{ steps.cost.outputs.usage_calibration_generated_at }}
     permissions:
       contents: write
       pull-requests: write
@@ -197,6 +277,9 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Budget preflight hook
+        run: echo "Budget enforcement hook not configured."
 
       - name: Run Codex
         id: codex

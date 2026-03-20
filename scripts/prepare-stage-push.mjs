@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import { buildCommitMessage } from "./lib/commit-message.mjs";
 import { classifyFailure } from "./lib/failure-classification.mjs";
-import { COST_SUMMARY_FILE_NAME } from "./lib/cost-estimation.mjs";
+import {
+  COST_SUMMARY_FILE_NAME
+} from "./lib/cost-estimation.mjs";
 import { FACTORY_LABELS } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
 import {
@@ -18,11 +20,10 @@ import { pruneFactoryTempArtifacts } from "./lib/temp-artifacts.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
 import { renderStageDiagnostics } from "./lib/stage-diagnostics.mjs";
 import {
-  appendTelemetryEntry,
-  buildTelemetryEntry,
-  ensureTelemetryArray,
+  buildUsageEvent,
   TELEMETRY_OUTCOMES
 } from "./lib/cost-telemetry.mjs";
+import { writeUsageEvent } from "./lib/cost-telemetry.mjs";
 
 function git(args, { allowFailure = false } = {}) {
   try {
@@ -95,43 +96,56 @@ export function persistCostSummaryForStage({
   }
 
   try {
-    ensureTelemetryArray(summary);
-
     if (telemetryContext.prNumber != null && summary.prNumber == null) {
       summary.prNumber = telemetryContext.prNumber;
     }
-
     const stageKey = telemetryContext.stage || summary?.current?.stage || mode;
-    const context = {
+    const stageSummary = summary?.stages?.[stageKey];
+
+    if (!stageSummary) {
+      throw new Error(`Missing stage summary for "${stageKey}".`);
+    }
+
+    const recordedAt = telemetryContext.recordedAt || now.toISOString();
+    const event = buildUsageEvent({
+      category: "stage",
+      stage: stageKey,
       issueNumber: telemetryContext.issueNumber ?? summary.issueNumber,
       prNumber: telemetryContext.prNumber ?? summary.prNumber,
       branch: telemetryContext.branch ?? summary.branch,
       runId: telemetryContext.runId || "",
       runAttempt: telemetryContext.runAttempt,
-      actualInputTokens: telemetryContext.actualInputTokens,
-      actualUsd: telemetryContext.actualUsd,
-      actualSource: telemetryContext.actualSource,
-      calibrationSampleSize: telemetryContext.calibrationSampleSize,
-      calibrationGeneratedAt: telemetryContext.calibrationGeneratedAt,
-      model: telemetryContext.model
-    };
-    const entry = buildTelemetryEntry({
-      summary,
-      stageKey,
-      context,
+      provider: stageSummary.provider || summary.provider,
+      apiSurface: stageSummary.apiSurface || summary.apiSurface,
+      model: telemetryContext.model || stageSummary.model,
+      promptChars: stageSummary.promptChars,
+      estimatedUsageBeforeCalibration:
+        stageSummary.estimatedUsageBeforeCalibration,
+      estimatedUsage: stageSummary.estimatedUsage,
+      actualUsage: telemetryContext.actualUsage || {},
+      derivedCost: {
+        estimatedUsdBeforeCalibration:
+          stageSummary.derivedCost?.stageUsdBeforeCalibration,
+        estimatedUsd: stageSummary.derivedCost?.stageUsd,
+        actualUsd: telemetryContext.actualUsd,
+        pricingVersion: summary.pricing?.version,
+        pricingSource: stageSummary.derivedCost?.pricingSource,
+        currency: summary.pricing?.currency || "USD"
+      },
+      usageCalibration: stageSummary.usageCalibration,
       outcome: stageOutcome,
-      recordedAt: telemetryContext.recordedAt || now.toISOString()
+      recordedAt
     });
-    const { appended, reason } = appendTelemetryEntry(summary, entry);
-
-    if (!appended && reason === "duplicate") {
-      console.warn(
-        `Telemetry entry already recorded for ${entry.stage} run ${entry.runId} attempt ${entry.runAttempt ?? ""}; skipping append.`
-      );
+    const eventPath = writeUsageEvent(event);
+    stageSummary.sourceEventPath = eventPath;
+    if (summary.current?.stage === stageKey) {
+      summary.current.sourceEventPath = eventPath;
     }
   } catch (error) {
-    console.warn(`Telemetry append skipped: ${error.message}`);
+    console.warn(`Usage event write skipped: ${error.message}`);
   }
+
+  delete summary.telemetry;
 
   const outputPath = path.join(artifactsPath, COST_SUMMARY_FILE_NAME);
   fs.mkdirSync(artifactsPath, { recursive: true });
