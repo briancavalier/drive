@@ -15,6 +15,16 @@ import {
 } from "../scripts/prepare-stage-push.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 
+const TEST_OUTPUT_PATH = path.join(os.tmpdir(), "factory-actions-output.txt");
+
+try {
+  fs.unlinkSync(TEST_OUTPUT_PATH);
+} catch {
+  // ignore missing file
+}
+
+process.env.GITHUB_OUTPUT = TEST_OUTPUT_PATH;
+
 function git(cwd, args) {
   return execFileSync("git", args, {
     cwd,

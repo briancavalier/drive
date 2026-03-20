@@ -1,0 +1,148 @@
+name: Factory Control Action
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Factory-managed pull request number"
+        required: true
+        type: number
+      action:
+        description: "Control panel action id"
+        required: true
+        type: choice
+        options:
+          - start_implement
+          - pause
+          - resume
+          - retry
+          - retry_review
+          - reset
+          - approve_self_modify
+          - escalate
+      comment:
+        description: "Optional note to add to the pull request"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Start implement stage
+        if: ${{ inputs.action == 'start_implement' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_STATUS: implementing
+          FACTORY_ADD_LABELS: factory:implement
+          FACTORY_REMOVE_LABELS: factory:plan-ready,factory:blocked,factory:paused
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: implement stage triggered.' }}"
+
+      - name: Pause automation
+        if: ${{ inputs.action == 'pause' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_ADD_LABELS: factory:paused
+          FACTORY_PAUSE_REASON: manual
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation paused.' }}"
+
+      - name: Resume automation
+        if: ${{ inputs.action == 'resume' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_REMOVE_LABELS: factory:paused
+          FACTORY_PAUSE_REASON: ""
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation resume requested.' }}"
+
+      - name: Retry stage
+        if: ${{ inputs.action == 'retry' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_ADD_LABELS: factory:implement
+          FACTORY_REMOVE_LABELS: factory:blocked,factory:paused
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: stage retry requested.' }}"
+
+      - name: Retry review stage
+        if: ${{ inputs.action == 'retry_review' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_STATUS: reviewing
+          FACTORY_REMOVE_LABELS: factory:blocked
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: review retry requested.' }}"
+
+      - name: Reset factory PR
+        if: ${{ inputs.action == 'reset' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_STATUS: plan_ready
+          FACTORY_REPAIR_ATTEMPTS: "0"
+          FACTORY_REPEATED_FAILURE_COUNT: "0"
+          FACTORY_LAST_FAILURE_SIGNATURE: ""
+          FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ""
+          FACTORY_LAST_READY_SHA: ""
+          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
+          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+          FACTORY_ADD_LABELS: factory:plan-ready
+          FACTORY_REMOVE_LABELS: factory:implement,factory:blocked,factory:paused
+          FACTORY_CONVERT_TO_DRAFT: "true"
+          FACTORY_PENDING_REVIEW_SHA: ""
+          FACTORY_LAST_COMPLETED_STAGE: "plan"
+          FACTORY_LAST_RUN_ID: ""
+          FACTORY_LAST_RUN_URL: ""
+          FACTORY_PAUSE_REASON: ""
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: PR reset to plan_ready.' }}"
+
+      - name: Approve self-modify (manual guidance)
+        if: ${{ inputs.action == 'approve_self_modify' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: please manually apply the factory:self-modify label before rerunning.' }}"
+
+      - name: Escalate to human-only
+        if: ${{ inputs.action == 'escalate' }}
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
+          FACTORY_STATUS: blocked
+          FACTORY_ADD_LABELS: factory:blocked
+          FACTORY_REMOVE_LABELS: factory:implement
+          FACTORY_CONVERT_TO_DRAFT: "true"
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: escalated to human-only handling.' }}"

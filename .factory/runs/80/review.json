@@ -1,0 +1,93 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Control Panel view model added, wired into PR rendering; metadata plumbing and workflows updated; unit tests added and passing in CI.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Every factory-managed PR shows a stable 'Factory Control Panel' section in a single canonical location.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: renderPrBody builds a 'CONTROL_PANEL_SECTION' and inserts a '## Factory Control Panel' section into the PR body (see renderPrBody variables and CONTROL_PANEL_SECTION usage).",
+        "tests/github-messages.test.mjs: 'renderPrBody renders control panel for plan_ready status' asserts presence of '## Factory Control Panel' and the required fields.",
+        "tests/control-panel.test.mjs: unit tests validate control-panel serialization and action lines used by the PR body renderer."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The control panel updates as the PR moves through plan_ready, implementing, repairing, reviewing, ready_for_review, blocked, and paused states.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/control-panel.mjs: view model implements state overlay for paused label, maps FACTORY_PR_STATUSES to display text, reason, actions and artifacts.",
+        "tests/control-panel.test.mjs: tests cover 'paused overlay', 'blocked reasons', 'ready_for_review state', and 'latest run and artifact links' ensuring the view model responds to those states.",
+        "CI: unit tests passed (workflow run id: 23350202423, 'unit: success')."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The panel includes fields: State, Waiting on, Last completed stage, Reason, Recommended next step, and Actions.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: controlPanelSection assembly includes '**State:**', '**Waiting on:**', '**Last completed stage:**', '**Reason:**', '**Recommended next step:**', '**Latest run:**', '**Artifacts:**', and '**Actions**'.",
+        "tests/github-messages.test.mjs: assertions check those fields appear in the rendered PR body for plan_ready status."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Add control-panel.mjs view model and wire into PR body rendering and metadata plumbing.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/control-panel.mjs: new view-model file implementing the control panel logic.",
+        "scripts/lib/github-messages.mjs: imports and uses buildControlPanel in renderPrBody.",
+        "scripts/apply-pr-state.mjs and scripts/finalize-plan.mjs: updated to set and pass new metadata fields (lastCompletedStage, lastRunId, lastRunUrl, pauseReason) used by the panel."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update workflows to persist metadata fields consumed by the control panel (e.g., last run id/url, last completed stage, pause reason).",
+      "status": "satisfied",
+      "evidence": [
+        ".github/workflows/factory-pr-loop.yml: writes FACTORY_LAST_RUN_ID, FACTORY_LAST_RUN_URL, and FACTORY_LAST_COMPLETED_STAGE into apply-pr-state steps (see workflow env usage).",
+        ".github/workflows/factory-control-action.yml: uses FACTORY_LAST_COMPLETED_STAGE and FACTORY_PAUSE_REASON inputs/outputs for control action wiring.",
+        "scripts/apply-pr-state.mjs: new applyLastRunId/applyLastRunUrl/applyPauseReason handlers accept the env vars and merge them into the metadata written to the PR body."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Automated tests cover the control panel states, action links, artifact/run link rendering, and template override behavior.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/control-panel.test.mjs: exercises paused overlay, blocked subtype actions/reasons, ready_for_review behavior, and link generation.",
+        "tests/github-messages.test.mjs: covers template overrides, cost lines, and control-panel action lines including presence and encoded workflow dispatch params.",
+        "CI: unit workflow passed (unit: success) — run id 23350202423."
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Preserve existing human review gate for merges and do not change the underlying state machine behavior (panel overlays paused state but doesn't alter metadata-driven status transitions).",
+      "status": "satisfied",
+      "evidence": [
+        "spec.md: describes the overlay behavior (paused label overlays display without changing metadata status).",
+        "scripts/apply-pr-state.mjs: when labels include 'factory:paused' the code leaves metadata.status unchanged and renderPrBody overlays display via buildControlPanel.",
+        "README.md: reiterates that human review remains the merge gate and workflow protections must be set separately."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Operator dispatch permissions and integration tests",
+      "details": "The control panel emits workflow_dispatch URLs for mutation actions and a corresponding workflow file (.github/workflows/factory-control-action.yml) exists. There are no end-to-end tests that validate dispatch permission or the side-effects of mutation actions.",
+      "scope": "operator actions / workflows",
+      "recommendation": "Add an operator-facing doc snippet that lists required Actions permissions and consider an integration smoke test (manual or CI job) that verifies the control-action invocation flow and required tokens/permissions."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Consider screenshot or example in operator docs",
+      "details": "README mentions the control panel and the control action workflow; adding a small rendered example would help new operators onboard faster.",
+      "scope": "documentation",
+      "recommendation": "Add a short screenshot or markdown example showing the 'Factory Control Panel' section and clarifying mutation vs informational actions."
+    }
+  ]
+}

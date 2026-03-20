@@ -255,6 +255,37 @@ The workflows create and manage these labels automatically:
 - `factory:cost-medium`
 - `factory:cost-high`
 
+## Factory Control Panel
+
+Every factory-managed pull request now includes a durable **Factory Control Panel**
+section near the top of the PR body. The panel summarizes the current automation
+state and surfaces the safest next actions for operators:
+
+- **State / Waiting on** — reflects the underlying factory status and overlays
+  `paused` whenever the `factory:paused` label is present.
+- **Last completed stage** — records the most recent stage that finished. This is
+  updated by the planning workflow, stage runner, and review handler.
+- **Reason** — highlights classified failure context, pause notes, or pending review
+  SHAs when the PR is waiting on humans.
+- **Recommended next step** — concise guidance that matches the current state.
+- **Latest run / Artifacts** — deep links to the most recent workflow run and the
+  canonical plan/spec/acceptance test artifacts.
+- **Actions** — a short list of state-appropriate controls. State-change actions
+  open the new [`Factory Control Action`](./.github/workflows/factory-control-action.yml)
+  workflow with the relevant parameters pre-filled; informational actions link directly
+  to branches, artifacts, diagnostics, or existing workflows (e.g., Factory Reset PR).
+
+Common actions include starting implementation, pausing/resuming automation,
+retrying a blocked stage, re-running review processing, or resetting the PR back to
+`plan_ready`. Guardrail-specific actions such as **Approve self-modify** post manual
+instructions—per repository policy the `factory:self-modify` label still must be
+applied by a human operator. The **Escalate to human-only** action parks the PR in
+`blocked`, converts it back to draft, and adds a durable note for manual follow-up.
+
+All actions accept an optional free-form comment. When no comment is supplied,
+the workflow writes a default note so reviewers can audit why the state changed.
+
+
 ## GitHub message templates
 
 Factory-posted GitHub messages use built-in markdown templates and can be

@@ -123,6 +123,8 @@ jobs:
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
           FACTORY_REMOVE_LABELS: ${{ needs.route.outputs.action == 'implement' && 'factory:plan-ready' || '' }}
           FACTORY_CLEAR_IMPLEMENT_LABEL: ${{ needs.route.outputs.action == 'implement' && 'true' || 'false' }}
+          FACTORY_LAST_RUN_ID: ${{ github.run_id }}
+          FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
 
   stage:
     if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
@@ -177,6 +179,9 @@ jobs:
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_STAGE_NOOP_ATTEMPTS: "0"
           FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+          FACTORY_LAST_COMPLETED_STAGE: ${{ needs.route.outputs.action == 'implement' && 'implement' || 'repair' }}
+          FACTORY_LAST_RUN_ID: ${{ github.run_id }}
+          FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
 
   stage-failed:
     if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review') && needs.stage.result == 'failure'
@@ -213,7 +218,7 @@ jobs:
           FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
@@ -334,7 +339,7 @@ jobs:
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.stage.outputs.transient_retry_attempts || '0' }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
@@ -465,7 +470,7 @@ jobs:
           FACTORY_FAILED_ACTION: review
           FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
@@ -582,7 +587,7 @@ jobs:
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
@@ -641,6 +646,9 @@ jobs:
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
           FACTORY_STAGE_NOOP_ATTEMPTS: "0"
           FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+          FACTORY_LAST_COMPLETED_STAGE: "repair"
+          FACTORY_LAST_RUN_ID: ${{ github.run_id }}
+          FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
 
   review-artifact-repair-failed:
     if: always() && needs.review-processing-failed.outputs.schedule_repair == 'true' && needs.review-artifact-repair.result == 'failure'
@@ -678,7 +686,7 @@ jobs:
           FACTORY_FAILED_ACTION: repair
           FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.review-artifact-repair.outputs.failure_message }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
@@ -799,7 +807,7 @@ jobs:
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.review-artifact-repair.outputs.transient_retry_attempts || '0' }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
-          FACTORY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}

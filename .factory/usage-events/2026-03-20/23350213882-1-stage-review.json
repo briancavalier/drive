@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "review",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-mini",
+  "issueNumber": 80,
+  "prNumber": 81,
+  "branch": "factory/80-add-a-pr-control-panel-with-contextual-operator-",
+  "runId": "23350213882",
+  "runAttempt": 1,
+  "promptChars": 6708,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1677,
+    "cachedInputTokens": 0,
+    "outputTokens": 587,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1677,
+    "cachedInputTokens": 0,
+    "outputTokens": 587,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:review:gpt-5-mini",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0016,
+    "estimatedUsd": 0.0016,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-20T15:38:29.811Z"
+}

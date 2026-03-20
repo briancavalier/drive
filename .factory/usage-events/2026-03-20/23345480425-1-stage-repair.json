@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "repair",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 80,
+  "prNumber": 81,
+  "branch": "factory/80-add-a-pr-control-panel-with-contextual-operator-",
+  "runId": "23345480425",
+  "runAttempt": 1,
+  "promptChars": 2627,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 657,
+    "cachedInputTokens": 0,
+    "outputTokens": 526,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 657,
+    "cachedInputTokens": 0,
+    "outputTokens": 526,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:repair:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0061,
+    "estimatedUsd": 0.0061,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-20T13:43:09.024Z"
+}
