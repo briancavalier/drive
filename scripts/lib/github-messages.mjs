@@ -6,13 +6,11 @@ import {
   DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_COMMAND_CONTEXTS,
   FACTORY_COMMANDS,
-  FACTORY_LABELS,
   FACTORY_SLASH_COMMANDS,
   PR_STATE_MARKER
 } from "./factory-config.mjs";
-import { formatEstimatedUsd } from "./cost-estimation.mjs";
 import { normalizeNewlines } from "./review-output.mjs";
-import { buildControlPanel } from "./control-panel.mjs";
+import { buildDashboard } from "./control-panel.mjs";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TEMPLATES_ROOT = path.resolve(
@@ -24,25 +22,10 @@ const DEFAULT_TEMPLATES_ROOT = path.resolve(
 const DEFAULT_OVERRIDE_ROOT = path.join(".factory", "messages");
 export const MAX_REVIEW_BODY_CHARS = 60000;
 
-const STAGE_STATUS_EMOJI = Object.freeze({
-  planning: "📝",
-  plan_ready: "👀",
-  implementing: "🏗️",
-  repairing: "🛠️",
-  blocked: "⚠️",
-  ready_for_review: "✅"
-});
-
-const CI_STATUS_EMOJI = Object.freeze({
-  pending: "⏳",
-  success: "✅",
-  failure: "❌"
-});
-
 const MESSAGE_SPECS = Object.freeze({
   "pr-body": {
     fileName: "pr-body.md",
-    requiredTokens: ["CONTROL_PANEL_SECTION", "STATUS_SECTION", "ARTIFACTS_SECTION"]
+    requiredTokens: ["DASHBOARD_SECTION", "ARTIFACTS_SECTION", "OPERATOR_NOTES_SECTION"]
   },
   "plan-ready-issue-comment": {
     fileName: "plan-ready-issue-comment.md",
@@ -231,19 +214,6 @@ function defaultPrMetadata(overrides = {}) {
   };
 }
 
-function formatWithEmoji(mapping, value, fallback = "") {
-  const normalized = `${value ?? ""}`.trim();
-  const resolved = normalized || fallback;
-
-  if (!resolved) {
-    return resolved;
-  }
-
-  const emoji = mapping[resolved];
-
-  return emoji ? `${emoji} ${resolved}` : resolved;
-}
-
 function serializePrState(state) {
   return [
     `<!-- ${PR_STATE_MARKER}`,
@@ -272,60 +242,55 @@ export function renderPrBody(
   });
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const resolvedPrNumber = prNumber ?? issueNumber ?? null;
-  const controlPanel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: state,
     labels,
     repositoryUrl,
     branch,
     prNumber: resolvedPrNumber,
-    artifactLinks: links
+    artifactLinks: links,
+    ciStatus
   });
-  const artifactLine = controlPanel.artifacts.length
-    ? controlPanel.artifacts
-        .map(({ label, url }) => `[${label}](${url})`)
-        .join(", ")
-    : "";
-  const actionLines = controlPanel.actions.map((action) => {
-    if (!action?.url) {
-      return null;
+  const tableRows = dashboard.rows.map((row) => {
+    const label = row.label || "";
+    const value = row.value || "—";
+    return `| **${label}** | ${value} |`;
+  });
+  const dashboardLines = [
+    "## Factory Dashboard",
+    "| | |",
+    "| --- | --- |",
+    ...tableRows
+  ];
+
+  if (dashboard.openLinks?.length) {
+    const openLinks = dashboard.openLinks
+      .filter((link) => link?.url)
+      .map((link) => `[${link.label}](${link.url})`)
+      .join(" · ");
+
+    if (openLinks) {
+      dashboardLines.push(`**Open:** ${openLinks}`);
     }
+  }
 
-    const link = `[${action.label}](${action.url})`;
+  const stateChangeLinks = dashboard.actions
+    .filter((action) => action?.url)
+    .map((action) => `[${action.label}](${action.url}) *(state change)*`);
 
-    if (action.kind === "mutation") {
-      return `- ${link} *(state change)*`;
-    }
+  if (stateChangeLinks.length) {
+    dashboardLines.push(`**Actions:** ${stateChangeLinks.join(" · ")}`);
+  }
 
-    return `- ${link}`;
-  }).filter(Boolean);
-  const controlPanelSection = [
-    "## Factory Control Panel",
-    `- **State:** ${controlPanel.stateDisplay || "unknown"}`,
-    `- **Waiting on:** ${controlPanel.waitingOn || "operator"}`,
-    `- **Last completed stage:** ${controlPanel.lastCompletedStage || "—"}`,
-    controlPanel.reason ? `- **Reason:** ${controlPanel.reason}` : null,
-    `- **Recommended next step:** ${controlPanel.recommendedNextStep || "Monitor automation progress."}`,
-    controlPanel.latestRun
-      ? `- **Latest run:** [${controlPanel.latestRun.label}](${controlPanel.latestRun.url})`
-      : null,
-    artifactLine ? `- **Artifacts:** ${artifactLine}` : null,
-    actionLines.length ? "" : null,
-    actionLines.length ? "**Actions**" : null,
-    ...actionLines
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const stageStatusDisplay = formatWithEmoji(STAGE_STATUS_EMOJI, state.status, "unknown");
-  const ciStatusDisplay = formatWithEmoji(CI_STATUS_EMOJI, ciStatus, "pending");
-  const hasCostEstimate = Number.isFinite(Number(state.costEstimateUsd)) && Number(state.costEstimateUsd) > 0;
-  const estimatedCostLine = hasCostEstimate
-    ? `- Estimated cost: ${state.costEstimateEmoji || ""} $${formatEstimatedUsd(state.costEstimateUsd)} total (${state.costEstimateBand || "unknown"})`
-        .replace(":  ", ": ")
-    : null;
-  const latestStageCostLine =
-    hasCostEstimate && state.lastEstimatedStage && state.lastEstimatedModel
-      ? `- Latest stage estimate: $${formatEstimatedUsd(state.lastStageCostEstimateUsd)} using ${state.lastEstimatedModel}`
-      : null;
+  const artifactsLines = ["## Artifacts"];
+
+  for (const group of dashboard.artifactGroups) {
+    artifactsLines.push(`**${group.label}**`);
+    artifactsLines.push(
+      group.links.map((link) => `[${link.label}](${link.url})`).join(" · ")
+    );
+  }
+
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
     PR_NUMBER: resolvedPrNumber != null ? String(resolvedPrNumber) : "",
@@ -353,35 +318,11 @@ export function renderPrBody(
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
     LAST_FAILURE_TYPE: state.lastFailureType || "",
     TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
-    CONTROL_PANEL_SECTION: controlPanelSection,
-    STATUS_SECTION: [
-      "## Status",
-      `- Stage: ${stageStatusDisplay}`,
-      `- CI: ${ciStatusDisplay}`,
-      `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
-      estimatedCostLine,
-      latestStageCostLine,
-      state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
-      state.transientRetryAttempts
-        ? `- Transient retries used: ${state.transientRetryAttempts}`
-        : null
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    ARTIFACTS_SECTION: [
-      "## Artifacts",
-      `- [approved-issue.md](${links.approvedIssue})`,
-      `- [spec.md](${links.spec})`,
-      `- [plan.md](${links.plan})`,
-      `- [acceptance-tests.md](${links.acceptanceTests})`,
-      `- [repair-log.md](${links.repairLog})`,
-      `- [cost-summary.json](${links.costSummary})`,
-      `- [review.md](${links.review})`,
-      `- [review.json](${links.reviewJson})`
-    ].join("\n"),
+    DASHBOARD_SECTION: dashboardLines.join("\n"),
+    ARTIFACTS_SECTION: artifactsLines.join("\n"),
     OPERATOR_NOTES_SECTION: [
       "## Operator Notes",
-      "- Use the control panel above for start, pause, retry, and reset actions.",
+      "- Use the dashboard above for start, pause, retry, and reset actions.",
       `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}\` to start coding after plan review.`,
       `- ⏸️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}\` to pause autonomous work.`,
       `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a paused run or a recoverable blocked run.`,

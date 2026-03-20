@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildControlPanel } from "../scripts/lib/control-panel.mjs";
+import { buildDashboard } from "../scripts/lib/control-panel.mjs";
 import { defaultPrMetadata } from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 
@@ -25,16 +25,16 @@ function metadata(overrides = {}) {
   });
 }
 
-function actionLabels(panel) {
-  return panel.actions.map((action) => action.label);
+function actionIds(dashboard) {
+  return dashboard.actions.map((action) => action.id);
 }
 
-function actionIds(panel) {
-  return panel.actions.map((action) => action.id);
+function openLinkLabels(dashboard) {
+  return dashboard.openLinks.map((link) => link.label);
 }
 
 test("paused overlay surfaces resume/reset actions and manual pause reason", () => {
-  const panel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.implementing,
       paused: true,
@@ -45,24 +45,31 @@ test("paused overlay surfaces resume/reset actions and manual pause reason", () 
     repositoryUrl,
     branch,
     prNumber: 7,
-    artifactLinks: baseArtifacts
+    artifactLinks: baseArtifacts,
+    ciStatus: "pending"
   });
 
-  assert.equal(panel.state, "paused");
-  assert.equal(panel.waitingOn, "operator");
-  assert.equal(panel.reason, "Automation manually paused by an operator.");
-  assert.ok(actionIds(panel).includes("resume"), "expected Resume action");
-  assert.ok(actionIds(panel).includes("reset"), "expected Reset PR action");
-  assert.ok(actionIds(panel).includes("open_latest_run"), "expected latest run link");
-  assert.ok(!actionIds(panel).includes("start_implement"), "agent-only actions should be suppressed");
+  assert.equal(dashboard.state, "paused");
+  assert.equal(dashboard.waitingOn, "operator");
+  assert.equal(dashboard.reason, "Automation manually paused by an operator.");
+  assert.ok(actionIds(dashboard).includes("resume"), "expected Resume action");
+  assert.ok(actionIds(dashboard).includes("reset"), "expected Reset PR action");
+  assert.ok(
+    openLinkLabels(dashboard).includes("🏃 Open latest run"),
+    "expected latest run navigation link"
+  );
+  assert.ok(
+    !actionIds(dashboard).includes("start_implement"),
+    "agent-only actions should be suppressed"
+  );
   assert.equal(
-    panel.actions.find((action) => action.id === "resume")?.label,
+    dashboard.actions.find((action) => action.id === "resume")?.label,
     "▶ Comment /factory resume"
   );
 });
 
 test("paused overlay still falls back to the projected paused label for older metadata", () => {
-  const panel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.implementing
     }),
@@ -73,12 +80,12 @@ test("paused overlay still falls back to the projected paused label for older me
     artifactLinks: baseArtifacts
   });
 
-  assert.equal(panel.state, "paused");
-  assert.equal(panel.reason, "Automation paused.");
+  assert.equal(dashboard.state, "paused");
+  assert.equal(dashboard.reason, "Automation paused.");
 });
 
 test("paused ready_for_review suppresses resume when no resume command is supported", () => {
-  const panel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.readyForReview,
       paused: true,
@@ -91,10 +98,13 @@ test("paused ready_for_review suppresses resume when no resume command is suppor
     artifactLinks: baseArtifacts
   });
 
-  assert.equal(panel.state, "paused");
-  assert.ok(!actionIds(panel).includes("resume"));
-  assert.ok(actionIds(panel).includes("reset"));
-  assert.ok(actionIds(panel).includes("open_latest_run"));
+  assert.equal(dashboard.state, "paused");
+  assert.ok(!actionIds(dashboard).includes("resume"));
+  assert.ok(actionIds(dashboard).includes("reset"));
+  assert.ok(
+    openLinkLabels(dashboard).includes("🏃 Open latest run"),
+    "expected latest run navigation link"
+  );
 });
 
 test("blocked reasons map to subtype-specific guidance and actions", () => {
@@ -107,7 +117,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         stageNoopAttempts: 2,
         lastRunUrl: `${repositoryUrl}/actions/runs/111`
       }),
-      expectedActionIds: ["reset", "pause", "open_diagnostics"],
+      expectedActions: ["reset", "pause"],
+      requiredOpenLabels: ["🔎 Open diagnostics"],
       reason: /no committed changes/i
     },
     {
@@ -118,7 +129,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         blockedAction: "repair",
         lastRunUrl: `${repositoryUrl}/actions/runs/222`
       }),
-      expectedActionIds: ["resume", "reset", "pause", "open_latest_run"],
+      expectedActions: ["resume", "reset", "pause"],
+      requiredOpenLabels: ["🏃 Open latest run"],
       reason: /setup prerequisites failed/i
     },
     {
@@ -130,7 +142,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         lastFailureSignature:
           "stage setup prerequisites failed: factory stage output touches protected control-plane paths but the pull request is missing the factory:self-modify label."
       }),
-      expectedActionIds: ["reset", "pause"],
+      expectedActions: ["reset", "pause"],
+      requiredOpenLabels: [],
       reason: /self-modify guard/i
     },
     {
@@ -142,7 +155,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         transientRetryAttempts: 2,
         lastRunUrl: `${repositoryUrl}/actions/runs/333`
       }),
-      expectedActionIds: ["resume", "pause", "open_latest_run"],
+      expectedActions: ["resume", "pause"],
+      requiredOpenLabels: ["🏃 Open latest run"],
       reason: /transient infrastructure/i
     },
     {
@@ -152,7 +166,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         lastFailureType: "stale_branch_conflict",
         blockedAction: "implement"
       }),
-      expectedActionIds: ["open_branch", "resume", "reset", "pause"],
+      expectedActions: ["resume", "reset", "pause"],
+      requiredOpenLabels: ["🌿 Open branch"],
       reason: /merge conflict/i
     },
     {
@@ -162,7 +177,8 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         lastFailureType: "review_artifact_contract",
         lastReviewArtifactFailure: { type: "review_artifact_contract", message: "review.json missing" }
       }),
-      expectedActionIds: ["reset", "pause", "open_artifacts"],
+      expectedActions: ["reset", "pause"],
+      requiredOpenLabels: ["🧾 review.md"],
       reason: /review artifact contract/i
     },
     {
@@ -174,13 +190,14 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         maxRepairAttempts: 3,
         repeatedFailureCount: 2
       }),
-      expectedActionIds: ["reset", "pause", "open_failure_history"],
+      expectedActions: ["reset", "pause"],
+      requiredOpenLabels: ["🧭 Open failure history"],
       reason: /exhausted automatic retries/i
     }
   ];
 
   for (const scenario of scenarios) {
-    const panel = buildControlPanel({
+    const dashboard = buildDashboard({
       metadata: scenario.metadata,
       labels: [],
       repositoryUrl,
@@ -189,17 +206,26 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       artifactLinks: baseArtifacts
     });
 
-    assert.match(panel.reason || "", scenario.reason, `${scenario.name} reason mismatch`);
+    assert.match(dashboard.reason || "", scenario.reason, `${scenario.name} reason mismatch`);
     assert.deepEqual(
-      actionIds(panel),
-      scenario.expectedActionIds,
+      actionIds(dashboard),
+      scenario.expectedActions,
       `${scenario.name} action ids mismatch`
     );
+    if (scenario.requiredOpenLabels.length) {
+      const labels = openLinkLabels(dashboard);
+      for (const label of scenario.requiredOpenLabels) {
+        assert.ok(
+          labels.includes(label),
+          `${scenario.name} missing open link label "${label}"`
+        );
+      }
+    }
   }
 });
 
 test("ready_for_review state exposes review artifacts and pause automation actions", () => {
-  const panel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.readyForReview,
       lastCompletedStage: "review",
@@ -212,15 +238,18 @@ test("ready_for_review state exposes review artifacts and pause automation actio
     artifactLinks: baseArtifacts
   });
 
-  assert.equal(panel.waitingOn, "human reviewer");
-  assert.ok(panel.reason.includes("abc123"), "pending review SHA should be referenced");
-  assert.deepEqual(actionIds(panel), ["open_review_artifacts", "pause"]);
-  assert.ok(!actionIds(panel).includes("start_implement"));
-  assert.ok(!actionIds(panel).includes("retry"));
+  assert.equal(dashboard.waitingOn, "human reviewer");
+  assert.ok(dashboard.reason.includes("abc123"), "pending review SHA should be referenced");
+  assert.deepEqual(actionIds(dashboard), ["pause"]);
+  assert.ok(!actionIds(dashboard).includes("start_implement"));
+  assert.ok(
+    openLinkLabels(dashboard).includes("🧾 review.md"),
+    "expected review summary link"
+  );
 });
 
 test("latest run and artifact links surface when metadata is present", () => {
-  const withUrl = buildControlPanel({
+  const withUrl = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.implementing,
       lastRunUrl: `${repositoryUrl}/actions/runs/444`
@@ -235,7 +264,7 @@ test("latest run and artifact links surface when metadata is present", () => {
   assert.ok(withUrl.latestRun);
   assert.equal(withUrl.latestRun.url, `${repositoryUrl}/actions/runs/444`);
 
-  const withIdOnly = buildControlPanel({
+  const withIdOnly = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.implementing,
       lastRunId: "555"
@@ -250,7 +279,7 @@ test("latest run and artifact links surface when metadata is present", () => {
   assert.ok(withIdOnly.latestRun);
   assert.equal(withIdOnly.latestRun.url, `${repositoryUrl}/actions/runs/555`);
 
-  const withoutRun = buildControlPanel({
+  const withoutRun = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.planReady
     }),
@@ -262,13 +291,15 @@ test("latest run and artifact links surface when metadata is present", () => {
   });
 
   assert.equal(withoutRun.latestRun, null);
-  const artifactLabels = withoutRun.artifacts.map((item) => item.label);
-  assert.ok(artifactLabels.includes("📄 Plan"));
-  assert.ok(artifactLabels.includes("📄 Acceptance tests"));
+  const artifactLabels = withoutRun.artifactGroups.flatMap((group) =>
+    group.links.map((item) => item.label)
+  );
+  assert.ok(artifactLabels.includes("plan.md"));
+  assert.ok(artifactLabels.includes("acceptance-tests.md"));
 });
 
 test("command actions link back to the pull request conversation", () => {
-  const panel = buildControlPanel({
+  const dashboard = buildDashboard({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.planReady
     }),
@@ -279,10 +310,8 @@ test("command actions link back to the pull request conversation", () => {
     artifactLinks: baseArtifacts
   });
 
-  const startImplement = panel.actions.find((action) => action.id === "start_implement");
-  const pause = panel.actions.find((action) => action.id === "pause");
-  const planLink = panel.actions.find((action) => action.id === "open_plan_artifacts");
-
+  const startImplement = dashboard.actions.find((action) => action.id === "start_implement");
+  const pause = dashboard.actions.find((action) => action.id === "pause");
   assert.ok(startImplement);
   assert.equal(startImplement.label, "▶ Comment /factory implement");
   assert.equal(startImplement.url, `${repositoryUrl}/pull/7`);
@@ -291,6 +320,8 @@ test("command actions link back to the pull request conversation", () => {
   assert.equal(pause.label, "⏸ Comment /factory pause");
   assert.equal(pause.url, `${repositoryUrl}/pull/7`);
 
-  assert.ok(planLink);
-  assert.equal(planLink.url, baseArtifacts.plan);
+  assert.ok(
+    openLinkLabels(dashboard).includes("📄 Open plan artifacts"),
+    "expected plan artifacts navigation link"
+  );
 });

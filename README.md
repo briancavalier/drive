@@ -255,36 +255,26 @@ The workflows create and manage these labels automatically:
 - `factory:cost-medium`
 - `factory:cost-high`
 
-## Factory Control Panel
+## Factory Dashboard
 
-Every factory-managed pull request now includes a durable **Factory Control Panel**
-section near the top of the PR body. The panel summarizes the current automation
-state and surfaces the safest next actions for operators:
+Every factory-managed pull request now opens with a concise **Factory Dashboard**
+section. The dashboard combines the previous control panel and status bullets into
+a two-column Markdown table with blank headers. The left column lists bold labels
+(`State`, `Owner`, `Stage`, `CI`, `Repairs`, `Cost`, `Estimate`, `Next`), while the
+right column renders emoji-enhanced values with standardized `—` fallbacks. Pause
+or block reasons append to the State row, and the Next row repeats the recommended
+operator guidance.
 
-- **State / Waiting on** — reflects the underlying factory status and overlays
-  `paused` whenever the `factory:paused` label is present.
-- **Last completed stage** — records the most recent stage that finished. This is
-  updated by the planning workflow, stage runner, and review handler.
-- **Reason** — highlights classified failure context, pause notes, or pending review
-  SHAs when the PR is waiting on humans.
-- **Recommended next step** — concise guidance that matches the current state.
-- **Latest run / Artifacts** — deep links to the most recent workflow run and the
-  canonical plan/spec/acceptance test artifacts.
-- **Actions** — a short list of state-appropriate controls. State-change actions
-  open the new [`Factory Control Action`](./.github/workflows/factory-control-action.yml)
-  workflow with the relevant parameters pre-filled; informational actions link directly
-  to branches, artifacts, diagnostics, or existing workflows (e.g., Factory Reset PR).
+Two inline lines sit directly under the table:
+- `**Open:**` surfaces read-only navigation such as the latest run, review artifacts,
+  and other informational links, separated by ` · `.
+- `**Actions:**` lists state-changing workflow links; each entry ends with
+  `*(state change)*` to call out mutations.
 
-Common actions include starting implementation, pausing/resuming automation,
-retrying a blocked stage, re-running review processing, or resetting the PR back to
-`plan_ready`. Guardrail-specific actions such as **Approve self-modify** post manual
-instructions—per repository policy the `factory:self-modify` label still must be
-applied by a human operator. The **Escalate to human-only** action parks the PR in
-`blocked`, converts it back to draft, and adds a durable note for manual follow-up.
-
-All actions accept an optional free-form comment. When no comment is supplied,
-the workflow writes a default note so reviewers can audit why the state changed.
-
+Artifacts remain durable under `## Artifacts`, now grouped by workflow phase
+(`Plan`, `Execution`, `Review`) with inline link lists. This separation keeps
+navigational links and mutation controls easy to scan while preserving the serialized
+`factory-state` comment for automation.
 
 ## GitHub message templates
 
@@ -313,14 +303,14 @@ Common tokens include:
 
 Composite tokens include:
 
-- `STATUS_SECTION`
+- `DASHBOARD_SECTION`
 - `ARTIFACTS_SECTION`
 - `OPERATOR_NOTES_SECTION`
 - `REVIEW_MARKDOWN`
 
 Required-token policy:
 
-- `pr-body.md` must include `{{STATUS_SECTION}}` and `{{ARTIFACTS_SECTION}}`
+- `pr-body.md` must include `{{DASHBOARD_SECTION}}`, `{{ARTIFACTS_SECTION}}`, and `{{OPERATOR_NOTES_SECTION}}`
 - `review-request-changes.md` must include `{{REVIEW_MARKDOWN}}`
 - the other message templates do not require specific tokens
 
@@ -341,9 +331,9 @@ Example `pr-body.md` override:
 
 Issue: #{{ISSUE_NUMBER}}
 
-{{ARTIFACTS_SECTION}}
+{{DASHBOARD_SECTION}}
 
-{{STATUS_SECTION}}
+{{ARTIFACTS_SECTION}}
 
 {{OPERATOR_NOTES_SECTION}}
 ```

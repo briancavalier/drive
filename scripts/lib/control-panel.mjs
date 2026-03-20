@@ -6,6 +6,7 @@ import {
   FACTORY_RESUMABLE_FAILURE_TYPES,
   FACTORY_SLASH_COMMANDS
 } from "./factory-config.mjs";
+import { formatEstimatedUsd } from "./cost-estimation.mjs";
 
 const STATE_DISPLAY = Object.freeze({
   paused: { emoji: "⏸️", label: "Paused" },
@@ -27,6 +28,12 @@ const WAITING_ON = Object.freeze({
   [FACTORY_PR_STATUSES.reviewing]: "agent",
   [FACTORY_PR_STATUSES.readyForReview]: "human reviewer",
   [FACTORY_PR_STATUSES.blocked]: "operator"
+});
+
+const CI_STATUS_DISPLAY = Object.freeze({
+  pending: { emoji: "⏳", label: "pending" },
+  success: { emoji: "✅", label: "success" },
+  failure: { emoji: "❌", label: "failure" }
 });
 
 const ACTION_DEFINITIONS = Object.freeze({
@@ -386,42 +393,6 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
   return "Monitor automation progress and intervene if needed.";
 }
 
-function selectArtifactItems({ stateKey, artifactLinks = {} }) {
-  const items = [];
-
-  if (stateKey === FACTORY_PR_STATUSES.planReady) {
-    if (artifactLinks.plan) {
-      items.push({ label: "📄 Plan", url: artifactLinks.plan });
-    }
-    if (artifactLinks.acceptanceTests) {
-      items.push({ label: "📄 Acceptance tests", url: artifactLinks.acceptanceTests });
-    }
-  } else if (stateKey === FACTORY_PR_STATUSES.readyForReview) {
-    if (artifactLinks.review) {
-      items.push({ label: "🧾 review.md", url: artifactLinks.review });
-    }
-    if (artifactLinks.reviewJson) {
-      items.push({ label: "🧾 review.json", url: artifactLinks.reviewJson });
-    }
-  } else {
-    if (artifactLinks.spec) {
-      items.push({ label: "📄 Spec", url: artifactLinks.spec });
-    }
-    if (artifactLinks.plan) {
-      items.push({ label: "📄 Plan", url: artifactLinks.plan });
-    }
-    if (artifactLinks.acceptanceTests) {
-      items.push({ label: "📄 Acceptance tests", url: artifactLinks.acceptanceTests });
-    }
-  }
-
-  if (stateKey === FACTORY_PR_STATUSES.blocked && artifactLinks.repairLog) {
-    items.push({ label: "🧭 Repair log", url: artifactLinks.repairLog });
-  }
-
-  return items;
-}
-
 function buildActions({
   stateKey,
   metadata,
@@ -558,18 +529,174 @@ function resolveLatestRunUrl({ metadata = {}, repositoryUrl }) {
 
   if (!runId || !repositoryUrl) {
     return "";
-  }
+}
 
   return `${repositoryUrl.replace(/\/$/, "")}/actions/runs/${runId}`;
 }
 
-export function buildControlPanel({
+function formatOwnerLabel(waitingOn) {
+  const normalized = `${waitingOn || ""}`.trim();
+
+  if (!normalized) {
+    return "—";
+  }
+
+  return normalized[0].toUpperCase() + normalized.slice(1);
+}
+
+function formatStageValue(stage) {
+  const normalized = `${stage || ""}`.trim();
+
+  if (!normalized) {
+    return "—";
+  }
+
+  return `\`${normalized}\``;
+}
+
+function formatCiStatus(ciStatus) {
+  const normalized = `${ciStatus || ""}`.trim().toLowerCase();
+  const display = CI_STATUS_DISPLAY[normalized];
+
+  if (!display) {
+    return normalized || "—";
+  }
+
+  return display.emoji ? `${display.emoji} ${display.label}` : display.label;
+}
+
+function formatRepairsDisplay(repairAttempts, maxRepairAttempts) {
+  const attempts = Number(repairAttempts);
+  const limit = Number(maxRepairAttempts);
+
+  if (!Number.isFinite(attempts) || attempts < 0) {
+    return "—";
+  }
+
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return "—";
+  }
+
+  return `${Math.max(0, attempts)}/${Math.max(0, limit)}`;
+}
+
+function formatCostDisplay(metadata = {}) {
+  const amount = Number(metadata.costEstimateUsd);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "—";
+  }
+
+  const parts = [];
+  const emoji = `${metadata.costEstimateEmoji || ""}`.trim();
+
+  if (emoji) {
+    parts.push(emoji);
+  }
+
+  const band = `${metadata.costEstimateBand || ""}`.trim() || "unknown";
+  parts.push(`$${formatEstimatedUsd(amount)} total (${band})`);
+
+  return parts.join(" ");
+}
+
+function formatEstimateDisplay(metadata = {}) {
+  const amount = Number(metadata.lastStageCostEstimateUsd);
+  const model = `${metadata.lastEstimatedModel || ""}`.trim();
+
+  if (!Number.isFinite(amount) || amount <= 0 || !model) {
+    return "—";
+  }
+
+  return `$${formatEstimatedUsd(amount)} via ${model}`;
+}
+
+function uniqueLinks(items = []) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    const url = `${item?.url || ""}`.trim();
+
+    if (!url || seen.has(url)) {
+      continue;
+    }
+
+    seen.add(url);
+    result.push({
+      label: item.label || url,
+      url
+    });
+  }
+
+  return result;
+}
+
+function buildArtifactGroups(artifactLinks = {}) {
+  const groups = [
+    {
+      key: "plan",
+      label: "Plan",
+      links: [
+        { label: "approved-issue.md", url: artifactLinks.approvedIssue },
+        { label: "spec.md", url: artifactLinks.spec },
+        { label: "plan.md", url: artifactLinks.plan },
+        { label: "acceptance-tests.md", url: artifactLinks.acceptanceTests }
+      ]
+    },
+    {
+      key: "execution",
+      label: "Execution",
+      links: [
+        { label: "repair-log.md", url: artifactLinks.repairLog },
+        { label: "cost-summary.json", url: artifactLinks.costSummary }
+      ]
+    },
+    {
+      key: "review",
+      label: "Review",
+      links: [
+        { label: "review.md", url: artifactLinks.review },
+        { label: "review.json", url: artifactLinks.reviewJson }
+      ]
+    }
+  ];
+
+  return groups
+    .map((group) => ({
+      ...group,
+      links: group.links.filter((link) => `${link?.url || ""}`.trim())
+    }))
+    .filter((group) => group.links.length > 0);
+}
+
+function buildOpenLinks({ actions = [], artifactLinks = {} }) {
+  const reviewLinks = [
+    artifactLinks.review
+      ? { label: "🧾 review.md", url: artifactLinks.review }
+      : null,
+    artifactLinks.reviewJson
+      ? { label: "🧾 review.json", url: artifactLinks.reviewJson }
+      : null
+  ].filter(Boolean);
+  const linkActions = actions
+    .filter((action) => action?.kind === "link")
+    .map((action) => ({
+      label: action.label,
+      url: action.url
+    }));
+
+  return uniqueLinks([...reviewLinks, ...linkActions]);
+}
+
+export function buildDashboard({
   metadata = {},
   labels = [],
   repositoryUrl = "",
   branch = "",
   prNumber,
-  artifactLinks = {}
+  artifactLinks = {},
+  ciStatus = "pending"
 }) {
   const labelNames = normalizeLabelNames(labels);
   const stateKey = resolveState({ metadata, labelNames });
@@ -579,7 +706,6 @@ export function buildControlPanel({
   const reason = buildReason({ stateKey, metadata });
   const recommendedNextStep = buildRecommendedNextStep({ stateKey, metadata });
   const latestRunUrl = resolveLatestRunUrl({ metadata, repositoryUrl });
-  const artifacts = selectArtifactItems({ stateKey, artifactLinks });
   const actions = buildActions({
     stateKey,
     metadata,
@@ -587,12 +713,15 @@ export function buildControlPanel({
     artifactLinks,
     latestRunUrl
   });
+  const mutationActions = actions.filter((action) => action?.kind === "mutation");
+  const openLinks = buildOpenLinks({ actions, artifactLinks });
+  const artifactGroups = buildArtifactGroups(artifactLinks);
+  const stateValue = reason ? `${stateDisplay.text} — ${reason}` : stateDisplay.text;
 
   return {
     state: stateKey,
     stateDisplay: stateDisplay.text,
     waitingOn,
-    lastCompletedStage,
     reason,
     recommendedNextStep,
     latestRun: latestRunUrl
@@ -601,7 +730,50 @@ export function buildControlPanel({
           url: latestRunUrl
         }
       : null,
-    artifacts,
-    actions
+    rows: [
+      {
+        key: "state",
+        label: "State",
+        value: stateValue || "Unknown"
+      },
+      {
+        key: "owner",
+        label: "Owner",
+        value: formatOwnerLabel(waitingOn)
+      },
+      {
+        key: "stage",
+        label: "Stage",
+        value: formatStageValue(lastCompletedStage)
+      },
+      {
+        key: "ci",
+        label: "CI",
+        value: formatCiStatus(ciStatus)
+      },
+      {
+        key: "repairs",
+        label: "Repairs",
+        value: formatRepairsDisplay(metadata.repairAttempts, metadata.maxRepairAttempts)
+      },
+      {
+        key: "cost",
+        label: "Cost",
+        value: formatCostDisplay(metadata)
+      },
+      {
+        key: "estimate",
+        label: "Estimate",
+        value: formatEstimateDisplay(metadata)
+      },
+      {
+        key: "next",
+        label: "Next",
+        value: recommendedNextStep || "Monitor automation progress and intervene if needed."
+      }
+    ],
+    openLinks,
+    actions: mutationActions,
+    artifactGroups
   };
 }

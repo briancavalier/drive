@@ -257,9 +257,11 @@ test("routeIssueComment still parses metadata from custom PR body templates", as
     "pr-body.md": [
       "# Custom",
       "",
+      "{{DASHBOARD_SECTION}}",
+      "",
       "{{ARTIFACTS_SECTION}}",
       "",
-      "{{STATUS_SECTION}}"
+      "{{OPERATOR_NOTES_SECTION}}"
     ].join("\n")
   });
   const result = await routeIssueComment(issueCommentPayload("/factory implement"), {
