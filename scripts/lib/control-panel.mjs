@@ -117,9 +117,10 @@ function normalizeLabelNames(labels = []) {
 
 function resolveState({ metadata = {}, labelNames }) {
   const status = `${metadata.status || ""}`.trim();
-  const isPaused = labelNames.has(FACTORY_LABELS.paused.toLowerCase());
+  const pausedFromMetadata = metadata.paused === true;
+  const pausedFromLabel = labelNames.has(FACTORY_LABELS.paused.toLowerCase());
 
-  if (isPaused) {
+  if (pausedFromMetadata || pausedFromLabel) {
     return "paused";
   }
 
@@ -317,10 +318,14 @@ function buildReason({ stateKey, metadata }) {
     const pauseReason = `${metadata.pauseReason || ""}`.trim();
 
     if (pauseReason === "manual") {
-      return "Automation manually paused via label.";
+      return "Automation manually paused by an operator.";
     }
 
-    return "Automation paused via label.";
+    if (pauseReason) {
+      return `Automation paused: ${pauseReason}`;
+    }
+
+    return "Automation paused.";
   }
 
   if (stateKey === FACTORY_PR_STATUSES.readyForReview && metadata.pendingReviewSha) {
@@ -614,4 +619,3 @@ export function buildControlPanel({
     actions
   };
 }
-
