@@ -56,7 +56,8 @@ const body = renderPrBody({
     issueNumber,
     artifactsPath,
     preparedMaxRepairAttempts
-  })
+  }),
+  labels: existingPullRequest?.labels ?? []
 });
 const pullRequest =
   existingPullRequest ||

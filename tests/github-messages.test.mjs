@@ -50,6 +50,8 @@ test("renderPrBody uses valid override templates and preserves parseable metadat
       "",
       "Issue: #{{ISSUE_NUMBER}}",
       "",
+      "{{CONTROL_PANEL_SECTION}}",
+      "",
       "{{ARTIFACTS_SECTION}}",
       "",
       "{{STATUS_SECTION}}"
@@ -78,7 +80,10 @@ test("renderPrBody falls back to default template when required tokens are missi
 
   assert.match(body, /# Factory Run/);
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /missing required tokens: STATUS_SECTION/);
+  assert.match(
+    warnings[0],
+    /missing required tokens: (CONTROL_PANEL_SECTION, STATUS_SECTION|STATUS_SECTION, CONTROL_PANEL_SECTION)/
+  );
 });
 
 test("renderPrBody includes emoji-enhanced status lines and operator notes", () => {
@@ -100,15 +105,12 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   );
   assert.ok(
     lines.includes(
-      "- ▶️ Apply `factory:implement` to start coding after plan review."
+      "- Use the control panel above for start, pause, retry, and reset actions."
     )
   );
   assert.ok(
-    lines.includes("- ⏸️ Apply `factory:paused` to pause autonomous work.")
-  );
-  assert.ok(
     lines.includes(
-      "- ▶️ Remove `factory:paused` and re-apply `factory:implement` to resume."
+      "- Labels such as `factory:implement` and `factory:paused` remain available as manual fallbacks."
     )
   );
   assert.ok(
@@ -124,6 +126,38 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   const successCiLine = successBody.split("\n").find((line) => line.startsWith("- CI:"));
 
   assert.equal(successCiLine, "- CI: ✅ success");
+});
+
+test("renderPrBody renders control panel for plan_ready status", () => {
+  const body = renderPrBody(prBodyInput());
+  const [, panelRest = ""] = body.split("## Factory Control Panel");
+  const panelSection = panelRest.split("## Status")[0] || "";
+  const panelLines = panelSection.trim().split("\n").map((line) => line.trim());
+
+  assert.ok(panelSection.includes("**State:** 👀 Plan ready"));
+  assert.ok(panelSection.includes("**Waiting on:** operator"));
+  assert.ok(panelSection.includes("**Last completed stage:** plan"));
+  assert.ok(panelSection.includes("**Recommended next step:** Review the plan artifacts"));
+  assert.ok(
+    panelSection.includes(
+      "[📄 Plan](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/plan.md)"
+    )
+  );
+  assert.ok(
+    panelSection.includes(
+      "[📄 Acceptance tests](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/acceptance-tests.md)"
+    )
+  );
+
+  const actionsIndex = panelLines.indexOf("**Actions**");
+  assert.ok(actionsIndex >= 0, "expected actions header");
+  const actionLines = panelLines.slice(actionsIndex + 1).filter((line) => line.startsWith("- "));
+  const actionLabels = actionLines.map((line) => {
+    const match = line.match(/\[([^\]]+)\]/);
+    return match ? match[1] : line;
+  });
+
+  assert.deepEqual(actionLabels, ["▶ Start implement", "⏸ Pause", "📄 Open plan artifacts"]);
 });
 
 test("renderPrBody falls back to raw status when emoji mapping is missing", () => {

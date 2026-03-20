@@ -23,6 +23,10 @@ export function defaultPrMetadata(overrides = {}) {
     transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
+    lastCompletedStage: null,
+    lastRunId: null,
+    lastRunUrl: null,
+    pauseReason: null,
     costEstimateUsd: 0,
     costEstimateBand: "",
     costEstimateEmoji: "",
@@ -105,6 +109,10 @@ export function buildPlanReadyPrMetadata({
     issueNumber
   );
 
+  if (!nextMetadata.lastCompletedStage) {
+    nextMetadata.lastCompletedStage = "plan";
+  }
+
   if (metadata.maxRepairAttempts == null && preparedMaxRepairAttempts != null) {
     nextMetadata.maxRepairAttempts = preparedMaxRepairAttempts;
   }
@@ -118,7 +126,8 @@ export function renderPrBody({
   repositoryUrl,
   artifactsPath,
   metadata,
-  ciStatus = "pending"
+  ciStatus = "pending",
+  labels = []
 }, options = {}) {
   const nextMetadata = canonicalizePrMetadata(metadata, issueNumber);
   const resolvedIssueNumber = normalizeIssueNumber(issueNumber) ?? nextMetadata.issueNumber;
@@ -132,6 +141,7 @@ export function renderPrBody({
     repositoryUrl,
     artifactsPath: resolvedArtifactsPath,
     metadata: nextMetadata,
-    ciStatus
+    ciStatus,
+    labels
   }, options);
 }
