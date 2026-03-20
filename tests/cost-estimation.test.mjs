@@ -157,7 +157,7 @@ test("estimateStageCost applies per-bucket usage calibration", () => {
     calibration: {
       generatedAt: "2026-03-01T00:00:00Z",
       buckets: {
-        "implement:gpt-5-codex:openai": {
+        "openai:stage:implement:gpt-5-codex": {
           multipliers: {
             inputTokens: 1.1,
             cachedInputTokens: 1,

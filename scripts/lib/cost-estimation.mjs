@@ -422,7 +422,7 @@ export function estimateStageCost({
 }) {
   const calibrationData =
     calibration === undefined ? loadUsageCalibration() : calibration;
-  const calibrationKey = `${mode}:${model}:${DEFAULT_PROVIDER}`;
+  const calibrationKey = `${DEFAULT_PROVIDER}:stage:${mode}:${model}`;
   const calibrationInfo = buildCalibrationInfo(calibrationData, calibrationKey);
   const estimatedUsageBeforeCalibration = estimateStageUsage({ mode, promptChars });
   const estimatedUsage = applyUsageCalibration(
