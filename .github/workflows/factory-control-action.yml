@@ -52,7 +52,7 @@ jobs:
           FACTORY_STATUS: implementing
           FACTORY_ADD_LABELS: factory:implement
           FACTORY_REMOVE_LABELS: factory:plan-ready,factory:blocked,factory:paused
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: implement stage triggered.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: implement stage triggered.' }}"
 
       - name: Pause automation
         if: ${{ inputs.action == 'pause' }}
@@ -63,7 +63,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_ADD_LABELS: factory:paused
           FACTORY_PAUSE_REASON: manual
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation paused.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation paused.' }}"
 
       - name: Resume automation
         if: ${{ inputs.action == 'resume' }}
@@ -74,7 +74,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_REMOVE_LABELS: factory:paused
           FACTORY_PAUSE_REASON: ""
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation resume requested.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation resume requested.' }}"
 
       - name: Retry stage
         if: ${{ inputs.action == 'retry' }}
@@ -85,7 +85,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_ADD_LABELS: factory:implement
           FACTORY_REMOVE_LABELS: factory:blocked,factory:paused
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: stage retry requested.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: stage retry requested.' }}"
 
       - name: Retry review stage
         if: ${{ inputs.action == 'retry_review' }}
@@ -96,7 +96,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_STATUS: reviewing
           FACTORY_REMOVE_LABELS: factory:blocked
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: review retry requested.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: review retry requested.' }}"
 
       - name: Reset factory PR
         if: ${{ inputs.action == 'reset' }}
@@ -123,7 +123,7 @@ jobs:
           FACTORY_LAST_RUN_ID: ""
           FACTORY_LAST_RUN_URL: ""
           FACTORY_PAUSE_REASON: ""
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: PR reset to plan_ready.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: PR reset to plan_ready.' }}"
 
       - name: Approve self-modify (manual guidance)
         if: ${{ inputs.action == 'approve_self_modify' }}
@@ -132,7 +132,7 @@ jobs:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: please manually apply the factory:self-modify label before rerunning.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: please manually apply the factory:self-modify label before rerunning.' }}"
 
       - name: Escalate to human-only
         if: ${{ inputs.action == 'escalate' }}
@@ -145,4 +145,4 @@ jobs:
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_REMOVE_LABELS: factory:implement
           FACTORY_CONVERT_TO_DRAFT: "true"
-          FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: escalated to human-only handling.' }}
+          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: escalated to human-only handling.' }}"
