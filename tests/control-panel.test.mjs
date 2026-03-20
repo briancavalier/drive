@@ -77,6 +77,26 @@ test("paused overlay still falls back to the projected paused label for older me
   assert.equal(panel.reason, "Automation paused.");
 });
 
+test("paused ready_for_review suppresses resume when no resume command is supported", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.readyForReview,
+      paused: true,
+      lastRunUrl: `${repositoryUrl}/actions/runs/902`
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.equal(panel.state, "paused");
+  assert.ok(!actionIds(panel).includes("resume"));
+  assert.ok(actionIds(panel).includes("reset"));
+  assert.ok(actionIds(panel).includes("open_latest_run"));
+});
+
 test("blocked reasons map to subtype-specific guidance and actions", () => {
   const scenarios = [
     {

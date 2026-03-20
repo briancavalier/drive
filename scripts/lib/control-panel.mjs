@@ -217,6 +217,17 @@ function canResumeBlockedRun(metadata = {}) {
   );
 }
 
+function canResumePausedRun(metadata = {}) {
+  const status = `${metadata.status || ""}`.trim();
+
+  return [
+    FACTORY_PR_STATUSES.planReady,
+    FACTORY_PR_STATUSES.implementing,
+    FACTORY_PR_STATUSES.repairing,
+    FACTORY_PR_STATUSES.reviewing
+  ].includes(status);
+}
+
 function isRepairCapExceeded(metadata = {}) {
   const attempts = Number(metadata.repairAttempts || 0);
   const limit = Number(metadata.maxRepairAttempts || 0);
@@ -458,7 +469,9 @@ function buildActions({
   }
 
   if (stateKey === "paused") {
-    pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+    if (canResumePausedRun(metadata)) {
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+    }
     pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
     return actions;
