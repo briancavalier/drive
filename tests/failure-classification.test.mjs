@@ -38,7 +38,7 @@ test("classifyFailure detects stale stage push races", () => {
 
 test("classifyFailure detects configuration failures", () => {
   assert.equal(
-    classifyFailure("Factory stage output modifies .github/workflows/** but FACTORY_GITHUB_TOKEN is not configured."),
+    classifyFailure("Factory stage output modifies protected control-plane paths (.github/workflows/**, .factory/FACTORY.md) but FACTORY_GITHUB_TOKEN is not configured."),
     FAILURE_TYPES.configuration
   );
   assert.equal(

@@ -85,13 +85,21 @@ test("isSelfModifyEnabled parses truthy repository variable values", () => {
 });
 
 test("getProtectedPathChanges reports protected control-plane paths", () => {
-  assert.deepEqual(getProtectedPathChanges(["M\tREADME.md", "A\tscripts/apply-pr-state.mjs"]), [
-    {
-      kind: "scripts",
-      label: "scripts/**",
-      paths: ["scripts/apply-pr-state.mjs"]
-    }
-  ]);
+  assert.deepEqual(
+    getProtectedPathChanges(["M\tREADME.md", "A\tscripts/apply-pr-state.mjs", "A\t.factory/FACTORY.md"]),
+    [
+      {
+        kind: "scripts",
+        label: "scripts/**",
+        paths: ["scripts/apply-pr-state.mjs"]
+      },
+      {
+        kind: "factoryPolicy",
+        label: ".factory/FACTORY.md",
+        paths: [".factory/FACTORY.md"]
+      }
+    ]
+  );
   assert.deepEqual(getProtectedPathChanges(["R100\tREADME.md\tscripts/self-modify.mjs"]), [
     {
       kind: "scripts",
@@ -118,11 +126,12 @@ test("evaluateStagePush allows product changes without self-modify mode", () => 
 
   assert.equal(result.allowed, true);
   assert.equal(result.workflowChanges, false);
+  assert.deepEqual(result.protectedPathChanges, []);
 });
 
 test("evaluateStagePush blocks protected-path edits when self-modify mode is disabled", () => {
   const result = evaluateStagePush({
-    changedFiles: ["M\tscripts/apply-pr-state.mjs", "M\tREADME.md"],
+    changedFiles: ["M\tscripts/apply-pr-state.mjs", "A\t.factory/FACTORY.md"],
     hasFactoryToken: true,
     selfModifyEnabled: false,
     hasSelfModifyLabel: true
@@ -130,12 +139,13 @@ test("evaluateStagePush blocks protected-path edits when self-modify mode is dis
 
   assert.equal(result.allowed, false);
   assert.equal(result.workflowChanges, false);
+  assert.equal(result.protectedPathChanges.length, 2);
   assert.match(result.reason, /FACTORY_ENABLE_SELF_MODIFY/);
 });
 
 test("evaluateStagePush blocks protected-path edits without the self-modify label", () => {
   const result = evaluateStagePush({
-    changedFiles: ["M\t.factory/prompts/review.md", "M\tREADME.md"],
+    changedFiles: ["M\t.factory/prompts/review.md", "A\t.factory/FACTORY.md"],
     hasFactoryToken: true,
     selfModifyEnabled: true,
     hasSelfModifyLabel: false
@@ -147,7 +157,7 @@ test("evaluateStagePush blocks protected-path edits without the self-modify labe
 
 test("evaluateStagePush blocks protected-path edits without FACTORY_GITHUB_TOKEN", () => {
   const result = evaluateStagePush({
-    changedFiles: ["M\t.github/workflows/_factory-stage.yml", "M\tREADME.md"],
+    changedFiles: ["M\t.github/workflows/_factory-stage.yml", "A\t.factory/FACTORY.md"],
     hasFactoryToken: false,
     selfModifyEnabled: true,
     hasSelfModifyLabel: true
@@ -155,12 +165,13 @@ test("evaluateStagePush blocks protected-path edits without FACTORY_GITHUB_TOKEN
 
   assert.equal(result.allowed, false);
   assert.equal(result.workflowChanges, true);
+  assert.equal(result.protectedPathChanges.length, 2);
   assert.match(result.reason, /FACTORY_GITHUB_TOKEN/);
 });
 
 test("evaluateStagePush blocks renames into protected paths without authorization", () => {
   const result = evaluateStagePush({
-    changedFiles: ["R100\tREADME.md\tscripts/self-modify.mjs"],
+    changedFiles: ["R100\tREADME.md\t.factory/FACTORY.md"],
     hasFactoryToken: true,
     selfModifyEnabled: false,
     hasSelfModifyLabel: true
@@ -177,7 +188,8 @@ test("evaluateStagePush allows protected-path edits when self-modify mode is ful
       "M\t.factory/prompts/review.md",
       "M\t.factory/review-methods/default/instructions.md",
       "M\t.factory/messages/pr-body.md",
-      "M\t.github/workflows/_factory-stage.yml"
+      "M\t.github/workflows/_factory-stage.yml",
+      "A\t.factory/FACTORY.md"
     ],
     hasFactoryToken: true,
     selfModifyEnabled: true,
@@ -186,6 +198,7 @@ test("evaluateStagePush allows protected-path edits when self-modify mode is ful
 
   assert.equal(result.allowed, true);
   assert.equal(result.workflowChanges, true);
+  assert.ok(result.protectedPathChanges.length >= 2);
 });
 
 test("evaluateStagePush allows deleting temp artifacts", () => {

@@ -339,7 +339,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       branch,
       remoteHead,
       hasFactoryToken: factoryTokenConfigured,
-      workflowChanges: false
+      workflowChanges: false,
+      protectedPathChanges: false
     });
   }
 
@@ -358,7 +359,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       branch,
       remoteHead,
       hasFactoryToken: resolvedToken.source === "factory",
-      workflowChanges: false
+      workflowChanges: false,
+      protectedPathChanges: false
     });
   }
 
@@ -367,7 +369,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       branch,
       remoteHead,
       hasFactoryToken: resolvedToken.source === "factory",
-      workflowChanges: false
+      workflowChanges: false,
+      protectedPathChanges: false
     });
   }
 
@@ -407,7 +410,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       branch,
       remoteHead,
       hasFactoryToken: resolvedToken.source === "factory",
-      workflowChanges: false
+      workflowChanges: false,
+      protectedPathChanges: false
     });
   }
 
@@ -432,7 +436,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       branch,
       remoteHead,
       hasFactoryToken: resolvedToken.source === "factory",
-      workflowChanges: evaluation.workflowChanges
+      workflowChanges: evaluation.workflowChanges,
+      protectedPathChanges: evaluation.protectedPathChanges.length > 0
     });
   }
 
