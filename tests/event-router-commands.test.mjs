@@ -76,6 +76,48 @@ test("routeIssueComment routes trusted resume commands only for resumable blocke
   assert.equal(route.action, "implement");
 });
 
+test("routeIssueComment resumes paused implement, repair, and review runs to their underlying action", async () => {
+  const implementRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("implementing", { paused: true }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+  const repairRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("repairing", { paused: true }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+  const reviewRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("reviewing", { paused: true }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(implementRoute.action, "implement");
+  assert.equal(repairRoute.action, "repair");
+  assert.equal(reviewRoute.action, "review");
+});
+
+test("routeIssueComment resumes paused plan-ready PRs into implement", async () => {
+  const route = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("plan_ready", { paused: true }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(route.action, "implement");
+});
+
+test("routeIssueComment leaves paused ready-for-review PRs unchanged on resume", async () => {
+  const route = await routeIssueComment(prCommandPayload("/factory resume"), {
+    getPullRequest: async () =>
+      managedPr("ready_for_review", { paused: true }),
+    getCollaboratorPermission: async () => ({ permission: "write" })
+  });
+
+  assert.equal(route.action, "noop");
+});
+
 test("routeIssueComment resumes repair and review runs to their blocked action", async () => {
   const repairRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
     getPullRequest: async () =>

@@ -35,6 +35,24 @@ function hasTrustedCollaboratorPermission(permission) {
   return TRUSTED_REVIEW_PERMISSIONS.has(`${permission || ""}`.trim().toLowerCase());
 }
 
+function resolvePausedResumeAction(metadata = {}) {
+  const status = `${metadata.status || ""}`.trim();
+
+  if (status === FACTORY_PR_STATUSES.planReady || status === FACTORY_PR_STATUSES.implementing) {
+    return FACTORY_COMMANDS.implement;
+  }
+
+  if (status === FACTORY_PR_STATUSES.repairing) {
+    return "repair";
+  }
+
+  if (status === FACTORY_PR_STATUSES.reviewing) {
+    return "review";
+  }
+
+  return "";
+}
+
 function isManaged(labels, branchName, metadata, { allowPaused = false, allowBlocked = false } = {}) {
   return (
     isFactoryBranch(branchName) &&
@@ -132,6 +150,24 @@ export async function routeIssueComment(payload, githubClient = {}) {
   }
 
   if (parsedCommand.command === FACTORY_COMMANDS.resume) {
+    if (metadata?.paused) {
+      const resumedAction = resolvePausedResumeAction(metadata);
+
+      if (!resumedAction) {
+        return { action: "noop" };
+      }
+
+      return {
+        action: resumedAction,
+        prNumber: pullRequest.number,
+        issueNumber: trustedContext.issueNumber,
+        branch: trustedContext.branch,
+        artifactsPath: trustedContext.artifactsPath,
+        stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+        stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+      };
+    }
+
     if (
       metadata?.status !== FACTORY_PR_STATUSES.blocked ||
       !FACTORY_RESUMABLE_FAILURE_TYPES.includes(metadata?.lastFailureType || "") ||

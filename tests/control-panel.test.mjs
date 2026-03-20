@@ -55,6 +55,10 @@ test("paused overlay surfaces resume/reset actions and manual pause reason", () 
   assert.ok(actionIds(panel).includes("reset"), "expected Reset PR action");
   assert.ok(actionIds(panel).includes("open_latest_run"), "expected latest run link");
   assert.ok(!actionIds(panel).includes("start_implement"), "agent-only actions should be suppressed");
+  assert.equal(
+    panel.actions.find((action) => action.id === "resume")?.label,
+    "▶ Comment /factory resume"
+  );
 });
 
 test("paused overlay still falls back to the projected paused label for older metadata", () => {
@@ -73,6 +77,26 @@ test("paused overlay still falls back to the projected paused label for older me
   assert.equal(panel.reason, "Automation paused.");
 });
 
+test("paused ready_for_review suppresses resume when no resume command is supported", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.readyForReview,
+      paused: true,
+      lastRunUrl: `${repositoryUrl}/actions/runs/902`
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.equal(panel.state, "paused");
+  assert.ok(!actionIds(panel).includes("resume"));
+  assert.ok(actionIds(panel).includes("reset"));
+  assert.ok(actionIds(panel).includes("open_latest_run"));
+});
+
 test("blocked reasons map to subtype-specific guidance and actions", () => {
   const scenarios = [
     {
@@ -83,7 +107,7 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         stageNoopAttempts: 2,
         lastRunUrl: `${repositoryUrl}/actions/runs/111`
       }),
-      expectedActionIds: ["retry", "reset", "pause", "open_diagnostics"],
+      expectedActionIds: ["reset", "pause", "open_diagnostics"],
       reason: /no committed changes/i
     },
     {
@@ -91,9 +115,10 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
         lastFailureType: "stage_setup",
+        blockedAction: "repair",
         lastRunUrl: `${repositoryUrl}/actions/runs/222`
       }),
-      expectedActionIds: ["retry", "reset", "pause", "open_latest_run"],
+      expectedActionIds: ["resume", "reset", "pause", "open_latest_run"],
       reason: /setup prerequisites failed/i
     },
     {
@@ -101,10 +126,11 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
         lastFailureType: "stage_setup",
+        blockedAction: "repair",
         lastFailureSignature:
           "stage setup prerequisites failed: factory stage output touches protected control-plane paths but the pull request is missing the factory:self-modify label."
       }),
-      expectedActionIds: ["approve_self_modify", "reset", "pause"],
+      expectedActionIds: ["reset", "pause"],
       reason: /self-modify guard/i
     },
     {
@@ -112,19 +138,21 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
         lastFailureType: "transient_infra",
+        blockedAction: "review",
         transientRetryAttempts: 2,
         lastRunUrl: `${repositoryUrl}/actions/runs/333`
       }),
-      expectedActionIds: ["retry", "pause", "open_latest_run"],
+      expectedActionIds: ["resume", "pause", "open_latest_run"],
       reason: /transient infrastructure/i
     },
     {
       name: "stale_branch_conflict",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "stale_branch_conflict"
+        lastFailureType: "stale_branch_conflict",
+        blockedAction: "implement"
       }),
-      expectedActionIds: ["open_branch", "reset", "pause"],
+      expectedActionIds: ["open_branch", "resume", "reset", "pause"],
       reason: /merge conflict/i
     },
     {
@@ -134,7 +162,7 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         lastFailureType: "review_artifact_contract",
         lastReviewArtifactFailure: { type: "review_artifact_contract", message: "review.json missing" }
       }),
-      expectedActionIds: ["retry_review", "reset", "pause", "open_artifacts"],
+      expectedActionIds: ["reset", "pause", "open_artifacts"],
       reason: /review artifact contract/i
     },
     {
@@ -146,7 +174,7 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         maxRepairAttempts: 3,
         repeatedFailureCount: 2
       }),
-      expectedActionIds: ["escalate", "reset", "pause", "open_failure_history"],
+      expectedActionIds: ["reset", "pause", "open_failure_history"],
       reason: /exhausted automatic retries/i
     }
   ];
@@ -239,7 +267,7 @@ test("latest run and artifact links surface when metadata is present", () => {
   assert.ok(artifactLabels.includes("📄 Acceptance tests"));
 });
 
-test("workflow action links include encoded workflow dispatch parameters", () => {
+test("command actions link back to the pull request conversation", () => {
   const panel = buildControlPanel({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.planReady
@@ -256,12 +284,12 @@ test("workflow action links include encoded workflow dispatch parameters", () =>
   const planLink = panel.actions.find((action) => action.id === "open_plan_artifacts");
 
   assert.ok(startImplement);
-  assert.ok(startImplement.url.includes("factory-control-action.yml"));
-  assert.ok(startImplement.url.includes("action=start_implement"));
-  assert.ok(startImplement.url.includes("pr_number=7"));
+  assert.equal(startImplement.label, "▶ Comment /factory implement");
+  assert.equal(startImplement.url, `${repositoryUrl}/pull/7`);
 
   assert.ok(pause);
-  assert.ok(pause.url.includes("action=pause"));
+  assert.equal(pause.label, "⏸ Comment /factory pause");
+  assert.equal(pause.url, `${repositoryUrl}/pull/7`);
 
   assert.ok(planLink);
   assert.equal(planLink.url, baseArtifacts.plan);

@@ -384,7 +384,7 @@ export function renderPrBody(
       "- Use the control panel above for start, pause, retry, and reset actions.",
       `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}\` to start coding after plan review.`,
       `- ⏸️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}\` to pause autonomous work.`,
-      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a recoverable blocked run.`,
+      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a paused run or a recoverable blocked run.`,
       `- 🔁 Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]}\` to reset the PR back to plan-ready.`,
       "- 💸 Cost values are advisory estimates, not billed usage."
     ].join("\n")
