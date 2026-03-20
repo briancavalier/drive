@@ -110,7 +110,7 @@ function buildDeterministicRecoverySteps({ action, phase, failureType }) {
     return [
       "Read the failure message and diagnostics to identify which prerequisite is missing.",
       "Fix the setup issue (for example configure `FACTORY_GITHUB_TOKEN` before allowing workflow edits).",
-      "Retry the factory stage after the missing prerequisite is in place."
+      "Comment `/factory resume` after the missing prerequisite is in place, or `/factory reset` if the PR needs to be restored to plan-ready first."
     ];
   }
 
@@ -118,7 +118,7 @@ function buildDeterministicRecoverySteps({ action, phase, failureType }) {
     return [
       "Inspect the failing Factory PR Loop run and the current branch contents.",
       "Fix the issue manually or adjust the request so implementation can proceed cleanly.",
-      "Re-apply `factory:implement` after the branch and plan are back in a good state."
+      "Comment `/factory implement`, `/factory resume`, or `/factory reset` once the branch and metadata are back in a good state."
     ];
   }
 

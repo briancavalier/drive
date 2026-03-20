@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyBlockedAction,
+  applyPaused,
   applyCostEstimateMetadata,
   applyLastCompletedStage,
   applyLastReviewArtifactFailure,
@@ -9,10 +11,11 @@ import {
   applyPauseReason,
   applyPendingReviewSha,
   applyTransientRetryAttempts,
+  buildProjectedLabels,
   canonicalizeUpdatedMetadata,
   resolveNextStatus
 } from "../scripts/apply-pr-state.mjs";
-import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
+import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import {
   defaultPrMetadata
 } from "../scripts/lib/pr-metadata.mjs";
@@ -214,6 +217,40 @@ test("canonicalizeUpdatedMetadata rewrites drifted artifacts paths and preserves
   assert.equal(nextMetadata.status, FACTORY_PR_STATUSES.reviewing);
   assert.equal(nextMetadata.stageSetupAttempts, 2);
 });
+
+test("applyPaused updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.equal(applyPaused(metadata, "true").paused, true);
+  assert.equal(applyPaused(metadata, "false").paused, false);
+  assert.equal(applyPaused({ ...metadata, paused: true }, "__UNCHANGED__").paused, true);
+});
+
+test("applyBlockedAction updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata({ blockedAction: "repair" });
+
+  assert.equal(applyBlockedAction(metadata, "review").blockedAction, "review");
+  assert.equal(applyBlockedAction(metadata, "").blockedAction, null);
+  assert.equal(applyBlockedAction(metadata, "__UNCHANGED__").blockedAction, "repair");
+});
+
+test("buildProjectedLabels maps metadata state into projected status labels", () => {
+  const labels = buildProjectedLabels(
+    defaultPrMetadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      paused: true,
+      costEstimateBand: "medium"
+    })
+  );
+
+  assert.deepEqual(labels, [
+    FACTORY_LABELS.managed,
+    FACTORY_LABELS.blocked,
+    FACTORY_LABELS.paused,
+    FACTORY_LABELS.costMedium
+  ]);
+});
+
 test("applyLastReviewArtifactFailure leaves metadata unchanged when env undefined", () => {
   const metadata = defaultPrMetadata({
     lastReviewArtifactFailure: { type: "review_artifact_contract" }

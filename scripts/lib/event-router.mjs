@@ -1,11 +1,17 @@
 import {
   FACTORY_ACTIVE_CI_STATUSES,
-  FACTORY_IMPLEMENT_TRIGGER_STATUSES,
+  FACTORY_COMMANDS,
   FACTORY_LABELS,
   FACTORY_PR_STATUSES,
+  FACTORY_RESETTABLE_PR_STATUSES,
   FACTORY_REVIEW_REPAIRABLE_STATUSES,
+  FACTORY_RESUMABLE_FAILURE_TYPES,
   isFactoryBranch
 } from "./factory-config.mjs";
+import {
+  getFactoryCommentContext,
+  parseFactorySlashCommand
+} from "./factory-command.mjs";
 import {
   validateFactoryRepoTrust,
   validateTrustedFactoryContext
@@ -25,13 +31,17 @@ function logRepoTrustNoop(trigger, reason) {
   console.info(`Ignoring ${trigger}: ${reason}.`);
 }
 
-function isManaged(labels, branchName, metadata) {
+function hasTrustedCollaboratorPermission(permission) {
+  return TRUSTED_REVIEW_PERMISSIONS.has(`${permission || ""}`.trim().toLowerCase());
+}
+
+function isManaged(labels, branchName, metadata, { allowPaused = false, allowBlocked = false } = {}) {
   return (
     isFactoryBranch(branchName) &&
     Boolean(metadata?.issueNumber) &&
     hasLabel(labels, FACTORY_LABELS.managed) &&
-    !hasLabel(labels, FACTORY_LABELS.paused) &&
-    !hasLabel(labels, FACTORY_LABELS.blocked)
+    (allowPaused || !metadata?.paused) &&
+    (allowBlocked || metadata?.status !== FACTORY_PR_STATUSES.blocked)
   );
 }
 
@@ -45,36 +55,125 @@ export function isTrustedReviewTrigger({ reviewerLogin, reviewerPermission } = {
   );
 }
 
-export function routePullRequestLabeled(payload) {
-  const pullRequest = payload.pull_request;
+export async function routeIssueComment(payload, githubClient = {}) {
+  if (payload.action !== "created") {
+    return { action: "noop" };
+  }
+
+  const context = getFactoryCommentContext(payload);
+  const parsedCommand = parseFactorySlashCommand(payload.comment?.body, context);
+
+  if (!parsedCommand) {
+    return { action: "noop" };
+  }
+
+  const commenterLogin = payload.comment?.user?.login || payload.sender?.login || "";
+  let commenterPermission = "";
+
+  if (commenterLogin && githubClient.getCollaboratorPermission) {
+    try {
+      commenterPermission =
+        (await githubClient.getCollaboratorPermission(commenterLogin))?.permission || "";
+    } catch {
+      commenterPermission = "";
+    }
+  }
+
+  if (!hasTrustedCollaboratorPermission(commenterPermission)) {
+    return { action: "noop" };
+  }
+
+  if (context === "issue") {
+    if (parsedCommand.command !== FACTORY_COMMANDS.start) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: FACTORY_COMMANDS.start,
+      issueNumber: payload.issue?.number || ""
+    };
+  }
+
+  const pullRequestNumber = payload.issue?.number;
+  const pullRequest = pullRequestNumber
+    ? await githubClient.getPullRequest?.(pullRequestNumber)
+    : null;
   const trustedContext = validateTrustedFactoryContext({ payload, pullRequest });
 
   if (!trustedContext.trusted) {
-    logRepoTrustNoop("factory implement trigger", trustedContext.reason);
+    logRepoTrustNoop("factory PR command", trustedContext.reason);
     return { action: "noop" };
   }
 
   const metadata = trustedContext.metadata;
+  const managed = isManaged(pullRequest.labels, pullRequest.head.ref, metadata, {
+    allowPaused: true,
+    allowBlocked: true
+  });
 
-  if (
-    payload.action !== "labeled" ||
-    payload.label?.name !== FACTORY_LABELS.implement ||
-    !FACTORY_IMPLEMENT_TRIGGER_STATUSES.includes(metadata?.status) ||
-    !hasLabel(pullRequest.labels, FACTORY_LABELS.implement) ||
-    !isManaged(pullRequest.labels, pullRequest.head.ref, metadata)
-  ) {
+  if (!managed) {
     return { action: "noop" };
   }
 
-  return {
-    action: "implement",
-    prNumber: pullRequest.number,
-    issueNumber: trustedContext.issueNumber,
-    branch: trustedContext.branch,
-    artifactsPath: trustedContext.artifactsPath,
-    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+  if (parsedCommand.command === FACTORY_COMMANDS.implement) {
+    if (metadata?.status !== FACTORY_PR_STATUSES.planReady) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: FACTORY_COMMANDS.implement,
+      prNumber: pullRequest.number,
+      issueNumber: trustedContext.issueNumber,
+      branch: trustedContext.branch,
+      artifactsPath: trustedContext.artifactsPath,
+      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+    };
+  }
+
+  if (parsedCommand.command === FACTORY_COMMANDS.resume) {
+    if (
+      metadata?.status !== FACTORY_PR_STATUSES.blocked ||
+      !FACTORY_RESUMABLE_FAILURE_TYPES.includes(metadata?.lastFailureType || "") ||
+      ![FACTORY_COMMANDS.implement, "repair", "review"].includes(metadata?.blockedAction || "")
+    ) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: metadata.blockedAction,
+      prNumber: pullRequest.number,
+      issueNumber: trustedContext.issueNumber,
+      branch: trustedContext.branch,
+      artifactsPath: trustedContext.artifactsPath,
+      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
+      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+    };
+  }
+
+  if (parsedCommand.command === FACTORY_COMMANDS.reset) {
+    if (!FACTORY_RESETTABLE_PR_STATUSES.includes(metadata?.status)) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: FACTORY_COMMANDS.reset,
+      prNumber: pullRequest.number
+    };
+  }
+
+  if (parsedCommand.command === FACTORY_COMMANDS.pause) {
+    if (!FACTORY_RESETTABLE_PR_STATUSES.includes(metadata?.status)) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: FACTORY_COMMANDS.pause,
+      prNumber: pullRequest.number
+    };
   };
+
+  return { action: "noop" };
 }
 
 export function routePullRequestReview(payload) {

@@ -1,7 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  FACTORY_COST_LABEL_BY_BAND,
+  FACTORY_LEGACY_COMMAND_LABELS,
   FACTORY_LABELS,
+  FACTORY_PROJECTED_PR_LABELS,
   assertFactoryPrStatus
 } from "./lib/factory-config.mjs";
 import {
@@ -28,6 +31,10 @@ function csv(input) {
 
 function parseBoolean(input) {
   return `${input || ""}`.toLowerCase() === "true";
+}
+
+function hasLabel(labels, labelName) {
+  return labels.some((label) => label.name === labelName);
 }
 
 function applyCostMetadataField(metadata, key, envValue, { numeric = false } = {}) {
@@ -190,6 +197,41 @@ export function canonicalizeUpdatedMetadata(metadata) {
   return canonicalizePrMetadata(metadata, metadata?.issueNumber);
 }
 
+export function applyPaused(metadata, envValue) {
+  if (envValue === undefined || `${envValue}`.trim() === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    paused: parseBoolean(envValue)
+  };
+}
+
+export function buildProjectedLabels(metadata) {
+  const labels = [FACTORY_LABELS.managed];
+
+  if (metadata?.status === "plan_ready") {
+    labels.push(FACTORY_LABELS.planReady);
+  }
+
+  if (metadata?.status === "blocked") {
+    labels.push(FACTORY_LABELS.blocked);
+  }
+
+  if (metadata?.paused) {
+    labels.push(FACTORY_LABELS.paused);
+  }
+
+  const costLabel = FACTORY_COST_LABEL_BY_BAND[metadata?.costEstimateBand];
+
+  if (costLabel) {
+    labels.push(costLabel);
+  }
+
+  return labels;
+}
+
 function applyStageCounter(metadata, envValue, key) {
   if (envValue === undefined) {
     return metadata;
@@ -252,6 +294,23 @@ export function applyLastReviewArtifactFailure(metadata, envValue) {
   };
 }
 
+export function applyBlockedAction(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    blockedAction: normalized ? normalized : null
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -298,6 +357,7 @@ export async function main(env = process.env) {
       nextMetadata.lastFailureType = env.FACTORY_LAST_FAILURE_TYPE || null;
     }
   }
+  nextMetadata = applyBlockedAction(nextMetadata, env.FACTORY_BLOCKED_ACTION);
   nextMetadata = applyLastCompletedStage(nextMetadata, env.FACTORY_LAST_COMPLETED_STAGE);
   nextMetadata = applyLastRunId(nextMetadata, env.FACTORY_LAST_RUN_ID);
   nextMetadata = applyLastRunUrl(nextMetadata, env.FACTORY_LAST_RUN_URL);
@@ -320,6 +380,7 @@ export async function main(env = process.env) {
 
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
+  nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_NOOP_ATTEMPTS, "stageNoopAttempts");
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_SETUP_ATTEMPTS, "stageSetupAttempts");
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
@@ -337,12 +398,25 @@ export async function main(env = process.env) {
 
   await updatePullRequest({ prNumber, body });
 
-  for (const label of csv(env.FACTORY_ADD_LABELS)) {
-    await addLabels(prNumber, [label]);
+  const existingProjectedLabels = [
+    ...FACTORY_PROJECTED_PR_LABELS,
+    ...FACTORY_LEGACY_COMMAND_LABELS
+  ].filter((label, index, labels) => labels.indexOf(label) === index);
+  const currentProjectedLabels = pullRequest.labels
+    .map((label) => label.name)
+    .filter((label) => existingProjectedLabels.includes(label));
+  const nextProjectedLabels = buildProjectedLabels(nextMetadata);
+
+  for (const label of currentProjectedLabels) {
+    if (!nextProjectedLabels.includes(label)) {
+      await removeLabel(prNumber, label);
+    }
   }
 
-  for (const label of csv(env.FACTORY_REMOVE_LABELS)) {
-    await removeLabel(prNumber, label);
+  for (const label of nextProjectedLabels) {
+    if (!hasLabel(pullRequest.labels, label)) {
+      await addLabels(prNumber, [label]);
+    }
   }
 
   if (parseBoolean(env.FACTORY_READY_FOR_REVIEW) && pullRequest.draft) {
@@ -355,10 +429,6 @@ export async function main(env = process.env) {
 
   if (env.FACTORY_COMMENT) {
     await commentOnIssue(prNumber, env.FACTORY_COMMENT);
-  }
-
-  if (parseBoolean(env.FACTORY_CLEAR_IMPLEMENT_LABEL)) {
-    await removeLabel(prNumber, FACTORY_LABELS.implement);
   }
 }
 

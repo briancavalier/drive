@@ -3,16 +3,44 @@ run-name: >-
   ${{ format('Factory: planning {0}', github.event.issue.title) }}
 
 on:
-  issues:
+  issue_comment:
     types:
-      - labeled
+      - created
 
 permissions:
   contents: read
 
 jobs:
+  route:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      action: ${{ steps.route.outputs.action }}
+      issue_number: ${{ steps.route.outputs.issue_number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Route factory command
+        id: route
+        run: node scripts/route-pr-loop.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   prepare:
-    if: github.event.label.name == 'factory:start'
+    if: needs.route.outputs.action == 'start'
+    needs: route
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -46,7 +74,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   plan:
-    needs: prepare
+    if: needs.route.outputs.action == 'start'
+    needs:
+      - route
+      - prepare
     permissions:
       contents: write
       issues: write
@@ -64,8 +95,9 @@ jobs:
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   finalize:
-    if: needs.plan.result == 'success'
+    if: needs.route.outputs.action == 'start' && needs.plan.result == 'success'
     needs:
+      - route
       - prepare
       - plan
     runs-on: ubuntu-latest

@@ -110,8 +110,19 @@ test("renderPrBody includes emoji-enhanced status lines and operator notes", () 
   );
   assert.ok(
     lines.includes(
-      "- Labels such as `factory:implement` and `factory:paused` remain available as manual fallbacks."
+      "- ▶️ Comment `/factory implement` to start coding after plan review."
     )
+  );
+  assert.ok(
+    lines.includes("- ⏸️ Comment `/factory pause` to pause autonomous work.")
+  );
+  assert.ok(
+    lines.includes(
+      "- ▶️ Comment `/factory resume` to resume a recoverable blocked run."
+    )
+  );
+  assert.ok(
+    lines.includes("- 🔁 Comment `/factory reset` to reset the PR back to plan-ready.")
   );
   assert.ok(
     lines.includes("- 💸 Cost values are advisory estimates, not billed usage.")
@@ -192,7 +203,7 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
   });
   const warnings = [];
   const message = renderPlanReadyIssueComment(
-    { prNumber: 42, implementLabel: "factory:implement" },
+    { prNumber: 42, implementCommand: "/factory implement" },
     {
       overridesRoot,
       logger: {
@@ -203,7 +214,7 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
 
   assert.equal(
     message,
-    "👀 Factory planning is ready in PR #42. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #42. Review the draft PR and comment `/factory implement` to start coding."
   );
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /unknown tokens: UNKNOWN_TOKEN/);
@@ -212,13 +223,13 @@ test("renderPlanReadyIssueComment falls back to default when override contains u
 test("renderPlanReadyIssueComment uses built-in default when override file is absent", () => {
   const overridesRoot = makeOverrides();
   const message = renderPlanReadyIssueComment(
-    { prNumber: 18, implementLabel: "factory:implement" },
+    { prNumber: 18, implementCommand: "/factory implement" },
     { overridesRoot }
   );
 
   assert.equal(
     message,
-    "👀 Factory planning is ready in PR #18. Review the draft PR and apply `factory:implement` to start coding."
+    "👀 Factory planning is ready in PR #18. Review the draft PR and comment `/factory implement` to start coding."
   );
 });
 

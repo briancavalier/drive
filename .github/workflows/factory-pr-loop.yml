@@ -1,8 +1,9 @@
 name: Factory PR Loop
 run-name: >-
   ${{
-    github.event_name == 'pull_request' &&
-    format('Factory: implementing {0}', github.event.pull_request.title) ||
+    github.event_name == 'issue_comment' &&
+    github.event.issue.pull_request &&
+    format('Factory command: {0}', github.event.comment.body) ||
     github.event_name == 'pull_request_review' &&
     format('Factory: repairing {0}', github.event.pull_request.title) ||
     github.event_name == 'workflow_run' &&
@@ -26,9 +27,9 @@ run-name: >-
   }}
 
 on:
-  pull_request:
+  issue_comment:
     types:
-      - labeled
+      - created
   pull_request_review:
     types:
       - submitted
@@ -41,7 +42,7 @@ on:
 concurrency:
   # Keep this expression limited to properties that are always available for the
   # triggering event. Invalid dereferences here fail the entire workflow at startup.
-  group: factory-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
+  group: factory-pr-loop-${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -49,9 +50,11 @@ permissions:
 
 jobs:
   route:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
       pull-requests: read
     outputs:
       action: ${{ steps.route.outputs.action }}
@@ -121,10 +124,82 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_REMOVE_LABELS: ${{ needs.route.outputs.action == 'implement' && 'factory:plan-ready' || '' }}
-          FACTORY_CLEAR_IMPLEMENT_LABEL: ${{ needs.route.outputs.action == 'implement' && 'true' || 'false' }}
+          FACTORY_PAUSED: "false"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+
+  pause-pr:
+    if: needs.route.outputs.action == 'pause'
+    needs: route
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Pause factory PR
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PAUSED: "true"
+          FACTORY_PAUSE_REASON: "Paused via /factory pause"
+          FACTORY_LAST_RUN_ID: ${{ github.run_id }}
+          FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+          FACTORY_COMMENT: Factory paused via `/factory pause`.
+
+  reset-pr:
+    if: needs.route.outputs.action == 'reset'
+    needs: route
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Reset factory PR state
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STATUS: plan_ready
+          FACTORY_REPAIR_ATTEMPTS: "0"
+          FACTORY_REPEATED_FAILURE_COUNT: "0"
+          FACTORY_LAST_FAILURE_SIGNATURE: ""
+          FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
+          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ""
+          FACTORY_LAST_READY_SHA: ""
+          FACTORY_PENDING_REVIEW_SHA: ""
+          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
+          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+          FACTORY_BLOCKED_ACTION: ""
+          FACTORY_PAUSED: "false"
+          FACTORY_PAUSE_REASON: ""
+          FACTORY_CI_STATUS: pending
+          FACTORY_LAST_RUN_ID: ${{ github.run_id }}
+          FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+          FACTORY_CONVERT_TO_DRAFT: "true"
+          FACTORY_COMMENT: Factory PR reset via `/factory reset`. Status set to plan_ready.
 
   stage:
     if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
@@ -174,6 +249,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
@@ -377,8 +453,8 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
           FACTORY_LAST_FAILURE_TYPE: content_or_logic
+          FACTORY_BLOCKED_ACTION: repair
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
-          FACTORY_ADD_LABELS: factory:blocked
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
   process-review:
@@ -567,9 +643,9 @@ jobs:
           FACTORY_REPEATED_FAILURE_COUNT: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
           FACTORY_LAST_FAILURE_SIGNATURE: ${{ steps.prepare_repair.outputs.last_failure_signature }}
           FACTORY_LAST_FAILURE_TYPE: review_artifact_contract
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outputs.failure_metadata }}
-          FACTORY_REMOVE_LABELS: factory:blocked
           FACTORY_CI_STATUS: pending
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
 
@@ -641,6 +717,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_LAST_FAILURE_TYPE: ""
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}

@@ -255,6 +255,7 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_ADD_LABELS: addLabels,
     FACTORY_REMOVE_LABELS: removeLabels,
     FACTORY_LAST_FAILURE_TYPE: failureType,
+    FACTORY_BLOCKED_ACTION: status === FACTORY_PR_STATUSES.blocked ? action : "",
     FACTORY_TRANSIENT_RETRY_ATTEMPTS: `${retryAttempts}`,
     FACTORY_STAGE_NOOP_ATTEMPTS: `${nextStageNoopAttempts}`,
     FACTORY_STAGE_SETUP_ATTEMPTS: `${nextStageSetupAttempts}`,

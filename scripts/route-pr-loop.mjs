@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  routePullRequestLabeled,
+  routeIssueComment,
   routePullRequestReview,
   routeWorkflowRun
 } from "./lib/event-router.mjs";
@@ -24,16 +24,18 @@ export async function routeEvent({
   }
 }) {
   if (eventName === "pull_request") {
-    const livePullRequest = payload.pull_request?.number
-      ? await githubClient.getPullRequest(payload.pull_request.number)
-      : payload.pull_request;
+    return { action: "noop" };
+  }
 
-    return routePullRequestLabeled({
-      ...payload,
-      repositoryFullName:
-        payload.repository?.full_name || process.env.GITHUB_REPOSITORY || "",
-      pull_request: livePullRequest || payload.pull_request
-    });
+  if (eventName === "issue_comment") {
+    return routeIssueComment(
+      {
+        ...payload,
+        repositoryFullName:
+          payload.repository?.full_name || process.env.GITHUB_REPOSITORY || ""
+      },
+      githubClient
+    );
   }
 
   if (eventName === "pull_request_review") {

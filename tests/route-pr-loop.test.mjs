@@ -54,22 +54,31 @@ function sameRepoBase() {
   };
 }
 
-test("routeEvent uses live pull request state for implement label events", async () => {
-  const payload = {
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
+function prIssueCommentPayload(command) {
+  return {
+    action: "created",
     repository: { full_name: "example/repo" },
-    pull_request: {
+    issue: {
       number: 33,
-      body: managedPrBody(),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: sameRepoHead(),
-      base: sameRepoBase()
-    }
+      pull_request: {
+        url: "https://api.github.com/repos/example/repo/pulls/33"
+      }
+    },
+    comment: {
+      body: command,
+      user: { login: "maintainer" }
+    },
+    sender: { login: "maintainer" }
+  };
+}
+
+test("routeEvent uses live pull request state for implement comment commands", async () => {
+  const payload = {
+    ...prIssueCommentPayload("/factory implement")
   };
 
   const route = await routeEvent({
-    eventName: "pull_request",
+    eventName: "issue_comment",
     payload,
     githubClient: {
       getPullRequest: async () => ({
@@ -79,6 +88,7 @@ test("routeEvent uses live pull request state for implement label events", async
         head: sameRepoHead(),
         base: sameRepoBase()
       }),
+      getCollaboratorPermission: async () => ({ permission: "write" }),
       findOpenPullRequestByHead: async () => null
     }
   });
@@ -193,27 +203,16 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
 });
 
 test("routeEvent downgrades implement to noop when live PR is fork-backed", async () => {
-  const payload = {
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: {
-      number: 33,
-      body: managedPrBody(),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: sameRepoHead(),
-      base: sameRepoBase()
-    }
-  };
+  const payload = prIssueCommentPayload("/factory implement");
 
   const route = await routeEvent({
-    eventName: "pull_request",
+    eventName: "issue_comment",
     payload,
     githubClient: {
       getPullRequest: async () => ({
         number: 33,
         body: managedPrBody(),
-        labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+        labels: managedLabels(),
         head: sameRepoHead({
           repo: {
             full_name: "attacker/repo",
@@ -221,7 +220,8 @@ test("routeEvent downgrades implement to noop when live PR is fork-backed", asyn
           }
         }),
         base: sameRepoBase()
-      })
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
     }
   });
 
@@ -270,30 +270,20 @@ test("routeEvent downgrades review to noop when live PR head repo mismatches", a
 });
 
 test("routeEvent downgrades implement to noop when live PR metadata is malformed", async () => {
-  const payload = {
-    action: "labeled",
-    label: { name: FACTORY_LABELS.implement },
-    repository: { full_name: "example/repo" },
-    pull_request: {
-      number: 33,
-      body: managedPrBody(),
-      labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
-      head: sameRepoHead(),
-      base: sameRepoBase()
-    }
-  };
+  const payload = prIssueCommentPayload("/factory implement");
 
   const route = await routeEvent({
-    eventName: "pull_request",
+    eventName: "issue_comment",
     payload,
     githubClient: {
       getPullRequest: async () => ({
         number: 33,
         body: malformedManagedPrBody(),
-        labels: managedLabels([{ name: FACTORY_LABELS.implement }]),
+        labels: managedLabels(),
         head: sameRepoHead(),
         base: sameRepoBase()
-      })
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
     }
   });
 

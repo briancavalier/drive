@@ -37,8 +37,30 @@ test("paused overlay surfaces resume/reset actions and manual pause reason", () 
   const panel = buildControlPanel({
     metadata: metadata({
       status: FACTORY_PR_STATUSES.implementing,
+      paused: true,
       lastRunUrl: `${repositoryUrl}/actions/runs/901`,
       pauseReason: "manual"
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.equal(panel.state, "paused");
+  assert.equal(panel.waitingOn, "operator");
+  assert.equal(panel.reason, "Automation manually paused by an operator.");
+  assert.ok(actionIds(panel).includes("resume"), "expected Resume action");
+  assert.ok(actionIds(panel).includes("reset"), "expected Reset PR action");
+  assert.ok(actionIds(panel).includes("open_latest_run"), "expected latest run link");
+  assert.ok(!actionIds(panel).includes("start_implement"), "agent-only actions should be suppressed");
+});
+
+test("paused overlay still falls back to the projected paused label for older metadata", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.implementing
     }),
     labels: [{ name: FACTORY_LABELS.paused }],
     repositoryUrl,
@@ -48,12 +70,7 @@ test("paused overlay surfaces resume/reset actions and manual pause reason", () 
   });
 
   assert.equal(panel.state, "paused");
-  assert.equal(panel.waitingOn, "operator");
-  assert.equal(panel.reason, "Automation manually paused via label.");
-  assert.ok(actionIds(panel).includes("resume"), "expected Resume action");
-  assert.ok(actionIds(panel).includes("reset"), "expected Reset PR action");
-  assert.ok(actionIds(panel).includes("open_latest_run"), "expected latest run link");
-  assert.ok(!actionIds(panel).includes("start_implement"), "agent-only actions should be suppressed");
+  assert.equal(panel.reason, "Automation paused.");
 });
 
 test("blocked reasons map to subtype-specific guidance and actions", () => {
