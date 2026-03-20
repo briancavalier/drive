@@ -1,6 +1,11 @@
-import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "./factory-config.mjs";
-
-const CONTROL_WORKFLOW_FILE = "factory-control-action.yml";
+import {
+  FACTORY_COMMAND_CONTEXTS,
+  FACTORY_COMMANDS,
+  FACTORY_LABELS,
+  FACTORY_PR_STATUSES,
+  FACTORY_RESUMABLE_FAILURE_TYPES,
+  FACTORY_SLASH_COMMANDS
+} from "./factory-config.mjs";
 
 const STATE_DISPLAY = Object.freeze({
   paused: { emoji: "⏸️", label: "Paused" },
@@ -27,47 +32,27 @@ const WAITING_ON = Object.freeze({
 const ACTION_DEFINITIONS = Object.freeze({
   startImplement: {
     id: "start_implement",
-    label: "▶ Start implement",
+    label: `▶ Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}`,
     kind: "mutation"
   },
   pause: {
     id: "pause",
-    label: "⏸ Pause",
+    label: `⏸ Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}`,
     kind: "mutation"
   },
   resume: {
     id: "resume",
-    label: "▶ Resume",
-    kind: "mutation"
-  },
-  retry: {
-    id: "retry",
-    label: "🔁 Retry",
-    kind: "mutation"
-  },
-  retryReview: {
-    id: "retry_review",
-    label: "🔁 Retry review",
+    label: `▶ Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}`,
     kind: "mutation"
   },
   reset: {
     id: "reset",
-    label: "🧹 Reset PR",
-    kind: "mutation"
-  },
-  approveSelfModify: {
-    id: "approve_self_modify",
-    label: "🔓 Approve self-modify",
-    kind: "mutation"
-  },
-  escalate: {
-    id: "escalate",
-    label: "🧑 Escalate to human-only",
+    label: `🧹 Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]}`,
     kind: "mutation"
   },
   pauseAutomation: {
     id: "pause",
-    label: "⏸ Pause automation",
+    label: `⏸ Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}`,
     kind: "mutation"
   },
   openLatestRun: {
@@ -181,42 +166,24 @@ function resolveLastCompletedStage({ metadata = {}, stateKey }) {
   return STAGE_FALLBACK[stateKey] || "";
 }
 
-function buildWorkflowUrl(repositoryUrl, params = {}) {
+function buildPullRequestUrl(repositoryUrl, prNumber) {
   const normalizedRepo = `${repositoryUrl || ""}`.trim();
+  const numericPr = Number(prNumber);
 
-  if (!normalizedRepo) {
+  if (!normalizedRepo || !Number.isInteger(numericPr) || numericPr <= 0) {
     return "";
   }
 
-  let url;
-
   try {
-    url = new URL(`${normalizedRepo.replace(/\/$/, "")}/actions/workflows/${CONTROL_WORKFLOW_FILE}`);
+    return new URL(`${normalizedRepo.replace(/\/$/, "")}/pull/${numericPr}`).toString();
   } catch {
     return "";
   }
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value != null && `${value}`.trim() !== "") {
-      url.searchParams.set(key, `${value}`.trim());
-    }
-  }
-
-  return url.toString();
 }
 
-function buildMutationAction(definition, context) {
+function buildCommandAction(definition, context) {
   const { repositoryUrl, prNumber } = context;
-  const numericPr = Number(prNumber);
-
-  if (!Number.isInteger(numericPr) || numericPr <= 0) {
-    return null;
-  }
-
-  const url = buildWorkflowUrl(repositoryUrl, {
-    pr_number: numericPr,
-    action: definition.id
-  });
+  const url = buildPullRequestUrl(repositoryUrl, prNumber);
 
   if (!url) {
     return null;
@@ -241,6 +208,24 @@ function buildLinkAction(definition, url) {
     kind: definition.kind,
     url
   };
+}
+
+function canResumeBlockedRun(metadata = {}) {
+  return (
+    FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${metadata.lastFailureType || ""}`.trim()) &&
+    ["implement", "repair", "review"].includes(`${metadata.blockedAction || ""}`.trim())
+  );
+}
+
+function canResumePausedRun(metadata = {}) {
+  const status = `${metadata.status || ""}`.trim();
+
+  return [
+    FACTORY_PR_STATUSES.planReady,
+    FACTORY_PR_STATUSES.implementing,
+    FACTORY_PR_STATUSES.repairing,
+    FACTORY_PR_STATUSES.reviewing
+  ].includes(status);
 }
 
 function isRepairCapExceeded(metadata = {}) {
@@ -452,40 +437,42 @@ function buildActions({
   };
 
   if (stateKey === FACTORY_PR_STATUSES.planReady) {
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.startImplement, context));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.startImplement, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openPlanArtifacts, artifactLinks.plan));
     return actions;
   }
 
   if (stateKey === FACTORY_PR_STATUSES.implementing) {
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
     return actions;
   }
 
   if (stateKey === FACTORY_PR_STATUSES.repairing) {
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
     return actions;
   }
 
   if (stateKey === FACTORY_PR_STATUSES.reviewing) {
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
     return actions;
   }
 
   if (stateKey === FACTORY_PR_STATUSES.readyForReview) {
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openReviewArtifacts, artifactLinks.review || artifactLinks.reviewJson));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pauseAutomation, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pauseAutomation, context));
     return actions;
   }
 
   if (stateKey === "paused") {
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.resume, context));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
+    if (canResumePausedRun(metadata)) {
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+    }
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
     return actions;
   }
@@ -494,39 +481,34 @@ function buildActions({
     const failureType = `${metadata.lastFailureType || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.escalate, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openFailureHistory, artifactLinks.repairLog));
       return actions;
     }
 
     if (failureType === "stage_noop") {
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.retry, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openDiagnostics, artifactLinks.repairLog));
       return actions;
     }
 
     if (failureType === "stage_setup") {
-      if (hasSelfModifyGuardSignature(metadata)) {
-        pushAction(buildMutationAction(ACTION_DEFINITIONS.approveSelfModify, context));
-        pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-        pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
-        return actions;
+      if (!hasSelfModifyGuardSignature(metadata) && canResumeBlockedRun(metadata)) {
+        pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
       }
-
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.retry, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
       return actions;
     }
 
     if (failureType === "transient_infra") {
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.retry, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      if (canResumeBlockedRun(metadata)) {
+        pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+      }
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
       return actions;
     }
@@ -537,23 +519,27 @@ function buildActions({
           ? `${context.repositoryUrl.replace(/\/$/, "")}/tree/${context.branch}`
           : "";
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openBranch, branchUrl));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      if (canResumeBlockedRun(metadata)) {
+        pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+      }
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       return actions;
     }
 
     if (failureType === "review_artifact_contract") {
       const reviewLink = artifactLinks.review || artifactLinks.reviewJson;
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.retryReview, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-      pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openArtifacts, reviewLink));
       return actions;
     }
 
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.retry, context));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.reset, context));
-    pushAction(buildMutationAction(ACTION_DEFINITIONS.pause, context));
+    if (canResumeBlockedRun(metadata)) {
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
+    }
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+    pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
     pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
     return actions;
   }
