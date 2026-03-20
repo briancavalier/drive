@@ -43,7 +43,7 @@ jobs:
           node-version: 24
 
       - name: Start implement stage
-        if: inputs.action == 'start_implement'
+        if: ${{ inputs.action == 'start_implement' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: implement stage triggered.' }}
 
       - name: Pause automation
-        if: inputs.action == 'pause'
+        if: ${{ inputs.action == 'pause' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -66,7 +66,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation paused.' }}
 
       - name: Resume automation
-        if: inputs.action == 'resume'
+        if: ${{ inputs.action == 'resume' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -77,7 +77,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: automation resume requested.' }}
 
       - name: Retry stage
-        if: inputs.action == 'retry'
+        if: ${{ inputs.action == 'retry' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -88,7 +88,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: stage retry requested.' }}
 
       - name: Retry review stage
-        if: inputs.action == 'retry_review'
+        if: ${{ inputs.action == 'retry_review' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -99,7 +99,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: review retry requested.' }}
 
       - name: Reset factory PR
-        if: inputs.action == 'reset'
+        if: ${{ inputs.action == 'reset' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -126,7 +126,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: PR reset to plan_ready.' }}
 
       - name: Approve self-modify (manual guidance)
-        if: inputs.action == 'approve_self_modify'
+        if: ${{ inputs.action == 'approve_self_modify' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -135,7 +135,7 @@ jobs:
           FACTORY_COMMENT: ${{ inputs.comment != '' && inputs.comment || 'Factory control panel: please manually apply the factory:self-modify label before rerunning.' }}
 
       - name: Escalate to human-only
-        if: inputs.action == 'escalate'
+        if: ${{ inputs.action == 'escalate' }}
         run: node scripts/apply-pr-state.mjs
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}

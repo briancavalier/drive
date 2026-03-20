@@ -1,0 +1,1 @@
+- Fixed actionlint failure by wrapping workflow step conditions in `${{ }}` expressions.
