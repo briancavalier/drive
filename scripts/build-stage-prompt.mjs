@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { APPROVED_ISSUE_FILE_NAME } from "./lib/factory-config.mjs";
@@ -51,7 +52,7 @@ const STAGE_SECTION_CONFIG = {
     order: ["run-metadata", "factory-policy", "problem", "goals", "acceptance", "constraints", "risk", "affected-area", "non-goals", "artifacts"],
     preferredChars: {
       "run-metadata": 500,
-      "factory-policy": 1200,
+      "factory-policy": 600,
       problem: 3500,
       goals: 2500,
       acceptance: 2500,
@@ -63,7 +64,7 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
-      "factory-policy": 300,
+      "factory-policy": 0,
       problem: 500,
       goals: 300,
       acceptance: 300,
@@ -73,29 +74,29 @@ const STAGE_SECTION_CONFIG = {
       "non-goals": 0,
       artifacts: 0
     },
-    dropPriority: ["non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem", "factory-policy"]
+    dropPriority: ["factory-policy", "non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem"]
   },
   [FACTORY_STAGE_MODES.implement]: {
     order: ["run-metadata", "factory-policy", "issue-synopsis", "artifact-index"],
     preferredChars: {
       "run-metadata": 500,
-      "factory-policy": 900,
+      "factory-policy": 500,
       "issue-synopsis": 1200,
       "artifact-index": 5000
     },
     minChars: {
       "run-metadata": 200,
-      "factory-policy": 250,
+      "factory-policy": 0,
       "issue-synopsis": 200,
       "artifact-index": 800
     },
-    dropPriority: ["issue-synopsis", "artifact-index", "factory-policy"]
+    dropPriority: ["factory-policy", "issue-synopsis", "artifact-index"]
   },
   [FACTORY_STAGE_MODES.repair]: {
     order: ["run-metadata", "factory-policy", "failure-context", "artifact-index", "repair-log-tail", "issue-synopsis"],
     preferredChars: {
       "run-metadata": 500,
-      "factory-policy": 900,
+      "factory-policy": 500,
       "failure-context": 5000,
       "artifact-index": 3500,
       "repair-log-tail": 1200,
@@ -103,19 +104,19 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
-      "factory-policy": 250,
+      "factory-policy": 0,
       "failure-context": 800,
       "artifact-index": 600,
       "repair-log-tail": 0,
       "issue-synopsis": 120
     },
-    dropPriority: ["issue-synopsis", "repair-log-tail", "artifact-index", "failure-context", "factory-policy"]
+    dropPriority: ["factory-policy", "issue-synopsis", "repair-log-tail", "artifact-index", "failure-context"]
   },
   [FACTORY_STAGE_MODES.review]: {
     order: ["run-metadata", "factory-policy", "ci-evidence", "issue-synopsis", "artifact-index", "repair-log-tail"],
     preferredChars: {
       "run-metadata": 500,
-      "factory-policy": 900,
+      "factory-policy": 500,
       "ci-evidence": 800,
       "issue-synopsis": 1200,
       "artifact-index": 5000,
@@ -123,13 +124,13 @@ const STAGE_SECTION_CONFIG = {
     },
     minChars: {
       "run-metadata": 200,
-      "factory-policy": 250,
+      "factory-policy": 0,
       "ci-evidence": 200,
       "issue-synopsis": 200,
       "artifact-index": 800,
       "repair-log-tail": 0
     },
-    dropPriority: ["repair-log-tail", "artifact-index", "ci-evidence", "issue-synopsis", "factory-policy"]
+    dropPriority: ["factory-policy", "repair-log-tail", "artifact-index", "ci-evidence", "issue-synopsis"]
   }
 };
 
@@ -171,6 +172,20 @@ export function resolvePromptBudgets(env = process.env) {
 function maybeRead(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function readTrustedFactoryPolicy(
+  gitShow = (spec) =>
+    execFileSync("git", ["show", spec], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    })
+) {
+  try {
+    return `${gitShow(`origin/main:${FACTORY_POLICY_PATH}`) || ""}`.trim();
   } catch {
     return "";
   }
@@ -342,10 +357,6 @@ function renderArtifactIndex(artifactsPath) {
       return parts.join("\n");
     })
     .join("\n");
-}
-
-function renderFactoryPolicy() {
-  return maybeRead(FACTORY_POLICY_PATH);
 }
 
 function renderRunMetadata({
@@ -601,7 +612,8 @@ function buildSectionsForMode({
   review,
   reviewComments,
   jobsPayload,
-  ciRunId
+  ciRunId,
+  factoryPolicyText = ""
 }) {
   const sections = [];
 
@@ -614,7 +626,7 @@ function buildSectionsForMode({
   );
 
   sections.push(
-    buildSection("factory-policy", "Factory Policy", renderFactoryPolicy())
+    buildSection("factory-policy", "Factory Policy", factoryPolicyText)
   );
 
   if (mode === FACTORY_STAGE_MODES.plan) {
@@ -737,6 +749,7 @@ export function buildStagePrompt({
   reviewComments = [],
   jobsPayload = null,
   ciRunId = "",
+  factoryPolicyText = "",
   templateText,
   templateVariables = {}
 }) {
@@ -781,7 +794,8 @@ export function buildStagePrompt({
     review,
     reviewComments,
     jobsPayload,
-    ciRunId
+    ciRunId,
+    factoryPolicyText
   }).filter((section) => section.included && section.body);
 
   applyPreferredCaps(sections, modeConfig);
@@ -905,6 +919,7 @@ export async function loadStagePromptInputs(env = process.env) {
     reviewComments,
     jobsPayload,
     ciRunId,
+    factoryPolicyText: readTrustedFactoryPolicy(),
     reviewMethod,
     budgets: resolvePromptBudgets(env)
   };

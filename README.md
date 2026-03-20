@@ -167,8 +167,8 @@ the label or disabling the variable immediately re-locks later reruns.
 
 The factory also supports a protected cross-run policy file at
 `.factory/FACTORY.md`. This file is human-authored durable factory policy,
-loaded into stage prompts as trusted control-plane context, and is not part of
-the per-run artifact set.
+loaded into stage prompts as trusted control-plane context from reviewed
+`origin/main`, and is not part of the per-run artifact set.
 
 Prompt precedence for unattended runs is:
 
@@ -179,6 +179,9 @@ Prompt precedence for unattended runs is:
 
 Existing `AGENTS.md` files remain advisory for human/Codex workspace use and
 are not auto-ingested into unattended stage prompts.
+
+When prompt budgets are tight, factory policy is additive only: it is trimmed
+or dropped before request-specific issue, artifact, and evidence context.
 
 If a factory-managed PR gets stuck in the wrong state, run `Factory Reset PR`
 from the Actions tab to restore it to `plan_ready`, clear stale repair

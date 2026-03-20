@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   buildStagePrompt,
   loadStagePromptInputs,
+  readTrustedFactoryPolicy,
   resolvePromptBudgets,
   writePromptArtifacts
 } from "../scripts/build-stage-prompt.mjs";
@@ -32,8 +33,6 @@ const reviewTemplate = fs.readFileSync(
   path.join(process.cwd(), ".factory", "prompts", "review.md"),
   "utf8"
 );
-const policyPath = path.join(process.cwd(), ".factory", "FACTORY.md");
-
 function fixture(name) {
   return fs.readFileSync(path.join(fixturesDir, name), "utf8");
 }
@@ -337,6 +336,10 @@ test("implement prompt excludes PR body and full artifact bodies", () => {
 
 test("stage prompts include factory policy context ahead of stage-specific sections", () => {
   const artifactsDir = makeArtifactsDir();
+  const factoryPolicyText = fs.readFileSync(
+    path.join(process.cwd(), ".factory", "FACTORY.md"),
+    "utf8"
+  );
   const implementResult = buildStagePrompt({
     mode: "implement",
     issueNumber: 1,
@@ -345,6 +348,7 @@ test("stage prompts include factory policy context ahead of stage-specific secti
     artifactsPath: artifactsDir,
     issueBody: fixture("long-issue-body.md"),
     pullRequestBody: "",
+    factoryPolicyText,
     budgets: {
       plan: 20000,
       implement: 7000,
@@ -371,6 +375,7 @@ test("stage prompts include factory policy context ahead of stage-specific secti
     artifactsPath: artifactsDir,
     issueBody: fixture("long-issue-body.md"),
     pullRequestBody: "",
+    factoryPolicyText,
     templateText: reviewTemplate,
     templateVariables: {
       METHODOLOGY_NAME: reviewMethodology.name,
@@ -399,36 +404,95 @@ test("stage prompts include factory policy context ahead of stage-specific secti
 });
 
 test("factory policy context is optional when the policy file is absent", () => {
-  const existing = fs.readFileSync(policyPath, "utf8");
-  const backupPath = `${policyPath}.bak-test`;
-  fs.renameSync(policyPath, backupPath);
+  const artifactsDir = makeArtifactsDir();
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    factoryPolicyText: "",
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      review: 8000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
 
-  try {
-    const artifactsDir = makeArtifactsDir();
-    const result = buildStagePrompt({
-      mode: "implement",
-      issueNumber: 1,
-      prNumber: 9,
-      branch: "factory/1-sample",
-      artifactsPath: artifactsDir,
-      issueBody: fixture("long-issue-body.md"),
-      pullRequestBody: "",
-      budgets: {
-        plan: 20000,
-        implement: 7000,
-        repair: 14000,
-        review: 8000,
-        hardMax: 7000
-      },
-      templateText: implementTemplate
-    });
+  assert.doesNotMatch(result.prompt, /## Factory Policy/);
+  assert.ok(result.meta.omittedSections.includes("factory-policy"));
+});
 
-    assert.doesNotMatch(result.prompt, /## Factory Policy/);
-    assert.ok(result.meta.omittedSections.includes("factory-policy"));
-  } finally {
-    fs.renameSync(backupPath, policyPath);
-    assert.equal(fs.readFileSync(policyPath, "utf8"), existing);
-  }
+test("readTrustedFactoryPolicy uses origin/main content and ignores missing policy", () => {
+  const policy = readTrustedFactoryPolicy((spec) => {
+    assert.equal(spec, "origin/main:.factory/FACTORY.md");
+    return "## Trusted Policy\n\n- Reviewed mainline policy.\n";
+  });
+
+  assert.equal(policy, "## Trusted Policy\n\n- Reviewed mainline policy.");
+  assert.equal(
+    readTrustedFactoryPolicy(() => {
+      throw new Error("missing");
+    }),
+    ""
+  );
+});
+
+test("buildStagePrompt uses injected trusted policy text instead of branch-local file contents", () => {
+  const artifactsDir = makeArtifactsDir();
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody: "",
+    factoryPolicyText: "## Trusted Policy\n\n- Mainline reviewed policy.\n",
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      review: 8000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.match(result.prompt, /Mainline reviewed policy/);
+  assert.doesNotMatch(result.prompt, /Guard this file/);
+});
+
+test("factory policy is dropped before request context under tight budgets", () => {
+  const artifactsDir = makeArtifactsDir();
+  const result = buildStagePrompt({
+    mode: "plan",
+    issueNumber: 1,
+    prNumber: 0,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: inflatedIssueBody(),
+    factoryPolicyText: fs.readFileSync(
+      path.join(process.cwd(), ".factory", "FACTORY.md"),
+      "utf8"
+    ),
+    budgets: {
+      plan: 4200,
+      implement: 12000,
+      repair: 14000,
+      review: 8000,
+      hardMax: 4200
+    },
+    templateText: planTemplate
+  });
+
+  assert.match(result.prompt, /## Problem Statement/);
+  assert.ok(result.meta.omittedSections.includes("factory-policy"));
 });
 
 test("implement prompt metadata lists last failure type and stage counters", () => {
