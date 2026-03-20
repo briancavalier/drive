@@ -77,6 +77,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Route PR loop event
         id: route
         run: node scripts/route-pr-loop.mjs
@@ -296,6 +301,7 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Commit usage events
+        continue-on-error: true
         run: |
           if [ -d .factory/usage-events ]; then
             git add .factory/usage-events
@@ -306,6 +312,7 @@ jobs:
           git commit -m "factory(telemetry): record usage events"
 
       - name: Push usage events
+        continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
@@ -445,6 +452,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Build failure diagnosis prompt
         id: diagnosis_prompt
         run: node scripts/build-failure-diagnosis-prompt.mjs
@@ -509,6 +521,7 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Commit usage events
+        continue-on-error: true
         run: |
           if [ -d .factory/usage-events ]; then
             git add .factory/usage-events
@@ -519,6 +532,7 @@ jobs:
           git commit -m "factory(telemetry): record usage events"
 
       - name: Push usage events
+        continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
@@ -636,7 +650,7 @@ jobs:
       - review-artifact-repair
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     steps:
@@ -650,6 +664,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Build failure diagnosis prompt
         id: diagnosis_prompt
@@ -747,6 +766,7 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Commit usage events
+        continue-on-error: true
         run: |
           if [ -d .factory/usage-events ]; then
             git add .factory/usage-events
@@ -757,6 +777,7 @@ jobs:
           git commit -m "factory(telemetry): record usage events"
 
       - name: Push usage events
+        continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}

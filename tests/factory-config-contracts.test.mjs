@@ -278,6 +278,21 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
   );
 });
 
+test("review failure jobs configure git identity and keep telemetry persistence best-effort", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const reviewProcessingFailedJob = extractJobBlock(workflowText, "review-processing-failed");
+  const reviewArtifactRepairFailedJob = extractJobBlock(workflowText, "review-artifact-repair-failed");
+
+  assert.match(reviewProcessingFailedJob, /permissions:\s*[\s\S]*contents:\s*write/);
+  assert.match(reviewArtifactRepairFailedJob, /permissions:\s*[\s\S]*contents:\s*write/);
+  assert.match(reviewProcessingFailedJob, /name:\s+Configure git identity/);
+  assert.match(reviewArtifactRepairFailedJob, /name:\s+Configure git identity/);
+  assert.match(reviewProcessingFailedJob, /name:\s+Commit usage events[\s\S]*continue-on-error:\s*true/);
+  assert.match(reviewProcessingFailedJob, /name:\s+Push usage events[\s\S]*continue-on-error:\s*true/);
+  assert.match(reviewArtifactRepairFailedJob, /name:\s+Commit usage events[\s\S]*continue-on-error:\s*true/);
+  assert.match(reviewArtifactRepairFailedJob, /name:\s+Push usage events[\s\S]*continue-on-error:\s*true/);
+});
+
 test("review artifact repair jobs mirror stage success and failure handling", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
   const repairSucceededJob = extractJobBlock(workflowText, "review-artifact-repair-succeeded");
