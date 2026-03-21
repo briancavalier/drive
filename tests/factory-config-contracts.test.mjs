@@ -43,6 +43,36 @@ test("factory reset workflow status options stay in sync with shared config", ()
   assert.deepEqual(options, FACTORY_RESETTABLE_PR_STATUSES);
 });
 
+test("factory control-action reset clears canonical intervention state", () => {
+  const workflowText = readWorkflowText("factory-control-action.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_INTERVENTION:\s*"__CLEAR__"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_BLOCKED_ACTION:\s*""/
+  );
+  assert.doesNotMatch(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS|STAGE_NOOP_ATTEMPTS|STAGE_SETUP_ATTEMPTS):/
+  );
+});
+
+test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
+  const workflowText = readWorkflowText("factory-reset-pr.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_INTERVENTION:\s*\$\{\{\s*inputs\.clear_repair_state && '__CLEAR__' \|\| '__UNCHANGED__'\s*\}\}/
+  );
+  assert.doesNotMatch(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS):/
+  );
+});
+
 test("factory PR loop concurrency uses only event-safe identifiers", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 

@@ -107,14 +107,10 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           FACTORY_STATUS: plan_ready
           FACTORY_REPAIR_ATTEMPTS: "0"
-          FACTORY_REPEATED_FAILURE_COUNT: "0"
-          FACTORY_LAST_FAILURE_SIGNATURE: ""
-          FACTORY_LAST_FAILURE_TYPE: ""
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ""
           FACTORY_LAST_READY_SHA: ""
-          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
-          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
+          FACTORY_BLOCKED_ACTION: ""
           FACTORY_ADD_LABELS: factory:plan-ready
           FACTORY_REMOVE_LABELS: factory:implement,factory:blocked,factory:paused
           FACTORY_CONVERT_TO_DRAFT: "true"
