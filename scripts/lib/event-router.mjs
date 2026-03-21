@@ -53,6 +53,21 @@ function resolvePausedResumeAction(metadata = {}) {
   return "";
 }
 
+function getFailureType(metadata = {}) {
+  const intervention = metadata?.intervention;
+
+  if (
+    metadata?.status === FACTORY_PR_STATUSES.blocked &&
+    intervention &&
+    intervention.type === "failure" &&
+    intervention.status === "open"
+  ) {
+    return `${intervention.payload?.failureType || ""}`.trim();
+  }
+
+  return `${metadata?.lastFailureType || ""}`.trim();
+}
+
 function isManaged(labels, branchName, metadata, { allowPaused = false, allowBlocked = false } = {}) {
   return (
     isFactoryBranch(branchName) &&
@@ -170,7 +185,7 @@ export async function routeIssueComment(payload, githubClient = {}) {
 
     if (
       metadata?.status !== FACTORY_PR_STATUSES.blocked ||
-      !FACTORY_RESUMABLE_FAILURE_TYPES.includes(metadata?.lastFailureType || "") ||
+      !FACTORY_RESUMABLE_FAILURE_TYPES.includes(getFailureType(metadata)) ||
       ![FACTORY_COMMANDS.implement, "repair", "review"].includes(metadata?.blockedAction || "")
     ) {
       return { action: "noop" };

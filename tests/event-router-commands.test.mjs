@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { routeIssueComment } from "../scripts/lib/event-router.mjs";
-import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import { defaultFailureIntervention, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 
 function managedPr(status, metadata = {}) {
@@ -69,7 +69,12 @@ test("routeIssueComment routes trusted implement commands from plan-ready PRs", 
 test("routeIssueComment routes trusted resume commands only for resumable blocked PRs", async () => {
   const route = await routeIssueComment(prCommandPayload("/factory resume"), {
     getPullRequest: async () =>
-      managedPr("blocked", { lastFailureType: "stage_setup", blockedAction: "implement" }),
+      managedPr("blocked", {
+        blockedAction: "implement",
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "stage_setup" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
@@ -121,12 +126,22 @@ test("routeIssueComment leaves paused ready-for-review PRs unchanged on resume",
 test("routeIssueComment resumes repair and review runs to their blocked action", async () => {
   const repairRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
     getPullRequest: async () =>
-      managedPr("blocked", { lastFailureType: "stage_setup", blockedAction: "repair" }),
+      managedPr("blocked", {
+        blockedAction: "repair",
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "stage_setup" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
   const reviewRoute = await routeIssueComment(prCommandPayload("/factory resume"), {
     getPullRequest: async () =>
-      managedPr("blocked", { lastFailureType: "transient_infra", blockedAction: "review" }),
+      managedPr("blocked", {
+        blockedAction: "review",
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "transient_infra" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
@@ -137,7 +152,12 @@ test("routeIssueComment resumes repair and review runs to their blocked action",
 test("routeIssueComment leaves unrecoverable blocked PRs unchanged on resume", async () => {
   const route = await routeIssueComment(prCommandPayload("/factory resume"), {
     getPullRequest: async () =>
-      managedPr("blocked", { lastFailureType: "content_or_logic", blockedAction: "repair" }),
+      managedPr("blocked", {
+        blockedAction: "repair",
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "content_or_logic" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
