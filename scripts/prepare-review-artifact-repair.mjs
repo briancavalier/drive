@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setOutputs as defaultSetOutputs } from "./lib/actions-output.mjs";
 import { FAILURE_TYPES } from "./lib/failure-classification.mjs";
+import { buildFailureIntervention } from "./lib/intervention-state.mjs";
 import { extractPrMetadata } from "./lib/pr-metadata.mjs";
 import { getPullRequest as defaultGetPullRequest } from "./lib/github.mjs";
 import { nextRepairState } from "./lib/repair-state.mjs";
@@ -52,18 +53,31 @@ export async function prepareReviewArtifactRepair({
     message: failureMessage,
     capturedAt: new Date().toISOString()
   };
+  const intervention = buildFailureIntervention({
+    action: "review",
+    phase: failurePhase,
+    failureType,
+    failureMessage,
+    retryAttempts: 0,
+    repeatedFailureCount: repairState.repeatedFailureCount,
+    failureSignature: repairState.lastFailureSignature,
+    reviewArtifactFailure: failureMetadata,
+    blocking: repairState.blocked
+  });
 
   setOutputs({
     repair_attempts: String(repairState.repairAttempts),
     repeated_failure_count: String(repairState.repeatedFailureCount),
     last_failure_signature: repairState.lastFailureSignature || "",
     blocked: repairState.blocked ? "true" : "false",
-    failure_metadata: JSON.stringify(failureMetadata)
+    failure_metadata: JSON.stringify(failureMetadata),
+    failure_intervention: JSON.stringify(intervention)
   });
 
   return {
     repairState,
-    failureMetadata
+    failureMetadata,
+    intervention
   };
 }
 

@@ -6,6 +6,13 @@ import {
   FACTORY_RESUMABLE_FAILURE_TYPES,
   FACTORY_SLASH_COMMANDS
 } from "./factory-config.mjs";
+import {
+  getFailureCounter,
+  getFailureSignature,
+  getFailureType,
+  getOpenFailureIntervention,
+  getReviewArtifactFailure
+} from "./intervention-state.mjs";
 
 const STATE_DISPLAY = Object.freeze({
   paused: { emoji: "⏸️", label: "Paused" },
@@ -233,49 +240,12 @@ function canResumePausedRun(metadata = {}) {
 function isRepairCapExceeded(metadata = {}) {
   const attempts = Number(metadata.repairAttempts || 0);
   const limit = Number(metadata.maxRepairAttempts || 0);
-  const repeated = getFailureCounter(
-    metadata,
-    "repeatedFailureCount",
-    metadata.repeatedFailureCount
-  );
+  const repeated = getFailureCounter(metadata, "repeatedFailureCount");
   return (limit > 0 && attempts > limit) || repeated >= 2;
 }
 
-function getOpenFailureIntervention(metadata = {}) {
-  const intervention = metadata.intervention;
-
-  if (
-    metadata.status === FACTORY_PR_STATUSES.blocked &&
-    intervention &&
-    intervention.type === "failure" &&
-    intervention.status === "open"
-  ) {
-    return intervention;
-  }
-
-  return null;
-}
-
-function getFailureValue(metadata = {}, key, fallback = null) {
-  const intervention = getOpenFailureIntervention(metadata);
-
-  if (intervention?.payload && intervention.payload[key] != null) {
-    return intervention.payload[key];
-  }
-
-  return fallback;
-}
-
-function getFailureType(metadata = {}) {
-  return getFailureValue(metadata, "failureType", metadata.lastFailureType);
-}
-
-function getFailureCounter(metadata = {}, key, fallback = 0) {
-  return Number(getFailureValue(metadata, key, fallback) || 0);
-}
-
 function hasSelfModifyGuardSignature(metadata = {}) {
-  const signature = `${getFailureValue(metadata, "failureSignature", metadata.lastFailureSignature) || ""}`.toLowerCase();
+  const signature = `${getFailureSignature(metadata) || ""}`.toLowerCase();
 
   return (
     signature.includes("factory:self-modify") ||
@@ -290,11 +260,7 @@ function buildBlockedReason({ metadata }) {
 
   if (intervention?.summary) {
     if (failureType === "review_artifact_contract") {
-      const failure = getFailureValue(
-        metadata,
-        "reviewArtifactFailure",
-        metadata.lastReviewArtifactFailure
-      );
+      const failure = getReviewArtifactFailure(metadata);
       const detail = `${failure?.message || failure?.type || ""}`.trim();
 
       return detail
@@ -307,7 +273,7 @@ function buildBlockedReason({ metadata }) {
     }
 
     if (failureType === "stage_noop") {
-      const attempts = getFailureCounter(metadata, "stageNoopAttempts", metadata.stageNoopAttempts);
+      const attempts = getFailureCounter(metadata, "stageNoopAttempts");
       return attempts > 1
         ? "Latest stage run produced no committed changes after repeated attempts."
         : "Latest stage run produced no committed changes.";
@@ -324,7 +290,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "stage_noop") {
-    const attempts = getFailureCounter(metadata, "stageNoopAttempts", metadata.stageNoopAttempts);
+    const attempts = getFailureCounter(metadata, "stageNoopAttempts");
     return attempts > 1
       ? "Latest stage run produced no committed changes after repeated attempts."
       : "Latest stage run produced no committed changes.";
@@ -339,11 +305,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "transient_infra") {
-    const retries = getFailureCounter(
-      metadata,
-      "transientRetryAttempts",
-      metadata.transientRetryAttempts
-    );
+    const retries = getFailureCounter(metadata, "transientRetryAttempts");
     return retries > 0
       ? `Run hit transient infrastructure issues after ${retries} automated retr${retries === 1 ? "y" : "ies"}.`
       : "Run hit transient infrastructure issues.";
@@ -354,11 +316,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "review_artifact_contract") {
-    const failure = getFailureValue(
-      metadata,
-      "reviewArtifactFailure",
-      metadata.lastReviewArtifactFailure
-    );
+    const failure = getReviewArtifactFailure(metadata);
     const detail = `${failure?.message || failure?.type || ""}`.trim();
     return detail
       ? `Review artifact contract failed: ${detail}`

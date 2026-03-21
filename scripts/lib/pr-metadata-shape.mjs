@@ -1,67 +1,39 @@
 import { DEFAULT_MAX_REPAIR_ATTEMPTS, FACTORY_PR_STATUSES, issueArtifactsPath } from "./factory-config.mjs";
+import {
+  canonicalizeIntervention,
+  defaultFailureIntervention,
+  defaultFailureInterventionPayload
+} from "./intervention-state.mjs";
 
-export function defaultFailureInterventionPayload(overrides = {}) {
-  return {
-    failureType: null,
-    failureSignature: null,
-    retryAttempts: 0,
-    repeatedFailureCount: 0,
-    stageNoopAttempts: 0,
-    stageSetupAttempts: 0,
-    transientRetryAttempts: 0,
-    reviewArtifactFailure: null,
-    ...overrides
-  };
-}
+export { canonicalizeIntervention, defaultFailureIntervention, defaultFailureInterventionPayload };
 
-export function defaultFailureIntervention(overrides = {}) {
-  const payload = defaultFailureInterventionPayload(overrides.payload);
+function stripLegacyFailureMetadata(metadata = {}) {
+  const {
+    lastFailureSignature: _lastFailureSignature,
+    repeatedFailureCount: _repeatedFailureCount,
+    lastFailureType: _lastFailureType,
+    lastReviewArtifactFailure: _lastReviewArtifactFailure,
+    transientRetryAttempts: _transientRetryAttempts,
+    stageNoopAttempts: _stageNoopAttempts,
+    stageSetupAttempts: _stageSetupAttempts,
+    ...rest
+  } = metadata;
 
-  return {
-    id: null,
-    type: "failure",
-    status: "open",
-    stage: null,
-    blocking: true,
-    summary: "",
-    detail: "",
-    createdAt: null,
-    runId: null,
-    runUrl: null,
-    payload,
-    resolution: null,
-    ...overrides,
-    payload
-  };
-}
-
-export function canonicalizeIntervention(intervention) {
-  if (!intervention) {
-    return null;
-  }
-
-  if (`${intervention.type || ""}`.trim() === "failure") {
-    return defaultFailureIntervention(intervention);
-  }
-
-  return intervention;
+  return rest;
 }
 
 export function defaultPrMetadata(overrides = {}) {
+  const normalizedOverrides = stripLegacyFailureMetadata(overrides);
+
   return {
     issueNumber: null,
     artifactsPath: null,
     status: FACTORY_PR_STATUSES.planning,
     repairAttempts: 0,
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
-    lastFailureSignature: null,
-    repeatedFailureCount: 0,
     lastReadySha: null,
     lastProcessedWorkflowRunId: null,
-    lastFailureType: null,
     blockedAction: null,
-    lastReviewArtifactFailure: null,
-    transientRetryAttempts: 0,
     lastRefreshedSha: null,
     pendingReviewSha: null,
     paused: false,
@@ -78,11 +50,9 @@ export function defaultPrMetadata(overrides = {}) {
     lastEstimatedStage: null,
     lastEstimatedModel: null,
     lastStageCostEstimateUsd: 0,
-    stageNoopAttempts: 0,
-    stageSetupAttempts: 0,
     intervention: null,
-    ...overrides,
-    intervention: canonicalizeIntervention(overrides.intervention ?? null)
+    ...normalizedOverrides,
+    intervention: canonicalizeIntervention(normalizedOverrides.intervention ?? null)
   };
 }
 
@@ -93,15 +63,16 @@ function normalizeIssueNumber(value) {
 }
 
 export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadata?.issueNumber) {
+  const normalizedMetadata = stripLegacyFailureMetadata(metadata);
   const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
   const canonicalArtifactsPath = normalizedIssueNumber
     ? issueArtifactsPath(normalizedIssueNumber)
-    : metadata.artifactsPath ?? null;
+    : normalizedMetadata.artifactsPath ?? null;
 
   return defaultPrMetadata({
-    ...metadata,
-    issueNumber: normalizedIssueNumber ?? metadata.issueNumber ?? null,
+    ...normalizedMetadata,
+    issueNumber: normalizedIssueNumber ?? normalizedMetadata.issueNumber ?? null,
     artifactsPath: canonicalArtifactsPath,
-    intervention: canonicalizeIntervention(metadata.intervention)
+    intervention: canonicalizeIntervention(normalizedMetadata.intervention)
   });
 }

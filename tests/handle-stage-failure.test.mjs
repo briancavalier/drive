@@ -147,7 +147,6 @@ test("main creates follow-up issue for actionable failure", async () => {
   assert.ok(createdIssue, "expected issue payload");
   assert.match(createdIssue.body, /factory-followup-meta/);
   assert.ok(execEnv.FACTORY_COMMENT.includes("Factory follow-up opened as #456"), "comment should mention follow-up issue");
-  assert.equal(execEnv.FACTORY_LAST_FAILURE_TYPE, FAILURE_TYPES.configuration);
   assert.ok(execEnv.FACTORY_INTERVENTION, "expected failure intervention payload");
   assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).payload.failureType, FAILURE_TYPES.configuration);
 });
@@ -174,11 +173,11 @@ test("main increments stage_noop attempts and records retry guidance", async () 
   );
 
   assert.ok(execEnv, "expected apply-pr-state invocation");
-  assert.equal(execEnv.FACTORY_STAGE_NOOP_ATTEMPTS, "1");
   assert.match(execEnv.FACTORY_COMMENT, /## Stage retry status/);
   assert.match(execEnv.FACTORY_COMMENT, /Factory will treat the next implement run as the last auto-retry/i);
   assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.planReady);
-  assert.equal(execEnv.FACTORY_INTERVENTION, "__CLEAR__");
+  assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).payload.stageNoopAttempts, 1);
+  assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).blocking, false);
 });
 
 test("main blocks stage_noop failures after exhausting retries", async () => {
@@ -203,10 +202,10 @@ test("main blocks stage_noop failures after exhausting retries", async () => {
   );
 
   assert.ok(execEnv, "expected apply-pr-state invocation");
-  assert.equal(execEnv.FACTORY_STAGE_NOOP_ATTEMPTS, "2");
   assert.match(execEnv.FACTORY_COMMENT, /Automated retries are now blocked/i);
   assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.blocked);
   assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).payload.stageNoopAttempts, 2);
+  assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).blocking, true);
 });
 
 test("main skips creating follow-up when signature already tracked", async () => {

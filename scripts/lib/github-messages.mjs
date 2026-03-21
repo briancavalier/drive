@@ -628,8 +628,6 @@ export function renderPrBody(
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause],
     RESET_COMMAND:
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
-    LAST_FAILURE_TYPE: state.lastFailureType || "",
-    TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
     CONTROL_PANEL_SECTION: dashboardSection,
     STATUS_SECTION: "",
     ARTIFACTS_SECTION: artifactsSection,

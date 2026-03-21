@@ -16,6 +16,11 @@ import {
   FACTORY_STAGE_MODES,
   FACTORY_STAGE_MODE_VALUES
 } from "./lib/factory-config.mjs";
+import {
+  getFailureCounter,
+  getFailureType,
+  getReviewArtifactFailure
+} from "./lib/intervention-state.mjs";
 import { resolveReviewMethodology } from "./lib/review-methods.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
 
@@ -373,9 +378,9 @@ function renderRunMetadata({
     `- Branch: ${branch}`,
     `- Current status: ${metadata.status || "unknown"}`
   ];
-  const lastFailureType = `${metadata.lastFailureType || ""}`.trim();
-  const stageNoopAttempts = Number(metadata.stageNoopAttempts || 0);
-  const stageSetupAttempts = Number(metadata.stageSetupAttempts || 0);
+  const lastFailureType = getFailureType(metadata);
+  const stageNoopAttempts = getFailureCounter(metadata, "stageNoopAttempts");
+  const stageSetupAttempts = getFailureCounter(metadata, "stageSetupAttempts");
 
   if (lastFailureType) {
     lines.push(`- Last failure type: ${lastFailureType}`);
@@ -413,9 +418,8 @@ function renderFailureContext({
 
   const lines = [];
   const artifactFailure =
-    metadata?.lastFailureType === FAILURE_TYPES.reviewArtifactContract &&
-    metadata?.lastReviewArtifactFailure
-      ? metadata.lastReviewArtifactFailure
+    getFailureType(metadata) === FAILURE_TYPES.reviewArtifactContract
+      ? getReviewArtifactFailure(metadata)
       : null;
 
   if (artifactFailure) {

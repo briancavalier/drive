@@ -300,11 +300,7 @@ test("review artifact repair jobs mirror stage success and failure handling", ()
 
   assert.match(
     repairSucceededJob,
-    /FACTORY_LAST_REVIEW_ARTIFACT_FAILURE:\s*"__CLEAR__"/
-  );
-  assert.match(
-    repairSucceededJob,
-    /FACTORY_LAST_FAILURE_TYPE:\s*""/
+    /FACTORY_INTERVENTION:\s*"__CLEAR__"/
   );
   assert.match(
     repairFailedJob,

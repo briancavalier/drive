@@ -10,7 +10,6 @@ import {
 import {
   canonicalizeIntervention,
   canonicalizePrMetadata,
-  defaultFailureIntervention,
   extractPrMetadata,
   renderPrBody
 } from "./lib/pr-metadata.mjs";
@@ -64,22 +63,6 @@ export function resolveNextStatus(metadataStatus, envStatus) {
   }
 
   return assertFactoryPrStatus(metadataStatus, "existing PR metadata status");
-}
-
-export function applyTransientRetryAttempts(metadata, envValue) {
-  const nextMetadata = {
-    ...metadata
-  };
-
-  if (envValue !== undefined) {
-    const transientRetryAttempts = `${envValue || ""}`.trim();
-
-    if (transientRetryAttempts && transientRetryAttempts !== "__UNCHANGED__") {
-      nextMetadata.transientRetryAttempts = Number(transientRetryAttempts);
-    }
-  }
-
-  return nextMetadata;
 }
 
 export function applyPendingReviewSha(metadata, envValue) {
@@ -234,68 +217,6 @@ export function buildProjectedLabels(metadata) {
   return labels;
 }
 
-function applyStageCounter(metadata, envValue, key) {
-  if (envValue === undefined) {
-    return metadata;
-  }
-
-  const normalized = `${envValue ?? ""}`.trim();
-
-  if (normalized === "__UNCHANGED__") {
-    return metadata;
-  }
-
-  if (!normalized) {
-    return {
-      ...metadata,
-      [key]: 0
-    };
-  }
-
-  const parsed = Number(normalized);
-
-  if (Number.isNaN(parsed)) {
-    return metadata;
-  }
-
-  return {
-    ...metadata,
-    [key]: parsed
-  };
-}
-
-export function applyLastReviewArtifactFailure(metadata, envValue) {
-  if (envValue === undefined) {
-    return metadata;
-  }
-
-  const normalized = `${envValue ?? ""}`.trim();
-
-  if (!normalized || normalized === "__CLEAR__") {
-    return {
-      ...metadata,
-      lastReviewArtifactFailure: null
-    };
-  }
-
-  if (normalized === "__UNCHANGED__") {
-    return metadata;
-  }
-
-  let parsed;
-
-  try {
-    parsed = JSON.parse(normalized);
-  } catch {
-    throw new Error("FACTORY_LAST_REVIEW_ARTIFACT_FAILURE must be valid JSON when provided");
-  }
-
-  return {
-    ...metadata,
-    lastReviewArtifactFailure: parsed
-  };
-}
-
 export function applyBlockedAction(metadata, envValue) {
   if (envValue === undefined) {
     return metadata;
@@ -339,25 +260,9 @@ export function applyIntervention(metadata, envValue) {
     throw new Error("FACTORY_INTERVENTION must be valid JSON when provided");
   }
 
-  const intervention = canonicalizeIntervention(parsed);
-
-  if (!intervention) {
-    return {
-      ...metadata,
-      intervention: null
-    };
-  }
-
-  if (intervention.type === "failure") {
-    return {
-      ...metadata,
-      intervention: defaultFailureIntervention(intervention)
-    };
-  }
-
   return {
     ...metadata,
-    intervention
+    intervention: canonicalizeIntervention(parsed)
   };
 }
 
@@ -375,20 +280,6 @@ export async function main(env = process.env) {
     nextMetadata.repairAttempts = Number(env.FACTORY_REPAIR_ATTEMPTS);
   }
 
-  if (
-    env.FACTORY_LAST_FAILURE_SIGNATURE !== undefined &&
-    env.FACTORY_LAST_FAILURE_SIGNATURE !== "__UNCHANGED__"
-  ) {
-    nextMetadata.lastFailureSignature =
-      env.FACTORY_LAST_FAILURE_SIGNATURE || null;
-  }
-
-  if (env.FACTORY_REPEATED_FAILURE_COUNT !== undefined) {
-    nextMetadata.repeatedFailureCount = Number(
-      env.FACTORY_REPEATED_FAILURE_COUNT
-    );
-  }
-
   if (env.FACTORY_LAST_READY_SHA !== undefined) {
     if (env.FACTORY_LAST_READY_SHA !== "__UNCHANGED__") {
       nextMetadata.lastReadySha = env.FACTORY_LAST_READY_SHA || null;
@@ -402,25 +293,11 @@ export async function main(env = process.env) {
     }
   }
 
-  if (env.FACTORY_LAST_FAILURE_TYPE !== undefined) {
-    if (env.FACTORY_LAST_FAILURE_TYPE !== "__UNCHANGED__") {
-      nextMetadata.lastFailureType = env.FACTORY_LAST_FAILURE_TYPE || null;
-    }
-  }
   nextMetadata = applyBlockedAction(nextMetadata, env.FACTORY_BLOCKED_ACTION);
   nextMetadata = applyLastCompletedStage(nextMetadata, env.FACTORY_LAST_COMPLETED_STAGE);
   nextMetadata = applyLastRunId(nextMetadata, env.FACTORY_LAST_RUN_ID);
   nextMetadata = applyLastRunUrl(nextMetadata, env.FACTORY_LAST_RUN_URL);
   nextMetadata = applyPauseReason(nextMetadata, env.FACTORY_PAUSE_REASON);
-  nextMetadata = applyLastReviewArtifactFailure(
-    nextMetadata,
-    env.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE
-  );
-
-  nextMetadata = applyTransientRetryAttempts(
-    nextMetadata,
-    env.FACTORY_TRANSIENT_RETRY_ATTEMPTS
-  );
 
   if (env.FACTORY_LAST_REFRESHED_SHA !== undefined) {
     if (env.FACTORY_LAST_REFRESHED_SHA !== "__UNCHANGED__") {
@@ -431,8 +308,6 @@ export async function main(env = process.env) {
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
   nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
-  nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_NOOP_ATTEMPTS, "stageNoopAttempts");
-  nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_SETUP_ATTEMPTS, "stageSetupAttempts");
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
 

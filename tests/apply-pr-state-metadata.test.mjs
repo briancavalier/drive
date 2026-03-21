@@ -6,12 +6,10 @@ import {
   applyPaused,
   applyCostEstimateMetadata,
   applyLastCompletedStage,
-  applyLastReviewArtifactFailure,
   applyLastRunId,
   applyLastRunUrl,
   applyPauseReason,
   applyPendingReviewSha,
-  applyTransientRetryAttempts,
   buildProjectedLabels,
   canonicalizeUpdatedMetadata,
   resolveNextStatus
@@ -48,36 +46,6 @@ test("resolveNextStatus rejects invalid existing metadata statuses", () => {
     () => resolveNextStatus("review-ready", ""),
     /Invalid existing PR metadata status/
   );
-});
-
-test("transientRetryAttempts is preserved when reset passes __UNCHANGED__", () => {
-  const metadata = defaultPrMetadata({
-    transientRetryAttempts: 2
-  });
-
-  const nextMetadata = applyTransientRetryAttempts(metadata, "__UNCHANGED__");
-
-  assert.equal(nextMetadata.transientRetryAttempts, 2);
-});
-
-test("transientRetryAttempts is preserved when env value is empty", () => {
-  const metadata = defaultPrMetadata({
-    transientRetryAttempts: 2
-  });
-
-  const nextMetadata = applyTransientRetryAttempts(metadata, "");
-
-  assert.equal(nextMetadata.transientRetryAttempts, 2);
-});
-
-test("transientRetryAttempts is cleared when reset explicitly sets 0", () => {
-  const metadata = defaultPrMetadata({
-    transientRetryAttempts: 2
-  });
-
-  const nextMetadata = applyTransientRetryAttempts(metadata, "0");
-
-  assert.equal(nextMetadata.transientRetryAttempts, 0);
 });
 
 test("applyPendingReviewSha leaves metadata unchanged when env undefined", () => {
@@ -210,14 +178,19 @@ test("canonicalizeUpdatedMetadata rewrites drifted artifacts paths and preserves
     issueNumber: 12,
     artifactsPath: ".factory/runs/999",
     status: FACTORY_PR_STATUSES.reviewing,
-    stageSetupAttempts: 2
+    intervention: defaultFailureIntervention({
+      payload: {
+        failureType: "stage_setup",
+        stageSetupAttempts: 2
+      }
+    })
   });
 
   const nextMetadata = canonicalizeUpdatedMetadata(metadata);
 
   assert.equal(nextMetadata.artifactsPath, ".factory/runs/12");
   assert.equal(nextMetadata.status, FACTORY_PR_STATUSES.reviewing);
-  assert.equal(nextMetadata.stageSetupAttempts, 2);
+  assert.equal(nextMetadata.intervention.payload.stageSetupAttempts, 2);
 });
 
 test("applyPaused updates metadata from the explicit env override", () => {
@@ -315,44 +288,4 @@ test("buildProjectedLabels maps metadata state into projected status labels", ()
     FACTORY_LABELS.paused,
     FACTORY_LABELS.costMedium
   ]);
-});
-
-test("applyLastReviewArtifactFailure leaves metadata unchanged when env undefined", () => {
-  const metadata = defaultPrMetadata({
-    lastReviewArtifactFailure: { type: "review_artifact_contract" }
-  });
-  const nextMetadata = applyLastReviewArtifactFailure(metadata, undefined);
-
-  assert.equal(nextMetadata.lastReviewArtifactFailure.type, "review_artifact_contract");
-});
-
-test("applyLastReviewArtifactFailure clears metadata when empty value provided", () => {
-  const metadata = defaultPrMetadata({
-    lastReviewArtifactFailure: { type: "review_artifact_contract" }
-  });
-  const nextMetadata = applyLastReviewArtifactFailure(metadata, "");
-
-  assert.equal(nextMetadata.lastReviewArtifactFailure, null);
-});
-
-test("applyLastReviewArtifactFailure applies parsed JSON record", () => {
-  const metadata = defaultPrMetadata();
-  const failure = {
-    type: "review_artifact_contract",
-    phase: "review",
-    message: "review.json missing",
-    capturedAt: "2026-03-19T11:22:33.000Z"
-  };
-  const nextMetadata = applyLastReviewArtifactFailure(metadata, JSON.stringify(failure));
-
-  assert.deepEqual(nextMetadata.lastReviewArtifactFailure, failure);
-});
-
-test("applyLastReviewArtifactFailure rejects invalid JSON", () => {
-  const metadata = defaultPrMetadata();
-
-  assert.throws(
-    () => applyLastReviewArtifactFailure(metadata, "{not-json"),
-    /FACTORY_LAST_REVIEW_ARTIFACT_FAILURE must be valid JSON/
-  );
 });

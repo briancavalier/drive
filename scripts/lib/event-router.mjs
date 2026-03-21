@@ -16,6 +16,11 @@ import {
   validateFactoryRepoTrust,
   validateTrustedFactoryContext
 } from "./factory-trust.mjs";
+import {
+  buildFailureIntervention,
+  getFailureCounter,
+  getFailureType
+} from "./intervention-state.mjs";
 import { nextRepairState } from "./repair-state.mjs";
 
 export { validateFactoryRepoTrust, validateTrustedFactoryContext } from "./factory-trust.mjs";
@@ -51,21 +56,6 @@ function resolvePausedResumeAction(metadata = {}) {
   }
 
   return "";
-}
-
-function getFailureType(metadata = {}) {
-  const intervention = metadata?.intervention;
-
-  if (
-    metadata?.status === FACTORY_PR_STATUSES.blocked &&
-    intervention &&
-    intervention.type === "failure" &&
-    intervention.status === "open"
-  ) {
-    return `${intervention.payload?.failureType || ""}`.trim();
-  }
-
-  return `${metadata?.lastFailureType || ""}`.trim();
 }
 
 function isManaged(labels, branchName, metadata, { allowPaused = false, allowBlocked = false } = {}) {
@@ -159,8 +149,8 @@ export async function routeIssueComment(payload, githubClient = {}) {
       issueNumber: trustedContext.issueNumber,
       branch: trustedContext.branch,
       artifactsPath: trustedContext.artifactsPath,
-      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+      stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+      stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
     };
   }
 
@@ -178,8 +168,8 @@ export async function routeIssueComment(payload, githubClient = {}) {
         issueNumber: trustedContext.issueNumber,
         branch: trustedContext.branch,
         artifactsPath: trustedContext.artifactsPath,
-        stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-        stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+        stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+        stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
       };
     }
 
@@ -197,8 +187,8 @@ export async function routeIssueComment(payload, githubClient = {}) {
       issueNumber: trustedContext.issueNumber,
       branch: trustedContext.branch,
       artifactsPath: trustedContext.artifactsPath,
-      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+      stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+      stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
     };
   }
 
@@ -254,6 +244,18 @@ export function routePullRequestReview(payload) {
     metadata,
     `review:${payload.review.id}:${payload.review.body || ""}`
   );
+  const intervention = repairState.blocked
+    ? buildFailureIntervention({
+        action: "repair",
+        phase: "review_delivery",
+        failureType: "content_or_logic",
+        failureMessage: payload.review.body || "",
+        retryAttempts: 0,
+        repeatedFailureCount: repairState.repeatedFailureCount,
+        failureSignature: repairState.lastFailureSignature,
+        blocking: true
+      })
+    : null;
 
   return {
     action: repairState.blocked ? "blocked" : "repair",
@@ -263,9 +265,10 @@ export function routePullRequestReview(payload) {
     artifactsPath: trustedContext.artifactsPath,
     reviewId: payload.review.id,
     reviewBody: payload.review.body || "",
+    intervention,
     repairState,
-    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+    stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+    stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
   };
 }
 
@@ -331,8 +334,8 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
       branch: trustedContext.branch,
       artifactsPath: trustedContext.artifactsPath,
       ciRunId: workflowRun.id,
-      stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-      stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+      stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+      stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
     };
   }
 
@@ -344,6 +347,18 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     metadata,
     `ci:${workflowRun.name}:${workflowRun.conclusion}`
   );
+  const intervention = repairState.blocked
+    ? buildFailureIntervention({
+        action: "repair",
+        phase: "stage",
+        failureType: "content_or_logic",
+        failureMessage: "",
+        retryAttempts: 0,
+        repeatedFailureCount: repairState.repeatedFailureCount,
+        failureSignature: repairState.lastFailureSignature,
+        blocking: true
+      })
+    : null;
 
   return {
     action: repairState.blocked ? "blocked" : "repair",
@@ -352,8 +367,9 @@ export function routeWorkflowRun({ workflowRun, pullRequest }) {
     branch: trustedContext.branch,
     artifactsPath: trustedContext.artifactsPath,
     ciRunId: workflowRun.id,
+    intervention,
     repairState,
-    stageNoopAttempts: metadata?.stageNoopAttempts ?? 0,
-    stageSetupAttempts: metadata?.stageSetupAttempts ?? 0
+    stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
+    stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
   };
 }

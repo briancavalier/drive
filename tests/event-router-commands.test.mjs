@@ -18,8 +18,6 @@ function managedPr(status, metadata = {}) {
         status,
         repairAttempts: 0,
         maxRepairAttempts: 3,
-        lastFailureSignature: null,
-        repeatedFailureCount: 0,
         ...metadata
       }
     }),
@@ -166,7 +164,12 @@ test("routeIssueComment leaves unrecoverable blocked PRs unchanged on resume", a
 
 test("routeIssueComment leaves blocked PRs unchanged when blocked action is missing", async () => {
   const route = await routeIssueComment(prCommandPayload("/factory resume"), {
-    getPullRequest: async () => managedPr("blocked", { lastFailureType: "stage_setup" }),
+    getPullRequest: async () =>
+      managedPr("blocked", {
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "stage_setup" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 
@@ -179,7 +182,12 @@ test("routeIssueComment routes pause and reset commands for trusted collaborator
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
   const resetRoute = await routeIssueComment(prCommandPayload("/factory reset"), {
-    getPullRequest: async () => managedPr("blocked", { lastFailureType: "stage_setup" }),
+    getPullRequest: async () =>
+      managedPr("blocked", {
+        intervention: defaultFailureIntervention({
+          payload: { failureType: "stage_setup" }
+        })
+      }),
     getCollaboratorPermission: async () => ({ permission: "write" })
   });
 

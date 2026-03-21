@@ -11,7 +11,11 @@ import {
   writePromptArtifacts
 } from "../scripts/build-stage-prompt.mjs";
 import { APPROVED_ISSUE_FILE_NAME } from "../scripts/lib/factory-config.mjs";
-import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultFailureIntervention,
+  defaultPrMetadata,
+  renderPrBody
+} from "../scripts/lib/pr-metadata.mjs";
 import { parseIssueForm } from "../scripts/lib/issue-form.mjs";
 import { resolveReviewMethodology } from "../scripts/lib/review-methods.mjs";
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
@@ -501,9 +505,13 @@ test("implement prompt metadata lists last failure type and stage counters", () 
     issueNumber: 1,
     artifactsPath: artifactsDir,
     status: "implementing",
-    lastFailureType: "stage_noop",
-    stageNoopAttempts: 1,
-    stageSetupAttempts: 2
+    intervention: defaultFailureIntervention({
+      payload: {
+        failureType: "stage_noop",
+        stageNoopAttempts: 1,
+        stageSetupAttempts: 2
+      }
+    })
   });
   const pullRequestBody = renderPrBody({
     issueNumber: 1,
@@ -821,8 +829,12 @@ test("repair prompt surfaces stored review artifact failure details", () => {
     issueNumber: 1,
     artifactsPath: artifactsDir,
     status: "repairing",
-    lastFailureType: FAILURE_TYPES.reviewArtifactContract,
-    lastReviewArtifactFailure: failure
+    intervention: defaultFailureIntervention({
+      payload: {
+        failureType: FAILURE_TYPES.reviewArtifactContract,
+        reviewArtifactFailure: failure
+      }
+    })
   });
   const result = buildStagePrompt({
     mode: "repair",

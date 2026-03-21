@@ -26,8 +26,6 @@ function managedPrBody(status = "plan_ready", repairAttempts = 0, overrides = {}
       status,
       repairAttempts,
       maxRepairAttempts: 3,
-      lastFailureSignature: null,
-      repeatedFailureCount: 0,
       ...overrides
     }
   });
@@ -276,9 +274,7 @@ test("routeIssueComment still parses metadata from custom PR body templates", as
               artifactsPath: ".factory/runs/12",
               status: "plan_ready",
               repairAttempts: 0,
-              maxRepairAttempts: 3,
-              lastFailureSignature: null,
-              repeatedFailureCount: 0
+              maxRepairAttempts: 3
             }
           },
           { overridesRoot }
@@ -533,8 +529,6 @@ test("routeWorkflowRun resumes review after successful repair cleanup", () => {
         sha: headSha
       }),
       body: managedPrBody("repairing", 1, {
-        lastFailureType: null,
-        lastReviewArtifactFailure: null,
         lastProcessedWorkflowRunId: "177"
       })
     })

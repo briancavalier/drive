@@ -29,9 +29,6 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.status, "plan_ready");
   assert.equal(metadata.lastReadySha, null);
   assert.equal(metadata.lastProcessedWorkflowRunId, null);
-  assert.equal(metadata.lastFailureType, null);
-  assert.equal(metadata.lastReviewArtifactFailure, null);
-  assert.equal(metadata.transientRetryAttempts, 0);
   assert.equal(metadata.pendingReviewSha, null);
   assert.equal(metadata.intervention, null);
   assert.equal(metadata.costEstimateUsd, 0);
@@ -106,12 +103,17 @@ test("canonicalizePrMetadata preserves unrelated metadata fields while fixing ar
     issueNumber: 7,
     artifactsPath: ".factory/runs/999",
     status: "reviewing",
-    stageNoopAttempts: 2
+    intervention: defaultFailureIntervention({
+      payload: {
+        failureType: "stage_noop",
+        stageNoopAttempts: 2
+      }
+    })
   });
 
   assert.equal(metadata.artifactsPath, ".factory/runs/7");
   assert.equal(metadata.status, "reviewing");
-  assert.equal(metadata.stageNoopAttempts, 2);
+  assert.equal(metadata.intervention.payload.stageNoopAttempts, 2);
 });
 
 test("defaultPrMetadata includes a null intervention by default", () => {

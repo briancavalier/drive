@@ -103,8 +103,6 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "stage_noop",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "stage_noop",
-        stageNoopAttempts: 2,
         lastRunUrl: `${repositoryUrl}/actions/runs/111`,
         intervention: defaultFailureIntervention({
           summary: "Factory stage completed without any repository updates.",
@@ -121,9 +119,13 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "stage_setup",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "stage_setup",
         blockedAction: "repair",
-        lastRunUrl: `${repositoryUrl}/actions/runs/222`
+        lastRunUrl: `${repositoryUrl}/actions/runs/222`,
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "stage_setup"
+          }
+        })
       }),
       expectedActionIds: ["resume", "reset", "pause", "open_latest_run"],
       reason: /setup prerequisites failed/i
@@ -132,10 +134,14 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "self_modify_guard",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "stage_setup",
         blockedAction: "repair",
-        lastFailureSignature:
-          "stage setup prerequisites failed: factory stage output touches protected control-plane paths but the pull request is missing the factory:self-modify label."
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "stage_setup",
+            failureSignature:
+              "stage setup prerequisites failed: factory stage output touches protected control-plane paths but the pull request is missing the factory:self-modify label."
+          }
+        })
       }),
       expectedActionIds: ["reset", "pause"],
       reason: /self-modify guard/i
@@ -144,10 +150,14 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "transient_infra",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "transient_infra",
         blockedAction: "review",
-        transientRetryAttempts: 2,
-        lastRunUrl: `${repositoryUrl}/actions/runs/333`
+        lastRunUrl: `${repositoryUrl}/actions/runs/333`,
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "transient_infra",
+            transientRetryAttempts: 2
+          }
+        })
       }),
       expectedActionIds: ["resume", "pause", "open_latest_run"],
       reason: /transient infrastructure/i
@@ -156,8 +166,12 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "stale_branch_conflict",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "stale_branch_conflict",
-        blockedAction: "implement"
+        blockedAction: "implement",
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "stale_branch_conflict"
+          }
+        })
       }),
       expectedActionIds: ["open_branch", "resume", "reset", "pause"],
       reason: /merge conflict/i
@@ -166,8 +180,12 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "review_artifact_contract",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "review_artifact_contract",
-        lastReviewArtifactFailure: { type: "review_artifact_contract", message: "review.json missing" }
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "review_artifact_contract",
+            reviewArtifactFailure: { type: "review_artifact_contract", message: "review.json missing" }
+          }
+        })
       }),
       expectedActionIds: ["reset", "pause", "open_artifacts"],
       reason: /review artifact contract/i
@@ -176,10 +194,14 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       name: "repair_exhausted",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
-        lastFailureType: "content_or_logic",
         repairAttempts: 4,
         maxRepairAttempts: 3,
-        repeatedFailureCount: 2
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "content_or_logic",
+            repeatedFailureCount: 2
+          }
+        })
       }),
       expectedActionIds: ["reset", "pause", "open_failure_history"],
       reason: /exhausted automatic retries/i
@@ -224,26 +246,6 @@ test("ready_for_review state exposes review artifacts and pause automation actio
   assert.deepEqual(actionIds(panel), ["open_review_artifacts", "pause"]);
   assert.ok(!actionIds(panel).includes("start_implement"));
   assert.ok(!actionIds(panel).includes("retry"));
-});
-
-test("blocked state falls back to legacy failure metadata when intervention is absent", () => {
-  const panel = buildControlPanel({
-    metadata: metadata({
-      status: FACTORY_PR_STATUSES.blocked,
-      lastFailureType: "transient_infra",
-      blockedAction: "review",
-      transientRetryAttempts: 2,
-      lastRunUrl: `${repositoryUrl}/actions/runs/333`
-    }),
-    labels: [],
-    repositoryUrl,
-    branch,
-    prNumber: 7,
-    artifactLinks: baseArtifacts
-  });
-
-  assert.match(panel.reason || "", /transient infrastructure/i);
-  assert.deepEqual(actionIds(panel), ["resume", "pause", "open_latest_run"]);
 });
 
 test("blocked control panel uses intervention-only transient failure context", () => {
