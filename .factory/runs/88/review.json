@@ -1,7 +1,7 @@
 {
   "methodology": "default",
   "decision": "pass",
-  "summary": "Implementation matches the spec: new compact dashboard template, helpers in `github-messages.mjs`, and updated tests; CI unit suite passed.",
+  "summary": "Implementation aligns with spec: compact dashboard template, stage-aware summary, slash-command suggestions, and grouped artifacts; unit tests cover acceptance scenarios and CI passed.",
   "blocking_findings_count": 0,
   "requirement_checks": [
     {
@@ -9,64 +9,70 @@
       "requirement": "Factory PR descriptions render a `Factory Dashboard` section without using a table.",
       "status": "satisfied",
       "evidence": [
-        "scripts/templates/github-messages/pr-body.md: contains '## Factory Dashboard' and tokens for sections.",
-        "tests/github-messages.test.mjs: includes assertions that the produced body contains '## Factory Dashboard'.",
-        "CI workflow run 23378361353: unit tests succeeded (unit: success)."
+        "scripts/templates/github-messages/pr-body.md:1 (template starts with '## Factory Dashboard')",
+        "tests/github-messages.test.mjs:1 (unit tests assert presence of '## Factory Dashboard' and artifact lines)"
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Top dashboard summary is rendered as compact grouped lines instead of a table and uses the prescribed segments (state, optional stage, waiting descriptor).",
+      "requirement": "Top dashboard summary is rendered as compact grouped lines instead of a key/value list.",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs: `formatDashboardSummary` and `buildDashboardSection` implement grouped summary and lines.",
-        "tests/github-messages.test.mjs: asserts specific summary line outputs for plan_ready, blocked, and implementing states."
+        "scripts/lib/github-messages.mjs: formatDashboardSummary / buildDashboardSection (implements grouped segments)",
+        "tests/github-messages.test.mjs: renderPrBody renders plan_ready dashboard layout and assertions for summary, CI, cost, open lines"
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Suggested next actions list uses slash-command suggestions drawn from control panel mutation actions.",
+      "requirement": "Top summary line uses clearer human-facing waiting-state language (e.g. 'Human action required').",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs: `buildSuggestedActionsSection` maps control panel actions to slash-command lines.",
-        "tests/github-messages.test.mjs: asserts the suggested actions list contains `/factory implement`, `/factory pause`, `/factory resume`, etc., per state."
+        "scripts/lib/github-messages.mjs: WAITING_DESCRIPTORS constant and formatWaitingDescriptor implementation",
+        "tests/github-messages.test.mjs: assertions for human-facing waiting descriptors in plan_ready/blocked/ready_for_review cases"
       ]
     },
     {
-      "type": "plan_deliverable",
-      "requirement": "Update the PR body template and `renderPrBody` to compute the new dashboard summary, suggested actions, artifact grouping, and operator notes.",
+      "type": "acceptance_criterion",
+      "requirement": "Suggested next actions replaced with slash-command suggestions for mutation actions.",
       "status": "satisfied",
       "evidence": [
-        "scripts/templates/github-messages/pr-body.md: new template ordering with DASHBOARD_SECTION, SUGGESTED_ACTIONS_SECTION, ARTIFACTS_SECTION, OPERATOR_NOTES_SECTION, and 'Closes #{{ISSUE_NUMBER}}'.",
-        "scripts/lib/github-messages.mjs: renderPrBody composes the new sections and appends serialized factory-state comment."
+        "scripts/lib/github-messages.mjs: buildSuggestedActionsSection produces '- `/factory <verb>` — <guidance>' lines",
+        "tests/github-messages.test.mjs: assertions verifying suggested actions for plan_ready and implementing states"
       ]
     },
     {
       "type": "spec_commitment",
-      "requirement": "Artifacts section groups Plan, Run, and Review lines and omits groups when no links are present.",
+      "requirement": "Artifacts section renders Plan / Run / Review lines and omits empty groups.",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs: `buildArtifactsSection` implements grouped Plan/Run/Review lines.",
-        "tests/github-messages.test.mjs: asserts presence and formatting of '**Plan**', '**Run**', and '**Review**' lines in rendered output."
+        "scripts/lib/github-messages.mjs: buildArtifactsSection implementation",
+        "tests/github-messages.test.mjs: assertions matching '**Plan**', '**Run**', '**Review**' lines"
       ]
     },
     {
       "type": "plan_deliverable",
-      "requirement": "Unit tests updated to cover the acceptance scenarios and metadata serialization remains parseable.",
+      "requirement": "Unit tests updated to reflect new layout and formatting helpers added to renderPrBody.",
       "status": "satisfied",
       "evidence": [
-        "tests/github-messages.test.mjs and tests/pr-metadata.test.mjs: updated assertions covering summary lines, suggested actions, artifact lines, operator notes, and 'Closes #<issue>' placement.",
-        "CI workflow run 23378361353: unit tests succeeded."
+        "tests/github-messages.test.mjs: updated/added tests covering multiple status scenarios",
+        "CI run 23379654433: unit tests passed (reported in run metadata)"
       ]
     }
   ],
   "findings": [
     {
       "level": "non_blocking",
-      "title": "Artifact links may point to missing files",
-      "details": "`buildArtifactLinks` constructs canonical artifact URLs but does not verify the existence of the target files; PR bodies may therefore include links that 404 until artifacts are generated.",
-      "scope": "rendering: PR body artifact links",
-      "recommendation": "Either check artifact file existence before rendering artifact link groups, or document that generated links are conservative placeholders. Consider adding a unit test for omission behavior when artifacts are absent."
+      "title": "Add explicit test asserting absence of table markup",
+      "details": "The acceptance criteria specify no tables should be used; current tests validate the desired lines but do not explicitly assert the absence of markdown table markers (e.g. '|').",
+      "scope": "tests/github-messages.test.mjs",
+      "recommendation": "Add a small assertion in existing rendering tests that the rendered body does not contain '|' table markers or other table constructs."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Document template and 'Closes #' placement",
+      "details": "The PR-body template moved 'Closes #<issue>' to precede the serialized factory state; adding a short changelog entry or README note will help operators notice the change.",
+      "scope": "scripts/templates/github-messages/pr-body.md",
+      "recommendation": "Add a short note to the repository CHANGELOG or README describing the template change and the rationale."
     }
   ]
 }

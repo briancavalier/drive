@@ -1,54 +1,53 @@
 decision: pass
 
 📝 Summary
-- The changes implement the lighter-weight "Factory Dashboard" PR-body layout described in `.factory/runs/88/spec.md`.
-- Template and rendering logic were updated (`scripts/templates/github-messages/pr-body.md`, `scripts/lib/github-messages.mjs`) and helper behavior lives in `scripts/lib/control-panel.mjs`.
-- Unit tests in `tests/` were updated to validate the four acceptance scenarios and the metadata serialization; CI unit suite passed (workflow run id: 23378361353).
+- Methodology: `default`.
+- The change implements the lighter-weight `Factory Dashboard` layout described in the spec: the template was updated to begin with `## Factory Dashboard`, the summary line is compact and stage-aware, suggested actions render as slash-command suggestions, and artifacts/operator notes are grouped into compact lines.
+- Unit tests exercise the main acceptance scenarios (plan_ready, blocked, implementing, paused, ready_for_review) and the CI run shows tests passing.
 
 🚨 blocking findings
-- None.
+- None. All acceptance criteria and plan deliverables are satisfied by the implementation and unit tests in this branch.
 
 ⚠️ non-blocking notes
-- Artifact link presence vs. artifact file existence: `buildArtifactLinks` constructs artifact URLs from `repositoryUrl`, `branch`, and `artifactsPath` without checking whether the target files (e.g. `.factory/runs/88/repair-log.md`) actually exist in the tree. This can lead to PR bodies that list artifact links which 404 until those artifacts are produced. Consider adding an existence check or documenting that links are conservative placeholders.
-- Consider adding a focused unit test that verifies omission of the `**Run**` artifact line when no run artifacts exist on disk (or when a runtime flag indicates absence).
+- Tests are comprehensive for the primary acceptance cases. Consider adding an explicit unit test that asserts no table-like markdown is emitted (e.g. absence of `|` table marker) to future-proof against regressions.
+- Consider a short changelog entry or README note documenting the PR-body template change so operators and integrators are aware of the moved `Closes #` placement.
 
 Methodology: default
 
 ## 🧭 Traceability
 
 <details>
-<summary>🧭 Traceability: Acceptance Criteria (✅ 3)</summary>
+<summary>🧭 Traceability: Acceptance Criteria (✅ 4)</summary>
 
 - ✅ **Satisfied**: Factory PR descriptions render a `Factory Dashboard` section without using a table.
-  - **Evidence:** scripts/templates/github-messages/pr-body.md: contains '## Factory Dashboard' and tokens for sections.
-  - **Evidence:** tests/github-messages.test.mjs: includes assertions that the produced body contains '## Factory Dashboard'.
-  - **Evidence:** CI workflow run 23378361353: unit tests succeeded (unit: success).
-- ✅ **Satisfied**: Top dashboard summary is rendered as compact grouped lines instead of a table and uses the prescribed segments (state, optional stage, waiting descriptor).
-  - **Evidence:** scripts/lib/github-messages.mjs: `formatDashboardSummary` and `buildDashboardSection` implement grouped summary and lines.
-  - **Evidence:** tests/github-messages.test.mjs: asserts specific summary line outputs for plan_ready, blocked, and implementing states.
-- ✅ **Satisfied**: Suggested next actions list uses slash-command suggestions drawn from control panel mutation actions.
-  - **Evidence:** scripts/lib/github-messages.mjs: `buildSuggestedActionsSection` maps control panel actions to slash-command lines.
-  - **Evidence:** tests/github-messages.test.mjs: asserts the suggested actions list contains `/factory implement`, `/factory pause`, `/factory resume`, etc., per state.
+  - **Evidence:** scripts/templates/github-messages/pr-body.md:1 (template starts with '## Factory Dashboard')
+  - **Evidence:** tests/github-messages.test.mjs:1 (unit tests assert presence of '## Factory Dashboard' and artifact lines)
+- ✅ **Satisfied**: Top dashboard summary is rendered as compact grouped lines instead of a key/value list.
+  - **Evidence:** scripts/lib/github-messages.mjs: formatDashboardSummary / buildDashboardSection (implements grouped segments)
+  - **Evidence:** tests/github-messages.test.mjs: renderPrBody renders plan_ready dashboard layout and assertions for summary, CI, cost, open lines
+- ✅ **Satisfied**: Top summary line uses clearer human-facing waiting-state language (e.g. 'Human action required').
+  - **Evidence:** scripts/lib/github-messages.mjs: WAITING_DESCRIPTORS constant and formatWaitingDescriptor implementation
+  - **Evidence:** tests/github-messages.test.mjs: assertions for human-facing waiting descriptors in plan_ready/blocked/ready_for_review cases
+- ✅ **Satisfied**: Suggested next actions replaced with slash-command suggestions for mutation actions.
+  - **Evidence:** scripts/lib/github-messages.mjs: buildSuggestedActionsSection produces '- `/factory <verb>` — <guidance>' lines
+  - **Evidence:** tests/github-messages.test.mjs: assertions verifying suggested actions for plan_ready and implementing states
 
 </details>
 
 <details>
 <summary>🧭 Traceability: Spec Commitments (✅ 1)</summary>
 
-- ✅ **Satisfied**: Artifacts section groups Plan, Run, and Review lines and omits groups when no links are present.
-  - **Evidence:** scripts/lib/github-messages.mjs: `buildArtifactsSection` implements grouped Plan/Run/Review lines.
-  - **Evidence:** tests/github-messages.test.mjs: asserts presence and formatting of '**Plan**', '**Run**', and '**Review**' lines in rendered output.
+- ✅ **Satisfied**: Artifacts section renders Plan / Run / Review lines and omits empty groups.
+  - **Evidence:** scripts/lib/github-messages.mjs: buildArtifactsSection implementation
+  - **Evidence:** tests/github-messages.test.mjs: assertions matching '**Plan**', '**Run**', '**Review**' lines
 
 </details>
 
 <details>
-<summary>🧭 Traceability: Plan Deliverables (✅ 2)</summary>
+<summary>🧭 Traceability: Plan Deliverables (✅ 1)</summary>
 
-- ✅ **Satisfied**: Update the PR body template and `renderPrBody` to compute the new dashboard summary, suggested actions, artifact grouping, and operator notes.
-  - **Evidence:** scripts/templates/github-messages/pr-body.md: new template ordering with DASHBOARD_SECTION, SUGGESTED_ACTIONS_SECTION, ARTIFACTS_SECTION, OPERATOR_NOTES_SECTION, and 'Closes #{{ISSUE_NUMBER}}'.
-  - **Evidence:** scripts/lib/github-messages.mjs: renderPrBody composes the new sections and appends serialized factory-state comment.
-- ✅ **Satisfied**: Unit tests updated to cover the acceptance scenarios and metadata serialization remains parseable.
-  - **Evidence:** tests/github-messages.test.mjs and tests/pr-metadata.test.mjs: updated assertions covering summary lines, suggested actions, artifact lines, operator notes, and 'Closes #<issue>' placement.
-  - **Evidence:** CI workflow run 23378361353: unit tests succeeded.
+- ✅ **Satisfied**: Unit tests updated to reflect new layout and formatting helpers added to renderPrBody.
+  - **Evidence:** tests/github-messages.test.mjs: updated/added tests covering multiple status scenarios
+  - **Evidence:** CI run 23379654433: unit tests passed (reported in run metadata)
 
 </details>
