@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   APPROVED_ISSUE_FILE_NAME,
-  DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_COMMAND_CONTEXTS,
   FACTORY_COMMANDS,
   FACTORY_LABELS,
@@ -11,6 +10,7 @@ import {
   PR_STATE_MARKER
 } from "./factory-config.mjs";
 import { formatEstimatedUsd } from "./cost-estimation.mjs";
+import { defaultPrMetadata } from "./pr-metadata-shape.mjs";
 import { normalizeNewlines } from "./review-output.mjs";
 import { buildControlPanel } from "./control-panel.mjs";
 
@@ -257,39 +257,6 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
     costSummary: `${base}/cost-summary.json`,
     review: `${base}/review.md`,
     reviewJson: `${base}/review.json`
-  };
-}
-
-function defaultPrMetadata(overrides = {}) {
-  return {
-    issueNumber: null,
-    artifactsPath: null,
-    status: "planning",
-    repairAttempts: 0,
-    maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
-    lastFailureSignature: null,
-    repeatedFailureCount: 0,
-    lastReadySha: null,
-    lastProcessedWorkflowRunId: null,
-    lastFailureType: null,
-    lastReviewArtifactFailure: null,
-    transientRetryAttempts: 0,
-    lastRefreshedSha: null,
-    pendingReviewSha: null,
-    lastCompletedStage: null,
-    lastRunId: null,
-    lastRunUrl: null,
-    pauseReason: null,
-    costEstimateUsd: 0,
-    costEstimateBand: "",
-    costEstimateEmoji: "",
-    costWarnUsd: 0,
-    costHighUsd: 0,
-    costPricingSource: "",
-    lastEstimatedStage: null,
-    lastEstimatedModel: null,
-    lastStageCostEstimateUsd: 0,
-    ...overrides
   };
 }
 
@@ -661,8 +628,6 @@ export function renderPrBody(
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause],
     RESET_COMMAND:
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
-    LAST_FAILURE_TYPE: state.lastFailureType || "",
-    TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
     CONTROL_PANEL_SECTION: dashboardSection,
     STATUS_SECTION: "",
     ARTIFACTS_SECTION: artifactsSection,

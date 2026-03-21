@@ -64,9 +64,10 @@ jobs:
       artifacts_path: ${{ steps.route.outputs.artifacts_path }}
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
+      failure_intervention: ${{ steps.route.outputs.failure_intervention }}
       repair_attempts: ${{ steps.route.outputs.repair_attempts }}
-      repeated_failure_count: ${{ steps.route.outputs.repeated_failure_count }}
-      last_failure_signature: ${{ steps.route.outputs.last_failure_signature }}
+      intervention_repeated_failure_count: ${{ steps.route.outputs.intervention_repeated_failure_count }}
+      intervention_failure_signature: ${{ steps.route.outputs.intervention_failure_signature }}
       stage_noop_attempts: ${{ steps.route.outputs.stage_noop_attempts }}
       stage_setup_attempts: ${{ steps.route.outputs.stage_setup_attempts }}
     steps:
@@ -121,8 +122,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || needs.route.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
-          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
-          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
+          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.intervention_repeated_failure_count }}
+          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.route.outputs.intervention_failure_signature }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
           FACTORY_PAUSED: "false"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
@@ -182,17 +183,11 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: plan_ready
           FACTORY_REPAIR_ATTEMPTS: "0"
-          FACTORY_REPEATED_FAILURE_COUNT: "0"
-          FACTORY_LAST_FAILURE_SIGNATURE: ""
-          FACTORY_LAST_FAILURE_TYPE: ""
-          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ""
           FACTORY_LAST_READY_SHA: ""
           FACTORY_PENDING_REVIEW_SHA: ""
-          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
-          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
           FACTORY_BLOCKED_ACTION: ""
+          FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_PAUSED: "false"
           FACTORY_PAUSE_REASON: ""
           FACTORY_CI_STATUS: pending
@@ -248,13 +243,9 @@ jobs:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_LAST_FAILURE_TYPE: ""
           FACTORY_BLOCKED_ACTION: ""
-          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
-          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
-          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
           FACTORY_LAST_COMPLETED_STAGE: ${{ needs.route.outputs.action == 'implement' && 'implement' || 'repair' }}
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
@@ -408,8 +399,8 @@ jobs:
           FACTORY_FAILURE_PHASE: stage
           FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
-          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
-          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
+          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.intervention_repeated_failure_count }}
+          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.route.outputs.intervention_failure_signature }}
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.stage.outputs.transient_retry_attempts || '0' }}
@@ -450,11 +441,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: blocked
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
-          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.repeated_failure_count }}
-          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.route.outputs.last_failure_signature }}
-          FACTORY_LAST_FAILURE_TYPE: content_or_logic
           FACTORY_BLOCKED_ACTION: repair
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_INTERVENTION: ${{ needs.route.outputs.failure_intervention }}
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
   process-review:
@@ -518,8 +506,8 @@ jobs:
     outputs:
       schedule_repair: ${{ steps.prepare_repair.outcome == 'success' && steps.prepare_repair.outputs.blocked == 'false' }}
       repair_attempts: ${{ steps.prepare_repair.outputs.repair_attempts }}
-      repeated_failure_count: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
-      last_failure_signature: ${{ steps.prepare_repair.outputs.last_failure_signature }}
+      intervention_repeated_failure_count: ${{ steps.prepare_repair.outputs.intervention_repeated_failure_count }}
+      intervention_failure_signature: ${{ steps.prepare_repair.outputs.intervention_failure_signature }}
       failure_metadata: ${{ steps.prepare_repair.outputs.failure_metadata }}
     steps:
       - name: Checkout repository
@@ -640,14 +628,10 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_STATUS: repairing
           FACTORY_REPAIR_ATTEMPTS: ${{ steps.prepare_repair.outputs.repair_attempts }}
-          FACTORY_REPEATED_FAILURE_COUNT: ${{ steps.prepare_repair.outputs.repeated_failure_count }}
-          FACTORY_LAST_FAILURE_SIGNATURE: ${{ steps.prepare_repair.outputs.last_failure_signature }}
-          FACTORY_LAST_FAILURE_TYPE: review_artifact_contract
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outputs.failure_metadata }}
           FACTORY_CI_STATUS: pending
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_INTERVENTION: ${{ steps.prepare_repair.outputs.failure_intervention }}
 
       - name: Mark PR as blocked after review processing failure
         if: steps.prepare_repair.outcome != 'success' || steps.prepare_repair.outputs.blocked == 'true'
@@ -667,7 +651,6 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: ${{ steps.prepare_repair.outcome == 'success' && steps.prepare_repair.outputs.failure_metadata || '__UNCHANGED__' }}
 
   review-artifact-repair:
     if: needs.review-processing-failed.outputs.schedule_repair == 'true'
@@ -716,13 +699,9 @@ jobs:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_LAST_FAILURE_TYPE: ""
           FACTORY_BLOCKED_ACTION: ""
-          FACTORY_LAST_REVIEW_ARTIFACT_FAILURE: "__CLEAR__"
-          FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
+          FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
-          FACTORY_STAGE_NOOP_ATTEMPTS: "0"
-          FACTORY_STAGE_SETUP_ATTEMPTS: "0"
           FACTORY_LAST_COMPLETED_STAGE: "repair"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
@@ -877,8 +856,8 @@ jobs:
           FACTORY_FAILURE_PHASE: stage
           FACTORY_FAILED_ACTION: repair
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.review-processing-failed.outputs.repair_attempts }}
-          FACTORY_REPEATED_FAILURE_COUNT: ${{ needs.review-processing-failed.outputs.repeated_failure_count }}
-          FACTORY_LAST_FAILURE_SIGNATURE: ${{ needs.review-processing-failed.outputs.last_failure_signature }}
+          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.review-processing-failed.outputs.intervention_repeated_failure_count }}
+          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.review-processing-failed.outputs.intervention_failure_signature }}
           FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.review-artifact-repair.outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.review-artifact-repair.outputs.transient_retry_attempts || '0' }}

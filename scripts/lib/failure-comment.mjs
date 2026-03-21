@@ -18,7 +18,7 @@ function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
   ];
 }
 
-function buildHeadline({ action, phase, failureType, retryAttempts }) {
+export function buildFailureHeadline({ action, phase, failureType, retryAttempts }) {
   if (phase === "review_delivery") {
     return "Autonomous review artifacts were generated, but GitHub review delivery failed.";
   }
@@ -145,7 +145,7 @@ function formatArtifactLinks(artifacts) {
   return artifacts.map((artifact) => `[${artifact.label}](${artifact.url})`).join(", ");
 }
 
-function extractDiagnosticsSections(message) {
+export function extractFailureDiagnosticsSections(message) {
   const normalized = `${message || ""}`.trim();
 
   if (!normalized) {
@@ -178,11 +178,11 @@ export function buildFailureComment({
   ciRunId,
   advisory
 }) {
-  const lines = [`⚠️ ${buildHeadline({ action, phase, failureType, retryAttempts })}`, ""];
+  const lines = [`⚠️ ${buildFailureHeadline({ action, phase, failureType, retryAttempts })}`, ""];
   const artifacts = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const ciRunUrl = repositoryUrl && ciRunId ? `${repositoryUrl}/actions/runs/${ciRunId}` : "";
   const recoverySteps = buildDeterministicRecoverySteps({ action, phase, failureType });
-  const { detail, diagnostics } = extractDiagnosticsSections(failureMessage);
+  const { detail, diagnostics } = extractFailureDiagnosticsSections(failureMessage);
 
   lines.push("## Where to look");
 

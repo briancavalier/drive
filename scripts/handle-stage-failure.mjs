@@ -4,7 +4,10 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import { readFailureAdvisory } from "./lib/failure-diagnosis.mjs";
-import { buildFailureComment } from "./lib/failure-comment.mjs";
+import {
+  buildFailureComment
+} from "./lib/failure-comment.mjs";
+import { buildFailureIntervention } from "./lib/intervention-state.mjs";
 import {
   FAILURE_TYPES,
   parseRetryLimit
@@ -19,6 +22,7 @@ import {
 import { createIssue, searchIssues } from "./lib/github.mjs";
 
 export { buildFailureComment } from "./lib/failure-comment.mjs";
+export { buildFailureIntervention } from "./lib/intervention-state.mjs";
 
 const STAGE_NOOP_ATTEMPT_LIMIT = 2;
 
@@ -102,6 +106,19 @@ export function buildStateUpdate(action, failureType, { stageNoopAttempts = 0 } 
   };
 }
 
+function buildReviewArtifactFailure(failureType, phase, failureMessage) {
+  if (failureType !== FAILURE_TYPES.reviewArtifactContract) {
+    return null;
+  }
+
+  return {
+    type: failureType,
+    phase,
+    message: failureMessage || "",
+    capturedAt: new Date().toISOString()
+  };
+}
+
 export async function main(env = process.env, dependencies = {}) {
   const execFileAsync =
     dependencies.execFileAsync || promisify(execFile);
@@ -112,6 +129,12 @@ export async function main(env = process.env, dependencies = {}) {
   const retryAttempts = parseRetryLimit(env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, 0);
   const stageNoopAttemptsBase = normalizeCounter(env.FACTORY_STAGE_NOOP_ATTEMPTS);
   const stageSetupAttemptsBase = normalizeCounter(env.FACTORY_STAGE_SETUP_ATTEMPTS);
+  const repeatedFailureCountBase = normalizeCounter(
+    env.FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT
+  );
+  const previousFailureSignature =
+    `${env.FACTORY_INTERVENTION_FAILURE_SIGNATURE || ""}`
+      .trim() || null;
   const computedStageNoopAttempts =
     failureType === FAILURE_TYPES.stageNoop ? stageNoopAttemptsBase + 1 : stageNoopAttemptsBase;
   const nextStageNoopAttempts = Math.min(computedStageNoopAttempts, STAGE_NOOP_ATTEMPT_LIMIT);
@@ -131,6 +154,14 @@ export async function main(env = process.env, dependencies = {}) {
   const branch = env.FACTORY_BRANCH || "";
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const ciRunId = env.FACTORY_CI_RUN_ID || "";
+  const runId = `${env.GITHUB_RUN_ID || ""}`.trim();
+  const explicitRunUrl = `${env.FACTORY_RUN_URL || ""}`.trim();
+  const inferredRunUrl =
+    runId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
+      : "";
+  const resolvedRunUrl = explicitRunUrl || inferredRunUrl;
+  const reviewArtifactFailure = buildReviewArtifactFailure(failureType, phase, failureMessage);
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -254,11 +285,7 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_STATUS: status,
     FACTORY_ADD_LABELS: addLabels,
     FACTORY_REMOVE_LABELS: removeLabels,
-    FACTORY_LAST_FAILURE_TYPE: failureType,
     FACTORY_BLOCKED_ACTION: status === FACTORY_PR_STATUSES.blocked ? action : "",
-    FACTORY_TRANSIENT_RETRY_ATTEMPTS: `${retryAttempts}`,
-    FACTORY_STAGE_NOOP_ATTEMPTS: `${nextStageNoopAttempts}`,
-    FACTORY_STAGE_SETUP_ATTEMPTS: `${nextStageSetupAttempts}`,
     FACTORY_COMMENT: augmentedComment,
     FACTORY_CI_STATUS: env.FACTORY_CI_STATUS || "pending"
   };
@@ -268,20 +295,32 @@ export async function main(env = process.env, dependencies = {}) {
       env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID;
   }
 
-  const runId = `${env.GITHUB_RUN_ID || ""}`.trim();
-  const explicitRunUrl = `${env.FACTORY_RUN_URL || ""}`.trim();
-  const inferredRunUrl =
-    runId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
-      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
-      : "";
-
   if (runId) {
     childEnv.FACTORY_LAST_RUN_ID = runId;
   }
 
-  if (explicitRunUrl || inferredRunUrl) {
-    childEnv.FACTORY_LAST_RUN_URL = explicitRunUrl || inferredRunUrl;
+  if (resolvedRunUrl) {
+    childEnv.FACTORY_LAST_RUN_URL = resolvedRunUrl;
   }
+
+  childEnv.FACTORY_INTERVENTION = JSON.stringify(
+    buildFailureIntervention({
+      action,
+      phase,
+      failureType,
+      failureMessage,
+      retryAttempts,
+      repeatedFailureCount: repeatedFailureCountBase,
+      stageNoopAttempts: computedStageNoopAttempts,
+      stageSetupAttempts: computedStageSetupAttempts,
+      transientRetryAttempts: retryAttempts,
+      failureSignature: previousFailureSignature,
+      runId,
+      runUrl: resolvedRunUrl,
+      reviewArtifactFailure,
+      blocking: status === FACTORY_PR_STATUSES.blocked
+    })
+  );
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {
     env: childEnv,

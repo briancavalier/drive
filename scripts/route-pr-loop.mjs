@@ -102,9 +102,10 @@ export async function main(env = process.env) {
     ci_run_id: route.ciRunId || "",
     review_id: route.reviewId || "",
     review_body: route.reviewBody || "",
+    failure_intervention: route.intervention ? JSON.stringify(route.intervention) : "",
     repair_attempts: route.repairState?.repairAttempts || "",
-    repeated_failure_count: route.repairState?.repeatedFailureCount || "",
-    last_failure_signature: route.repairState?.lastFailureSignature || "",
+    intervention_repeated_failure_count: route.repairState?.repeatedFailureCount || "",
+    intervention_failure_signature: route.repairState?.lastFailureSignature || "",
     stage_noop_attempts: route.stageNoopAttempts ?? "",
     stage_setup_attempts: route.stageSetupAttempts ?? ""
   });

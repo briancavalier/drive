@@ -15,8 +15,6 @@ function managedPrBody(overrides = {}) {
       status: "implementing",
       repairAttempts: 0,
       maxRepairAttempts: 3,
-      lastFailureSignature: null,
-      repeatedFailureCount: 0,
       ...overrides
     }
   });

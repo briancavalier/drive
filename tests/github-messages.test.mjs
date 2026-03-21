@@ -9,7 +9,11 @@ import {
   renderPlanReadyIssueComment,
   MAX_REVIEW_BODY_CHARS
 } from "../scripts/lib/github-messages.mjs";
-import { extractPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultFailureIntervention,
+  extractPrMetadata,
+  renderPrBody
+} from "../scripts/lib/pr-metadata.mjs";
 
 function makeOverrides(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-messages-"));
@@ -164,7 +168,9 @@ test("renderPrBody renders blocked summary with stage from blockedAction", () =>
       artifactsPath: ".factory/runs/88",
       status: "blocked",
       blockedAction: "review",
-      lastFailureType: "stage_setup",
+      intervention: defaultFailureIntervention({
+        payload: { failureType: "stage_setup" }
+      }),
       repairAttempts: 1,
       maxRepairAttempts: 3,
       lastRunUrl: "https://github.com/example/repo/actions/runs/123",

@@ -4,6 +4,7 @@ import {
   nextRepairState,
   normalizeFailureSignature
 } from "../scripts/lib/repair-state.mjs";
+import { defaultFailureIntervention } from "../scripts/lib/pr-metadata.mjs";
 
 test("normalizeFailureSignature trims and lowercases values", () => {
   assert.equal(
@@ -38,8 +39,12 @@ test("nextRepairState blocks after repeated identical failures", () => {
     {
       repairAttempts: 1,
       maxRepairAttempts: 5,
-      lastFailureSignature: "ci:build:failed",
-      repeatedFailureCount: 0
+      intervention: defaultFailureIntervention({
+        payload: {
+          failureSignature: "ci:build:failed",
+          repeatedFailureCount: 0
+        }
+      })
     },
     "ci:build:failed"
   );
@@ -47,8 +52,12 @@ test("nextRepairState blocks after repeated identical failures", () => {
     {
       repairAttempts: first.repairAttempts,
       maxRepairAttempts: 5,
-      lastFailureSignature: first.lastFailureSignature,
-      repeatedFailureCount: first.repeatedFailureCount
+      intervention: defaultFailureIntervention({
+        payload: {
+          failureSignature: first.lastFailureSignature,
+          repeatedFailureCount: first.repeatedFailureCount
+        }
+      })
     },
     "ci:build:failed"
   );

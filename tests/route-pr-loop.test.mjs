@@ -16,8 +16,6 @@ function managedPrBody(status = "plan_ready") {
       status,
       repairAttempts: 0,
       maxRepairAttempts: 3,
-      lastFailureSignature: null,
-      repeatedFailureCount: 0
     }
   });
 }
@@ -319,9 +317,7 @@ test("routeEvent downgrades review to noop when live PR artifacts path is non-ca
           artifactsPath: ".factory/runs/999",
           status: "implementing",
           repairAttempts: 0,
-          maxRepairAttempts: 3,
-          lastFailureSignature: null,
-          repeatedFailureCount: 0
+          maxRepairAttempts: 3
         }),
         labels: managedLabels(),
         head: sameRepoHead(),

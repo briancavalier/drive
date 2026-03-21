@@ -4,7 +4,11 @@ import {
   prepareReviewArtifactRepair,
   buildFailureSignature
 } from "../scripts/prepare-review-artifact-repair.mjs";
-import { defaultPrMetadata, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultFailureIntervention,
+  defaultPrMetadata,
+  renderPrBody
+} from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import { normalizeFailureSignature } from "../scripts/lib/repair-state.mjs";
 
@@ -41,8 +45,12 @@ test("prepareReviewArtifactRepair increments repair attempts and emits failure m
         body: makePullRequestBody({
           repairAttempts: 0,
           maxRepairAttempts: 3,
-          lastFailureSignature: null,
-          repeatedFailureCount: 0
+          intervention: defaultFailureIntervention({
+            payload: {
+              failureSignature: null,
+              repeatedFailureCount: 0
+            }
+          })
         })
       }),
       setOutputs: (values) => Object.assign(outputs, values)
@@ -61,8 +69,8 @@ test("prepareReviewArtifactRepair increments repair attempts and emits failure m
   assert.equal(repairState.repeatedFailureCount, 0);
   assert.equal(repairState.lastFailureSignature, expectedSignature);
   assert.equal(outputs.repair_attempts, "1");
-  assert.equal(outputs.repeated_failure_count, "0");
-  assert.equal(outputs.last_failure_signature, expectedSignature);
+  assert.equal(outputs.intervention_repeated_failure_count, "0");
+  assert.equal(outputs.intervention_failure_signature, expectedSignature);
   assert.equal(outputs.blocked, "false");
   assert.ok(outputs.failure_metadata);
   assert.equal(failureMetadata.type, env.FACTORY_FAILURE_TYPE);
@@ -86,8 +94,12 @@ test("prepareReviewArtifactRepair blocks when repair attempts exceed limit", asy
         body: makePullRequestBody({
           repairAttempts: 3,
           maxRepairAttempts: 3,
-          lastFailureSignature: null,
-          repeatedFailureCount: 0
+          intervention: defaultFailureIntervention({
+            payload: {
+              failureSignature: null,
+              repeatedFailureCount: 0
+            }
+          })
         })
       }),
       setOutputs: (values) => Object.assign(outputs, values)
@@ -97,7 +109,7 @@ test("prepareReviewArtifactRepair blocks when repair attempts exceed limit", asy
   assert.equal(repairState.blocked, true);
   assert.equal(outputs.blocked, "true");
   assert.equal(outputs.repair_attempts, "4");
-  assert.equal(outputs.repeated_failure_count, "0");
+  assert.equal(outputs.intervention_repeated_failure_count, "0");
 });
 
 test("prepareReviewArtifactRepair rejects unsupported failure types", async () => {

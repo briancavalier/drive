@@ -6,6 +6,13 @@ import {
   FACTORY_RESUMABLE_FAILURE_TYPES,
   FACTORY_SLASH_COMMANDS
 } from "./factory-config.mjs";
+import {
+  getFailureCounter,
+  getFailureSignature,
+  getFailureType,
+  getOpenFailureIntervention,
+  getReviewArtifactFailure
+} from "./intervention-state.mjs";
 
 const STATE_DISPLAY = Object.freeze({
   paused: { emoji: "⏸️", label: "Paused" },
@@ -154,11 +161,13 @@ function resolveLastCompletedStage({ metadata = {}, stateKey }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    if (metadata.lastFailureType === "review_artifact_contract" || metadata.pendingReviewSha) {
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
+
+    if (failureType === "review_artifact_contract" || metadata.pendingReviewSha) {
       return "review";
     }
 
-    if (metadata.lastFailureType === "plan_noop") {
+    if (failureType === "plan_noop") {
       return "plan";
     }
   }
@@ -212,7 +221,7 @@ function buildLinkAction(definition, url) {
 
 function canResumeBlockedRun(metadata = {}) {
   return (
-    FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${metadata.lastFailureType || ""}`.trim()) &&
+    FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${getFailureType(metadata) || ""}`.trim()) &&
     ["implement", "repair", "review"].includes(`${metadata.blockedAction || ""}`.trim())
   );
 }
@@ -231,12 +240,12 @@ function canResumePausedRun(metadata = {}) {
 function isRepairCapExceeded(metadata = {}) {
   const attempts = Number(metadata.repairAttempts || 0);
   const limit = Number(metadata.maxRepairAttempts || 0);
-  const repeated = Number(metadata.repeatedFailureCount || 0);
+  const repeated = getFailureCounter(metadata, "repeatedFailureCount");
   return (limit > 0 && attempts > limit) || repeated >= 2;
 }
 
 function hasSelfModifyGuardSignature(metadata = {}) {
-  const signature = `${metadata.lastFailureSignature || ""}`.toLowerCase();
+  const signature = `${getFailureSignature(metadata) || ""}`.toLowerCase();
 
   return (
     signature.includes("factory:self-modify") ||
@@ -246,7 +255,30 @@ function hasSelfModifyGuardSignature(metadata = {}) {
 }
 
 function buildBlockedReason({ metadata }) {
-  const failureType = `${metadata.lastFailureType || ""}`.trim();
+  const intervention = getOpenFailureIntervention(metadata);
+  const failureType = `${getFailureType(metadata) || ""}`.trim();
+
+  if (intervention?.summary) {
+    if (failureType === "review_artifact_contract") {
+      const failure = getReviewArtifactFailure(metadata);
+      const detail = `${failure?.message || failure?.type || ""}`.trim();
+
+      return detail
+        ? `Review artifact contract failed: ${detail}`
+        : intervention.summary;
+    }
+
+    if (failureType === "stage_setup" && hasSelfModifyGuardSignature(metadata)) {
+      return "Self-modify guard blocked protected file changes until approved.";
+    }
+
+    if (failureType === "stage_noop") {
+      const attempts = getFailureCounter(metadata, "stageNoopAttempts");
+      return attempts > 1
+        ? "Latest stage run produced no committed changes after repeated attempts."
+        : "Latest stage run produced no committed changes.";
+    }
+  }
 
   if (isRepairCapExceeded(metadata)) {
     const attempts = Number(metadata.repairAttempts || 0);
@@ -258,7 +290,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "stage_noop") {
-    const attempts = Number(metadata.stageNoopAttempts || 0);
+    const attempts = getFailureCounter(metadata, "stageNoopAttempts");
     return attempts > 1
       ? "Latest stage run produced no committed changes after repeated attempts."
       : "Latest stage run produced no committed changes.";
@@ -273,7 +305,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "transient_infra") {
-    const retries = Number(metadata.transientRetryAttempts || 0);
+    const retries = getFailureCounter(metadata, "transientRetryAttempts");
     return retries > 0
       ? `Run hit transient infrastructure issues after ${retries} automated retr${retries === 1 ? "y" : "ies"}.`
       : "Run hit transient infrastructure issues.";
@@ -284,7 +316,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "review_artifact_contract") {
-    const failure = metadata.lastReviewArtifactFailure;
+    const failure = getReviewArtifactFailure(metadata);
     const detail = `${failure?.message || failure?.type || ""}`.trim();
     return detail
       ? `Review artifact contract failed: ${detail}`
@@ -350,7 +382,7 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${metadata.lastFailureType || ""}`.trim();
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       return "Escalate to a human reviewer or reset the run before trying again.";
@@ -478,7 +510,7 @@ function buildActions({
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${metadata.lastFailureType || ""}`.trim();
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));

@@ -43,6 +43,36 @@ test("factory reset workflow status options stay in sync with shared config", ()
   assert.deepEqual(options, FACTORY_RESETTABLE_PR_STATUSES);
 });
 
+test("factory control-action reset clears canonical intervention state", () => {
+  const workflowText = readWorkflowText("factory-control-action.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_INTERVENTION:\s*"__CLEAR__"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_BLOCKED_ACTION:\s*""/
+  );
+  assert.doesNotMatch(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS|STAGE_NOOP_ATTEMPTS|STAGE_SETUP_ATTEMPTS):/
+  );
+});
+
+test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
+  const workflowText = readWorkflowText("factory-reset-pr.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_INTERVENTION:\s*\$\{\{\s*inputs\.clear_repair_state && '__CLEAR__' \|\| '__UNCHANGED__'\s*\}\}/
+  );
+  assert.doesNotMatch(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS):/
+  );
+});
+
 test("factory PR loop concurrency uses only event-safe identifiers", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
@@ -52,6 +82,17 @@ test("factory PR loop concurrency uses only event-safe identifiers", () => {
     workflowText,
     /github\.event\.workflow_run\.pull_requests\[0\]\.number/
   );
+});
+
+test("factory PR loop uses intervention-named intermediate failure outputs", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(workflowText, /intervention_repeated_failure_count/);
+  assert.match(workflowText, /intervention_failure_signature/);
+  assert.match(workflowText, /FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT/);
+  assert.match(workflowText, /FACTORY_INTERVENTION_FAILURE_SIGNATURE/);
+  assert.doesNotMatch(workflowText, /\brepeated_failure_count:\s*\$\{\{\s*steps\.route\.outputs\.repeated_failure_count/);
+  assert.doesNotMatch(workflowText, /\blast_failure_signature:\s*\$\{\{\s*steps\.route\.outputs\.last_failure_signature/);
 });
 
 test("factory PR loop stage caller grants reusable workflow write permissions", () => {
@@ -300,11 +341,7 @@ test("review artifact repair jobs mirror stage success and failure handling", ()
 
   assert.match(
     repairSucceededJob,
-    /FACTORY_LAST_REVIEW_ARTIFACT_FAILURE:\s*"__CLEAR__"/
-  );
-  assert.match(
-    repairSucceededJob,
-    /FACTORY_LAST_FAILURE_TYPE:\s*""/
+    /FACTORY_INTERVENTION:\s*"__CLEAR__"/
   );
   assert.match(
     repairFailedJob,
