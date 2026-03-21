@@ -7,7 +7,7 @@
   "apiSurface": "codex-action",
   "pricing": {
     "version": "openai-2026-03-19",
-    "model": "gpt-5-mini",
+    "model": "gpt-5-codex",
     "currency": "USD"
   },
   "thresholds": {
@@ -24,25 +24,25 @@
     }
   },
   "current": {
-    "stage": "review",
+    "stage": "repair",
     "provider": "openai",
     "apiSurface": "codex-action",
-    "model": "gpt-5-mini",
-    "promptChars": 7091,
+    "model": "gpt-5-codex",
+    "promptChars": 3669,
     "estimatedUsageBeforeCalibration": {
-      "inputTokens": 1773,
+      "inputTokens": 918,
       "cachedInputTokens": 0,
-      "outputTokens": 621,
+      "outputTokens": 734,
       "reasoningTokens": null
     },
     "estimatedUsage": {
-      "inputTokens": 1773,
+      "inputTokens": 918,
       "cachedInputTokens": 0,
-      "outputTokens": 621,
+      "outputTokens": 734,
       "reasoningTokens": null
     },
     "usageCalibration": {
-      "bucket": "openai:stage:review:gpt-5-mini",
+      "bucket": "openai:stage:repair:gpt-5-codex",
       "sampleSize": 0,
       "generatedAt": "",
       "source": "default",
@@ -53,14 +53,14 @@
       }
     },
     "derivedCost": {
-      "stageUsdBeforeCalibration": 0.0017,
-      "stageUsd": 0.0017,
-      "totalEstimatedUsd": 0.0274,
+      "stageUsdBeforeCalibration": 0.0085,
+      "stageUsd": 0.0085,
+      "totalEstimatedUsd": 0.0268,
       "band": "low",
       "emoji": "🟢",
       "pricingSource": "model"
     },
-    "sourceEventPath": ".factory/usage-events/2026-03-21/23379659632-1-stage-review.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-21/23379756285-1-stage-repair.json"
   },
   "stages": {
     "plan": {
@@ -176,17 +176,17 @@
       "provider": "openai",
       "apiSurface": "codex-action",
       "model": "gpt-5-codex",
-      "promptChars": 3938,
+      "promptChars": 3669,
       "estimatedUsageBeforeCalibration": {
-        "inputTokens": 985,
+        "inputTokens": 918,
         "cachedInputTokens": 0,
-        "outputTokens": 788,
+        "outputTokens": 734,
         "reasoningTokens": null
       },
       "estimatedUsage": {
-        "inputTokens": 985,
+        "inputTokens": 918,
         "cachedInputTokens": 0,
-        "outputTokens": 788,
+        "outputTokens": 734,
         "reasoningTokens": null
       },
       "usageCalibration": {
@@ -201,11 +201,11 @@
         }
       },
       "derivedCost": {
-        "stageUsdBeforeCalibration": 0.0091,
-        "stageUsd": 0.0091,
+        "stageUsdBeforeCalibration": 0.0085,
+        "stageUsd": 0.0085,
         "pricingSource": "model"
       },
-      "sourceEventPath": ".factory/usage-events/2026-03-21/23379598154-1-stage-repair.json"
+      "sourceEventPath": ".factory/usage-events/2026-03-21/23379756285-1-stage-repair.json"
     }
   }
 }

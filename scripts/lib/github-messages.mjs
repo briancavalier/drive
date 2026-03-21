@@ -580,7 +580,7 @@ function buildArtifactsSection(links = {}) {
   }
 
   if (runLinks.length) {
-    lines.push(`**Run** ${runLinks.join(" · ")}`);
+    lines.push(`**Build** ${runLinks.join(" · ")}`);
   }
 
   if (reviewLinks.length) {

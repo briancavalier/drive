@@ -123,7 +123,7 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
   ]);
 
   const planLine = lines.find((line) => line.startsWith("**Plan**"));
-  const runLine = lines.find((line) => line.startsWith("**Run**"));
+  const buildLine = lines.find((line) => line.startsWith("**Build**"));
   const reviewLine = lines.find((line) => line.startsWith("**Review**"));
 
   assert.match(
@@ -131,8 +131,8 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
     /\*\*Plan\*\* \[Approved issue\].*\[Spec\].*\[Plan\].*\[Acceptance tests\]/
   );
   assert.match(
-    runLine,
-    /\*\*Run\*\* \[Repair log\].*\[Cost summary\]/
+    buildLine,
+    /\*\*Build\*\* \[Repair log\].*\[Cost summary\]/
   );
   assert.match(
     reviewLine,
