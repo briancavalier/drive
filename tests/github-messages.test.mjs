@@ -48,13 +48,15 @@ test("renderPrBody uses valid override templates and preserves parseable metadat
     "pr-body.md": [
       "# Custom Factory Run",
       "",
-      "Issue: #{{ISSUE_NUMBER}}",
+      "{{DASHBOARD_SECTION}}",
       "",
-      "{{CONTROL_PANEL_SECTION}}",
+      "{{SUGGESTED_ACTIONS_SECTION}}",
+      "",
+      "Issue: #{{ISSUE_NUMBER}}",
       "",
       "{{ARTIFACTS_SECTION}}",
       "",
-      "{{STATUS_SECTION}}"
+      "{{OPERATOR_NOTES_SECTION}}"
     ].join("\n")
   });
 
@@ -78,126 +80,177 @@ test("renderPrBody falls back to default template when required tokens are missi
     }
   });
 
-  assert.match(body, /# Factory Run/);
+  assert.match(body, /## Factory Dashboard/);
   assert.equal(warnings.length, 1);
   assert.match(
     warnings[0],
-    /missing required tokens: (CONTROL_PANEL_SECTION, STATUS_SECTION|STATUS_SECTION, CONTROL_PANEL_SECTION)/
+    /missing required tokens: (DASHBOARD_SECTION|SUGGESTED_ACTIONS_SECTION|ARTIFACTS_SECTION|OPERATOR_NOTES_SECTION)/
   );
 });
 
-test("renderPrBody includes emoji-enhanced status lines and operator notes", () => {
+test("renderPrBody renders plan_ready dashboard layout", () => {
   const body = renderPrBody(prBodyInput());
   const lines = body.split("\n");
-  const stageLine = lines.find((line) => line.startsWith("- Stage:"));
-  const ciLine = lines.find((line) => line.startsWith("- CI:"));
-  const costLine = lines.find((line) => line.startsWith("- Estimated cost:"));
-  const latestCostLine = lines.find((line) => line.startsWith("- Latest stage estimate:"));
+  const summaryLine = lines.find((line) => line.startsWith("**👀"));
+  const ciLine = lines.find((line) => line.startsWith("CI:"));
+  const costLine = lines.find((line) => line.startsWith("Cost:"));
+  const openLine = lines.find((line) => line.startsWith("**Open:**"));
 
-  assert.equal(stageLine, "- Stage: 👀 plan_ready");
-  assert.equal(ciLine, "- CI: ⏳ pending");
-  assert.equal(costLine, "- Estimated cost: 🟡 $0.223 total (medium)");
-  assert.equal(latestCostLine, "- Latest stage estimate: $0.223 using gpt-5-codex");
-  assert.ok(
-    lines.includes(
-      "- [approved-issue.md](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/approved-issue.md)"
-    )
-  );
-  assert.ok(
-    lines.includes(
-      "- Use the control panel above for start, pause, retry, and reset actions."
-    )
-  );
-  assert.ok(
-    lines.includes(
-      "- ▶️ Comment `/factory implement` to start coding after plan review."
-    )
-  );
-  assert.ok(
-    lines.includes("- ⏸️ Comment `/factory pause` to pause autonomous work.")
-  );
-  assert.ok(
-    lines.includes(
-      "- ▶️ Comment `/factory resume` to resume a paused run or a recoverable blocked run."
-    )
-  );
-  assert.ok(
-    lines.includes("- 🔁 Comment `/factory reset` to reset the PR back to plan-ready.")
-  );
-  assert.ok(
-    lines.includes("- 💸 Cost values are advisory estimates, not billed usage.")
+  assert.ok(lines.includes("## Factory Dashboard"));
+  assert.equal(summaryLine, "**👀 Plan ready** · 🧑 Human action required");
+  assert.equal(ciLine, "CI: ⏳ Pending · Repairs: `1 / 3`");
+  assert.equal(costLine, "Cost: 🟡 $0.223 total · Estimate: $0.223 via gpt-5-codex");
+  assert.equal(
+    openLine,
+    "**Open:** [Review summary](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/review.md) · [Review JSON](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/review.json)"
   );
 
-  const successBody = renderPrBody(
-    {
-      ...prBodyInput(),
-      ciStatus: "success"
+  const actionsIndex = lines.indexOf("**Suggested next actions**");
+  assert.ok(actionsIndex >= 0, "expected suggested actions heading");
+
+  const suggestions = [];
+  for (let i = actionsIndex + 1; i < lines.length; i += 1) {
+    const value = lines[i];
+    if (!value.trim()) {
+      break;
     }
+    suggestions.push(value);
+  }
+
+  assert.deepEqual(suggestions, [
+    "- `/factory implement` — Start implementation after plan approval.",
+    "- `/factory pause` — Pause automation to hand off or intervene."
+  ]);
+
+  const planLine = lines.find((line) => line.startsWith("**Plan**"));
+  const runLine = lines.find((line) => line.startsWith("**Run**"));
+  const reviewLine = lines.find((line) => line.startsWith("**Review**"));
+
+  assert.match(
+    planLine,
+    /\*\*Plan\*\* \[Approved issue\].*\[Spec\].*\[Plan\].*\[Acceptance tests\]/
   );
-  const successCiLine = successBody.split("\n").find((line) => line.startsWith("- CI:"));
-
-  assert.equal(successCiLine, "- CI: ✅ success");
-});
-
-test("renderPrBody renders control panel for plan_ready status", () => {
-  const body = renderPrBody(prBodyInput());
-  const [, panelRest = ""] = body.split("## Factory Control Panel");
-  const panelSection = panelRest.split("## Status")[0] || "";
-  const panelLines = panelSection.trim().split("\n").map((line) => line.trim());
-
-  assert.ok(panelSection.includes("**State:** 👀 Plan ready"));
-  assert.ok(panelSection.includes("**Waiting on:** operator"));
-  assert.ok(panelSection.includes("**Last completed stage:** plan"));
-  assert.ok(panelSection.includes("**Recommended next step:** Review the plan artifacts"));
-  assert.ok(
-    panelSection.includes(
-      "[📄 Plan](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/plan.md)"
-    )
+  assert.match(
+    runLine,
+    /\*\*Run\*\* \[Repair log\].*\[Cost summary\]/
   );
-  assert.ok(
-    panelSection.includes(
-      "[📄 Acceptance tests](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/acceptance-tests.md)"
-    )
+  assert.match(
+    reviewLine,
+    /\*\*Review\*\* \[Review summary\].*\[Review JSON\]/
   );
 
-  const actionsIndex = panelLines.indexOf("**Actions**");
-  assert.ok(actionsIndex >= 0, "expected actions header");
-  const actionLines = panelLines.slice(actionsIndex + 1).filter((line) => line.startsWith("- "));
-  const actionLabels = actionLines.map((line) => {
-    const match = line.match(/\[([^\]]+)\]/);
-    return match ? match[1] : line;
-  });
-
+  const operatorNotesIndex = lines.indexOf("## Operator Notes");
+  assert.ok(operatorNotesIndex >= 0, "expected operator notes heading");
   assert.deepEqual(
-    actionLabels,
-    ["▶ Comment /factory implement", "⏸ Comment /factory pause", "📄 Open plan artifacts"]
+    lines.slice(operatorNotesIndex + 1, operatorNotesIndex + 4),
+    [
+      "- Slash commands control the run.",
+      "- Manual label fallbacks remain available.",
+      "- Cost estimates are advisory heuristics."
+    ]
   );
+
+  assert.ok(lines.includes("Closes #7"));
 });
 
-test("renderPrBody wiring uses prNumber when provided for control panel actions", () => {
+test("renderPrBody renders blocked summary with stage from blockedAction", () => {
   const body = renderPrBody({
     ...prBodyInput(),
-    prNumber: 81
+    issueNumber: 88,
+    branch: "factory/88-test",
+    metadata: {
+      ...prBodyInput().metadata,
+      issueNumber: 88,
+      artifactsPath: ".factory/runs/88",
+      status: "blocked",
+      blockedAction: "review",
+      lastFailureType: "stage_setup",
+      repairAttempts: 1,
+      maxRepairAttempts: 3,
+      lastRunUrl: "https://github.com/example/repo/actions/runs/123",
+      costEstimateUsd: 12.5,
+      costEstimateEmoji: "💡",
+      lastStageCostEstimateUsd: 4.5,
+      lastEstimatedModel: "gpt-5-codex"
+    }
   });
-  const startLine = body
-    .split("\n")
-    .find((line) => line.includes("▶ Comment /factory implement"));
+  const lines = body.split("\n");
 
-  assert.ok(startLine, "expected implement action line");
-  assert.match(startLine, /\/pull\/81/);
-  assert.ok(!/\/pull\/7/.test(startLine));
+  assert.equal(
+    lines.find((line) => line.startsWith("**⚠️")),
+    "**⚠️ Blocked** · 🔍 `review` · 🧑 Human action required"
+  );
+  assert.equal(
+    lines.find((line) => line.startsWith("CI:")),
+    "CI: ⏳ Pending · Repairs: `1 / 3`"
+  );
+  assert.equal(
+    lines.find((line) => line.startsWith("Cost:")),
+    "Cost: 💡 $12.50 total · Estimate: $4.50 via gpt-5-codex"
+  );
+  assert.equal(
+    lines.find((line) => line.startsWith("**Open:**")),
+    "**Open:** [Latest run](https://github.com/example/repo/actions/runs/123) · [Review summary](https://github.com/example/repo/blob/factory/88-test/.factory/runs/88/review.md) · [Review JSON](https://github.com/example/repo/blob/factory/88-test/.factory/runs/88/review.json)"
+  );
+
+  const actionsIndex = lines.indexOf("**Suggested next actions**");
+  const suggestions = [];
+  for (let i = actionsIndex + 1; i < lines.length; i += 1) {
+    const value = lines[i];
+    if (!value.trim()) {
+      break;
+    }
+    suggestions.push(value);
+  }
+
+  assert.deepEqual(suggestions, [
+    "- `/factory resume` — Resume automation from the current stage.",
+    "- `/factory reset` — Reset to plan-ready before restarting.",
+    "- `/factory pause` — Pause automation to hand off or intervene."
+  ]);
 });
 
-test("renderPrBody falls back to raw status when emoji mapping is missing", () => {
-  const fallbackInput = prBodyInput();
-  fallbackInput.metadata = {
-    ...fallbackInput.metadata,
-    status: "reviewing"
-  };
-  const body = renderPrBody(fallbackInput);
-  const stageLine = body.split("\n").find((line) => line.startsWith("- Stage:"));
+test("renderPrBody omits redundant stage segment for implementing status", () => {
+  const body = renderPrBody({
+    ...prBodyInput(),
+    branch: "factory/42-test",
+    ciStatus: "success",
+    metadata: {
+      ...prBodyInput().metadata,
+      artifactsPath: ".factory/runs/42",
+      status: "implementing",
+      repairAttempts: 0,
+      lastRunUrl: "https://github.com/example/repo/actions/runs/456",
+      costEstimateUsd: 0,
+      costEstimateEmoji: "",
+      lastStageCostEstimateUsd: 0,
+      lastEstimatedModel: ""
+    }
+  });
+  const lines = body.split("\n");
+  const summaryLine = lines.find((line) => line.startsWith("**🏗️"));
+  const segments = summaryLine.split(" · ");
 
-  assert.equal(stageLine, "- Stage: reviewing");
+  assert.equal(summaryLine, "**🏗️ Implementing** · 🤖 Automation running");
+  assert.equal(segments.length, 2);
+  assert.equal(
+    lines.find((line) => line.startsWith("CI:")),
+    "CI: ✅ Success · Repairs: `0 / 3`"
+  );
+
+  const actionsIndex = lines.indexOf("**Suggested next actions**");
+  const suggestions = [];
+  for (let i = actionsIndex + 1; i < lines.length; i += 1) {
+    const value = lines[i];
+    if (!value.trim()) {
+      break;
+    }
+    suggestions.push(value);
+  }
+
+  assert.deepEqual(suggestions, [
+    "- `/factory pause` — Pause automation to hand off or intervene."
+  ]);
 });
 
 test("renderPlanReadyIssueComment falls back to default when override contains unknown tokens", () => {

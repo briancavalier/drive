@@ -24,25 +24,86 @@ const DEFAULT_TEMPLATES_ROOT = path.resolve(
 const DEFAULT_OVERRIDE_ROOT = path.join(".factory", "messages");
 export const MAX_REVIEW_BODY_CHARS = 60000;
 
-const STAGE_STATUS_EMOJI = Object.freeze({
-  planning: "📝",
-  plan_ready: "👀",
-  implementing: "🏗️",
-  repairing: "🛠️",
-  blocked: "⚠️",
-  ready_for_review: "✅"
-});
-
 const CI_STATUS_EMOJI = Object.freeze({
   pending: "⏳",
   success: "✅",
   failure: "❌"
 });
 
+const DASHBOARD_STAGE_EMOJI = Object.freeze({
+  plan: "📝",
+  implement: "🏗️",
+  review: "🔍"
+});
+
+const DASHBOARD_STAGE_STATUS_MAP = Object.freeze({
+  planning: "plan",
+  plan_ready: "plan",
+  implementing: "implement",
+  repairing: "implement",
+  reviewing: "review",
+  ready_for_review: "review"
+});
+
+const DASHBOARD_REDUNDANT_STAGE_STATES = new Set([
+  "planning",
+  "plan_ready",
+  "paused",
+  "implementing",
+  "repairing"
+]);
+
+const WAITING_DESCRIPTORS = Object.freeze({
+  operator: "🧑 Human action required",
+  agent: "🤖 Automation running",
+  "human reviewer": "🧑‍⚖️ Human review required"
+});
+
+const CI_STATUS_LABELS = Object.freeze({
+  pending: "Pending",
+  success: "Success",
+  failure: "Failure"
+});
+
+const PR_SLASH_COMMANDS = Object.freeze({
+  implement:
+    FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement],
+  resume:
+    FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume],
+  pause:
+    FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause],
+  reset:
+    FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]
+});
+
+const ACTION_GUIDANCE = Object.freeze({
+  start_implement: {
+    commandKey: "implement",
+    guidance: "Start implementation after plan approval."
+  },
+  pause: {
+    commandKey: "pause",
+    guidance: "Pause automation to hand off or intervene."
+  },
+  resume: {
+    commandKey: "resume",
+    guidance: "Resume automation from the current stage."
+  },
+  reset: {
+    commandKey: "reset",
+    guidance: "Reset to plan-ready before restarting."
+  }
+});
+
 const MESSAGE_SPECS = Object.freeze({
   "pr-body": {
     fileName: "pr-body.md",
-    requiredTokens: ["CONTROL_PANEL_SECTION", "STATUS_SECTION", "ARTIFACTS_SECTION"]
+    requiredTokens: [
+      "DASHBOARD_SECTION",
+      "SUGGESTED_ACTIONS_SECTION",
+      "ARTIFACTS_SECTION",
+      "OPERATOR_NOTES_SECTION"
+    ]
   },
   "plan-ready-issue-comment": {
     fileName: "plan-ready-issue-comment.md",
@@ -231,24 +292,279 @@ function defaultPrMetadata(overrides = {}) {
   };
 }
 
-function formatWithEmoji(mapping, value, fallback = "") {
-  const normalized = `${value ?? ""}`.trim();
-  const resolved = normalized || fallback;
-
-  if (!resolved) {
-    return resolved;
-  }
-
-  const emoji = mapping[resolved];
-
-  return emoji ? `${emoji} ${resolved}` : resolved;
-}
-
 function serializePrState(state) {
   return [
     `<!-- ${PR_STATE_MARKER}`,
     JSON.stringify(state, null, 2),
     "-->"
+  ].join("\n");
+}
+
+function resolveDashboardStage({ status, blockedAction }) {
+  const normalizedStatus = `${status || ""}`.trim().toLowerCase();
+
+  if (!normalizedStatus) {
+    return null;
+  }
+
+  if (normalizedStatus === "blocked") {
+    const normalizedBlocked = `${blockedAction || ""}`.trim().toLowerCase();
+
+    if (["plan", "implement", "review"].includes(normalizedBlocked)) {
+      return normalizedBlocked;
+    }
+  }
+
+  const mappedStage = DASHBOARD_STAGE_STATUS_MAP[normalizedStatus] || null;
+
+  if (!mappedStage) {
+    return null;
+  }
+
+  if (DASHBOARD_REDUNDANT_STAGE_STATES.has(normalizedStatus)) {
+    return null;
+  }
+
+  return mappedStage;
+}
+
+function formatDashboardStage(stageKey) {
+  const normalized = `${stageKey || ""}`.trim().toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  const emoji = DASHBOARD_STAGE_EMOJI[normalized] || "";
+  const stageLabel = `\`${normalized}\``;
+
+  return emoji ? `${emoji} ${stageLabel}` : stageLabel;
+}
+
+function formatWaitingDescriptor({ waitingOn, stateKey }) {
+  const normalizedState = `${stateKey || ""}`.trim().toLowerCase();
+
+  if (normalizedState === "paused") {
+    return "⏸️ Automation paused";
+  }
+
+  const normalizedWaiting = `${waitingOn || ""}`.trim().toLowerCase();
+
+  if (!normalizedWaiting) {
+    return "";
+  }
+
+  const descriptor = WAITING_DESCRIPTORS[normalizedWaiting];
+
+  if (descriptor) {
+    return descriptor;
+  }
+
+  const fallbackLabel = normalizedWaiting.replace(/_/g, " ");
+
+  return `🧭 Waiting on ${fallbackLabel || "status"}`;
+}
+
+function formatCiStatus(ciStatus) {
+  const normalized = `${ciStatus || ""}`.trim().toLowerCase() || "pending";
+  const emoji = CI_STATUS_EMOJI[normalized] || "";
+  const label = CI_STATUS_LABELS[normalized] || (normalized[0]?.toUpperCase() || "") + normalized.slice(1);
+
+  return emoji ? `${emoji} ${label}` : label;
+}
+
+function formatRepairsDisplay({ attempts, maxAttempts }) {
+  const attemptValue = Number.isFinite(Number(attempts)) ? Number(attempts) : 0;
+  const maxValue = Number.isFinite(Number(maxAttempts)) && Number(maxAttempts) > 0
+    ? Number(maxAttempts)
+    : "∞";
+
+  return `\`${attemptValue} / ${maxValue}\``;
+}
+
+function formatCostLine({
+  costEstimateUsd,
+  costEstimateEmoji,
+  lastStageCostEstimateUsd,
+  lastEstimatedModel
+}) {
+  const totalEstimate = Number(costEstimateUsd);
+
+  if (!Number.isFinite(totalEstimate) || totalEstimate < 0) {
+    return "";
+  }
+
+  const totalSegment = `${costEstimateEmoji ? `${costEstimateEmoji} ` : ""}$${formatEstimatedUsd(totalEstimate)} total`;
+  const stageEstimateValue = Number(lastStageCostEstimateUsd);
+  let estimateSegment = "Estimate: —";
+
+  if (
+    Number.isFinite(stageEstimateValue) &&
+    stageEstimateValue >= 0 &&
+    `${lastEstimatedModel || ""}`.trim()
+  ) {
+    estimateSegment = `Estimate: $${formatEstimatedUsd(stageEstimateValue)} via ${lastEstimatedModel}`;
+  }
+
+  return `Cost: ${totalSegment} · ${estimateSegment}`;
+}
+
+function formatOpenLinksLine({ controlPanel, links }) {
+  const segments = [];
+
+  if (controlPanel?.latestRun?.url) {
+    segments.push(`[Latest run](${controlPanel.latestRun.url})`);
+  }
+
+  if (links.review) {
+    segments.push(`[Review summary](${links.review})`);
+  }
+
+  if (links.reviewJson) {
+    segments.push(`[Review JSON](${links.reviewJson})`);
+  }
+
+  if (!segments.length) {
+    return "";
+  }
+
+  return `**Open:** ${segments.join(" · ")}`;
+}
+
+function formatDashboardSummary({ controlPanel, metadata }) {
+  if (!controlPanel) {
+    return "";
+  }
+
+  const segments = [];
+  const stateDisplay = controlPanel.stateDisplay || "Unknown";
+
+  segments.push(`**${stateDisplay}**`);
+
+  const stageKey = resolveDashboardStage({
+    status: metadata.status || controlPanel.state,
+    blockedAction: metadata.blockedAction
+  });
+  const stageSegment = formatDashboardStage(stageKey);
+
+  if (stageSegment) {
+    segments.push(stageSegment);
+  }
+
+  const waitingDescriptor = formatWaitingDescriptor({
+    waitingOn: controlPanel.waitingOn,
+    stateKey: controlPanel.state
+  });
+
+  if (waitingDescriptor) {
+    segments.push(waitingDescriptor);
+  }
+
+  return segments.join(" · ");
+}
+
+function buildDashboardSection({ controlPanel, metadata, ciStatus, links }) {
+  const summaryLine = formatDashboardSummary({ controlPanel, metadata });
+  const ciLine = `CI: ${formatCiStatus(ciStatus)} · Repairs: ${formatRepairsDisplay({
+    attempts: metadata.repairAttempts,
+    maxAttempts: metadata.maxRepairAttempts
+  })}`;
+  const costLine = formatCostLine(metadata);
+  const openLine = formatOpenLinksLine({ controlPanel, links });
+
+  return [summaryLine, ciLine, costLine, openLine].filter(Boolean).join("\n");
+}
+
+function buildSuggestedActionsSection({ controlPanel }) {
+  const actions = controlPanel?.actions || [];
+  const seenCommands = new Set();
+  const suggestions = [];
+
+  for (const action of actions) {
+    if (action?.kind !== "mutation") {
+      continue;
+    }
+
+    const guidance = ACTION_GUIDANCE[action.id];
+
+    if (!guidance) {
+      continue;
+    }
+
+    const command = PR_SLASH_COMMANDS[guidance.commandKey];
+
+    if (!command || seenCommands.has(command)) {
+      continue;
+    }
+
+    seenCommands.add(command);
+    suggestions.push(`- \`${command}\` — ${guidance.guidance}`);
+  }
+
+  if (!suggestions.length) {
+    return "";
+  }
+
+  return ["**Suggested next actions**", ...suggestions].join("\n");
+}
+
+function buildArtifactsSection(links = {}) {
+  const planLinks = [];
+
+  if (links.approvedIssue) {
+    planLinks.push(`[Approved issue](${links.approvedIssue})`);
+  }
+  if (links.spec) {
+    planLinks.push(`[Spec](${links.spec})`);
+  }
+  if (links.plan) {
+    planLinks.push(`[Plan](${links.plan})`);
+  }
+  if (links.acceptanceTests) {
+    planLinks.push(`[Acceptance tests](${links.acceptanceTests})`);
+  }
+
+  const runLinks = [];
+
+  if (links.repairLog) {
+    runLinks.push(`[Repair log](${links.repairLog})`);
+  }
+  if (links.costSummary) {
+    runLinks.push(`[Cost summary](${links.costSummary})`);
+  }
+
+  const reviewLinks = [];
+
+  if (links.review) {
+    reviewLinks.push(`[Review summary](${links.review})`);
+  }
+  if (links.reviewJson) {
+    reviewLinks.push(`[Review JSON](${links.reviewJson})`);
+  }
+
+  const lines = ["## Artifacts"];
+
+  if (planLinks.length) {
+    lines.push(`**Plan** ${planLinks.join(" · ")}`);
+  }
+
+  if (runLinks.length) {
+    lines.push(`**Run** ${runLinks.join(" · ")}`);
+  }
+
+  if (reviewLinks.length) {
+    lines.push(`**Review** ${reviewLinks.join(" · ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildOperatorNotesSection() {
+  return [
+    "## Operator Notes",
+    "- Slash commands control the run.",
+    "- Manual label fallbacks remain available.",
+    "- Cost estimates are advisory heuristics."
   ].join("\n");
 }
 
@@ -280,52 +596,15 @@ export function renderPrBody(
     prNumber: resolvedPrNumber,
     artifactLinks: links
   });
-  const artifactLine = controlPanel.artifacts.length
-    ? controlPanel.artifacts
-        .map(({ label, url }) => `[${label}](${url})`)
-        .join(", ")
-    : "";
-  const actionLines = controlPanel.actions.map((action) => {
-    if (!action?.url) {
-      return null;
-    }
-
-    const link = `[${action.label}](${action.url})`;
-
-    if (action.kind === "mutation") {
-      return `- ${link} *(state change)*`;
-    }
-
-    return `- ${link}`;
-  }).filter(Boolean);
-  const controlPanelSection = [
-    "## Factory Control Panel",
-    `- **State:** ${controlPanel.stateDisplay || "unknown"}`,
-    `- **Waiting on:** ${controlPanel.waitingOn || "operator"}`,
-    `- **Last completed stage:** ${controlPanel.lastCompletedStage || "—"}`,
-    controlPanel.reason ? `- **Reason:** ${controlPanel.reason}` : null,
-    `- **Recommended next step:** ${controlPanel.recommendedNextStep || "Monitor automation progress."}`,
-    controlPanel.latestRun
-      ? `- **Latest run:** [${controlPanel.latestRun.label}](${controlPanel.latestRun.url})`
-      : null,
-    artifactLine ? `- **Artifacts:** ${artifactLine}` : null,
-    actionLines.length ? "" : null,
-    actionLines.length ? "**Actions**" : null,
-    ...actionLines
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const stageStatusDisplay = formatWithEmoji(STAGE_STATUS_EMOJI, state.status, "unknown");
-  const ciStatusDisplay = formatWithEmoji(CI_STATUS_EMOJI, ciStatus, "pending");
-  const hasCostEstimate = Number.isFinite(Number(state.costEstimateUsd)) && Number(state.costEstimateUsd) > 0;
-  const estimatedCostLine = hasCostEstimate
-    ? `- Estimated cost: ${state.costEstimateEmoji || ""} $${formatEstimatedUsd(state.costEstimateUsd)} total (${state.costEstimateBand || "unknown"})`
-        .replace(":  ", ": ")
-    : null;
-  const latestStageCostLine =
-    hasCostEstimate && state.lastEstimatedStage && state.lastEstimatedModel
-      ? `- Latest stage estimate: $${formatEstimatedUsd(state.lastStageCostEstimateUsd)} using ${state.lastEstimatedModel}`
-      : null;
+  const dashboardSection = buildDashboardSection({
+    controlPanel,
+    metadata: state,
+    ciStatus,
+    links
+  });
+  const suggestedActionsSection = buildSuggestedActionsSection({ controlPanel });
+  const artifactsSection = buildArtifactsSection(links);
+  const operatorNotesSection = buildOperatorNotesSection();
   const variables = {
     ISSUE_NUMBER: String(issueNumber),
     PR_NUMBER: resolvedPrNumber != null ? String(resolvedPrNumber) : "",
@@ -353,41 +632,12 @@ export function renderPrBody(
       FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset],
     LAST_FAILURE_TYPE: state.lastFailureType || "",
     TRANSIENT_RETRY_ATTEMPTS: String(state.transientRetryAttempts || 0),
-    CONTROL_PANEL_SECTION: controlPanelSection,
-    STATUS_SECTION: [
-      "## Status",
-      `- Stage: ${stageStatusDisplay}`,
-      `- CI: ${ciStatusDisplay}`,
-      `- Repair attempts: ${state.repairAttempts}/${state.maxRepairAttempts}`,
-      estimatedCostLine,
-      latestStageCostLine,
-      state.lastFailureType ? `- Last failure type: ${state.lastFailureType}` : null,
-      state.transientRetryAttempts
-        ? `- Transient retries used: ${state.transientRetryAttempts}`
-        : null
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    ARTIFACTS_SECTION: [
-      "## Artifacts",
-      `- [approved-issue.md](${links.approvedIssue})`,
-      `- [spec.md](${links.spec})`,
-      `- [plan.md](${links.plan})`,
-      `- [acceptance-tests.md](${links.acceptanceTests})`,
-      `- [repair-log.md](${links.repairLog})`,
-      `- [cost-summary.json](${links.costSummary})`,
-      `- [review.md](${links.review})`,
-      `- [review.json](${links.reviewJson})`
-    ].join("\n"),
-    OPERATOR_NOTES_SECTION: [
-      "## Operator Notes",
-      "- Use the control panel above for start, pause, retry, and reset actions.",
-      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement]}\` to start coding after plan review.`,
-      `- ⏸️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.pause]}\` to pause autonomous work.`,
-      `- ▶️ Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume]}\` to resume a paused run or a recoverable blocked run.`,
-      `- 🔁 Comment \`${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]}\` to reset the PR back to plan-ready.`,
-      "- 💸 Cost values are advisory estimates, not billed usage."
-    ].join("\n")
+    CONTROL_PANEL_SECTION: dashboardSection,
+    STATUS_SECTION: "",
+    ARTIFACTS_SECTION: artifactsSection,
+    OPERATOR_NOTES_SECTION: operatorNotesSection,
+    DASHBOARD_SECTION: dashboardSection,
+    SUGGESTED_ACTIONS_SECTION: suggestedActionsSection
   };
   const body = renderMessage("pr-body", variables, options);
 
