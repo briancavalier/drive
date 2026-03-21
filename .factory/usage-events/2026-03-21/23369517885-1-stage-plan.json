@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "plan",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 88,
+  "prNumber": 0,
+  "branch": "factory/88-refine-factory-pr-dashboard-design-to-use-lighte",
+  "runId": "23369517885",
+  "runAttempt": 1,
+  "promptChars": 7501,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1876,
+    "cachedInputTokens": 0,
+    "outputTokens": 281,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1876,
+    "cachedInputTokens": 0,
+    "outputTokens": 281,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:plan:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0052,
+    "estimatedUsd": 0.0052,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-21T01:55:53.779Z"
+}
