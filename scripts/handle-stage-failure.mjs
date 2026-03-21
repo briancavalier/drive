@@ -129,6 +129,12 @@ export async function main(env = process.env, dependencies = {}) {
   const retryAttempts = parseRetryLimit(env.FACTORY_TRANSIENT_RETRY_ATTEMPTS, 0);
   const stageNoopAttemptsBase = normalizeCounter(env.FACTORY_STAGE_NOOP_ATTEMPTS);
   const stageSetupAttemptsBase = normalizeCounter(env.FACTORY_STAGE_SETUP_ATTEMPTS);
+  const repeatedFailureCountBase = normalizeCounter(
+    env.FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT ?? env.FACTORY_REPEATED_FAILURE_COUNT
+  );
+  const previousFailureSignature =
+    `${(env.FACTORY_INTERVENTION_FAILURE_SIGNATURE ?? env.FACTORY_LAST_FAILURE_SIGNATURE) || ""}`
+      .trim() || null;
   const computedStageNoopAttempts =
     failureType === FAILURE_TYPES.stageNoop ? stageNoopAttemptsBase + 1 : stageNoopAttemptsBase;
   const nextStageNoopAttempts = Math.min(computedStageNoopAttempts, STAGE_NOOP_ATTEMPT_LIMIT);
@@ -304,11 +310,11 @@ export async function main(env = process.env, dependencies = {}) {
       failureType,
       failureMessage,
       retryAttempts,
-      repeatedFailureCount: normalizeCounter(env.FACTORY_REPEATED_FAILURE_COUNT),
+      repeatedFailureCount: repeatedFailureCountBase,
       stageNoopAttempts: computedStageNoopAttempts,
       stageSetupAttempts: computedStageSetupAttempts,
       transientRetryAttempts: retryAttempts,
-      failureSignature: `${env.FACTORY_LAST_FAILURE_SIGNATURE || ""}`.trim() || null,
+      failureSignature: previousFailureSignature,
       runId,
       runUrl: resolvedRunUrl,
       reviewArtifactFailure,

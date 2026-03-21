@@ -67,8 +67,8 @@ export async function prepareReviewArtifactRepair({
 
   setOutputs({
     repair_attempts: String(repairState.repairAttempts),
-    repeated_failure_count: String(repairState.repeatedFailureCount),
-    last_failure_signature: repairState.lastFailureSignature || "",
+    intervention_repeated_failure_count: String(repairState.repeatedFailureCount),
+    intervention_failure_signature: repairState.lastFailureSignature || "",
     blocked: repairState.blocked ? "true" : "false",
     failure_metadata: JSON.stringify(failureMetadata),
     failure_intervention: JSON.stringify(intervention)

@@ -191,8 +191,9 @@ counters, and convert it back to draft before retrying `/factory implement`.
 
 The stage runner automatically retries known transient infrastructure failures
 such as GitHub API/network push errors before blocking the PR. Exhausted
-transient retries are recorded in the PR metadata as `lastFailureType` and
-`transientRetryAttempts`.
+transient retries are recorded in the PR metadata as an open
+`metadata.intervention` with payload fields like `failureType:
+"transient_infra"` and `transientRetryAttempts`.
 
 Factory stages also write an advisory `cost-summary.json` artifact and surface a
 three-band emoji cost estimate in the PR status. These values are heuristic
@@ -236,7 +237,7 @@ Factory Request issue so recurring outages get durable tracking:
 
 Stage runs now distinguish between no-op outputs and setup prerequisites:
 
-- `stage_noop` failures capture a clean working tree after Codex runs; the failure comment links a diagnostics block (commit distance, staged/worktree counts, sample file list) and the factory tracks `stageNoopAttempts`. After two consecutive no-op runs the PR is marked `blocked` and automated retries stop.
+- `stage_noop` failures capture a clean working tree after Codex runs; the failure comment links a diagnostics block (commit distance, staged/worktree counts, sample file list) and the factory tracks `metadata.intervention.payload.stageNoopAttempts`. After two consecutive no-op runs the PR is marked `blocked` and automated retries stop.
 - `stage_setup` failures wrap guardrail messages (missing `FACTORY_GITHUB_TOKEN`, absent workflow artifacts, etc.) with the same diagnostics summary so operators can fix the prerequisite without re-running diagnosis. Recovered runs reset both counters to zero.
 
 ## Labels

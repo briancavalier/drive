@@ -84,6 +84,17 @@ test("factory PR loop concurrency uses only event-safe identifiers", () => {
   );
 });
 
+test("factory PR loop uses intervention-named intermediate failure outputs", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(workflowText, /intervention_repeated_failure_count/);
+  assert.match(workflowText, /intervention_failure_signature/);
+  assert.match(workflowText, /FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT/);
+  assert.match(workflowText, /FACTORY_INTERVENTION_FAILURE_SIGNATURE/);
+  assert.doesNotMatch(workflowText, /\brepeated_failure_count:\s*\$\{\{\s*steps\.route\.outputs\.repeated_failure_count/);
+  assert.doesNotMatch(workflowText, /\blast_failure_signature:\s*\$\{\{\s*steps\.route\.outputs\.last_failure_signature/);
+});
+
 test("factory PR loop stage caller grants reusable workflow write permissions", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
   const stageBlock = extractJobBlock(workflowText, "stage");

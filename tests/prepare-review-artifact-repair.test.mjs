@@ -69,8 +69,8 @@ test("prepareReviewArtifactRepair increments repair attempts and emits failure m
   assert.equal(repairState.repeatedFailureCount, 0);
   assert.equal(repairState.lastFailureSignature, expectedSignature);
   assert.equal(outputs.repair_attempts, "1");
-  assert.equal(outputs.repeated_failure_count, "0");
-  assert.equal(outputs.last_failure_signature, expectedSignature);
+  assert.equal(outputs.intervention_repeated_failure_count, "0");
+  assert.equal(outputs.intervention_failure_signature, expectedSignature);
   assert.equal(outputs.blocked, "false");
   assert.ok(outputs.failure_metadata);
   assert.equal(failureMetadata.type, env.FACTORY_FAILURE_TYPE);
@@ -109,7 +109,7 @@ test("prepareReviewArtifactRepair blocks when repair attempts exceed limit", asy
   assert.equal(repairState.blocked, true);
   assert.equal(outputs.blocked, "true");
   assert.equal(outputs.repair_attempts, "4");
-  assert.equal(outputs.repeated_failure_count, "0");
+  assert.equal(outputs.intervention_repeated_failure_count, "0");
 });
 
 test("prepareReviewArtifactRepair rejects unsupported failure types", async () => {
