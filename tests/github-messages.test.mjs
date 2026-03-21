@@ -210,6 +210,25 @@ test("renderPrBody renders blocked summary with stage from blockedAction", () =>
   ]);
 });
 
+test("renderPrBody shows last completed stage for paused status", () => {
+  const body = renderPrBody({
+    ...prBodyInput(),
+    branch: "factory/99-paused",
+    metadata: {
+      ...prBodyInput().metadata,
+      status: "paused",
+      paused: true,
+      lastCompletedStage: "implement",
+      repairAttempts: 2,
+      maxRepairAttempts: 4
+    }
+  });
+  const lines = body.split("\n");
+  const summaryLine = lines.find((line) => line.startsWith("**⏸️"));
+
+  assert.equal(summaryLine, "**⏸️ Paused** · 🏗️ `implement` · ⏸️ Automation paused");
+});
+
 test("renderPrBody omits redundant stage segment for implementing status", () => {
   const body = renderPrBody({
     ...prBodyInput(),
@@ -251,6 +270,23 @@ test("renderPrBody omits redundant stage segment for implementing status", () =>
   assert.deepEqual(suggestions, [
     "- `/factory pause` — Pause automation to hand off or intervene."
   ]);
+});
+
+test("renderPrBody omits redundant stage segment for ready_for_review status", () => {
+  const body = renderPrBody({
+    ...prBodyInput(),
+    branch: "factory/100-ready",
+    metadata: {
+      ...prBodyInput().metadata,
+      status: "ready_for_review"
+    }
+  });
+  const lines = body.split("\n");
+  const summaryLine = lines.find((line) => line.startsWith("**✅"));
+  const segments = summaryLine.split(" · ");
+
+  assert.equal(summaryLine, "**✅ Ready for review** · 🧑‍⚖️ Human review required");
+  assert.equal(segments.length, 2);
 });
 
 test("renderPlanReadyIssueComment falls back to default when override contains unknown tokens", () => {

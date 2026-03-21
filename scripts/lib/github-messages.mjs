@@ -48,9 +48,10 @@ const DASHBOARD_STAGE_STATUS_MAP = Object.freeze({
 const DASHBOARD_REDUNDANT_STAGE_STATES = new Set([
   "planning",
   "plan_ready",
-  "paused",
   "implementing",
-  "repairing"
+  "repairing",
+  "reviewing",
+  "ready_for_review"
 ]);
 
 const WAITING_DESCRIPTORS = Object.freeze({
@@ -300,32 +301,59 @@ function serializePrState(state) {
   ].join("\n");
 }
 
-function resolveDashboardStage({ status, blockedAction }) {
-  const normalizedStatus = `${status || ""}`.trim().toLowerCase();
+function resolveDashboardStage({ status, state, blockedAction, lastCompletedStage }) {
+  const normalize = (value) => `${value || ""}`.trim().toLowerCase();
+  const normalizedStatus = normalize(status);
+  const normalizedState = normalize(state);
+  const candidates = [normalizedState, normalizedStatus].filter(Boolean);
+  const normalizeStage = (value) => {
+    const candidate = normalize(value);
+    return ["plan", "implement", "review"].includes(candidate) ? candidate : "";
+  };
 
-  if (!normalizedStatus) {
+  if (!candidates.length) {
     return null;
   }
 
-  if (normalizedStatus === "blocked") {
-    const normalizedBlocked = `${blockedAction || ""}`.trim().toLowerCase();
+  for (const candidate of candidates) {
+    if (candidate === "blocked") {
+      const normalizedBlocked = normalizeStage(blockedAction);
 
-    if (["plan", "implement", "review"].includes(normalizedBlocked)) {
-      return normalizedBlocked;
+      if (normalizedBlocked) {
+        return normalizedBlocked;
+      }
+
+      const normalizedStage = normalizeStage(lastCompletedStage);
+
+      if (normalizedStage) {
+        return normalizedStage;
+      }
+
+      return null;
+    }
+
+    if (candidate === "paused") {
+      const normalizedStage = normalizeStage(lastCompletedStage);
+
+      if (normalizedStage) {
+        return normalizedStage;
+      }
+
+      return null;
+    }
+
+    if (DASHBOARD_REDUNDANT_STAGE_STATES.has(candidate)) {
+      return null;
+    }
+
+    const mappedStage = DASHBOARD_STAGE_STATUS_MAP[candidate];
+
+    if (mappedStage) {
+      return mappedStage;
     }
   }
 
-  const mappedStage = DASHBOARD_STAGE_STATUS_MAP[normalizedStatus] || null;
-
-  if (!mappedStage) {
-    return null;
-  }
-
-  if (DASHBOARD_REDUNDANT_STAGE_STATES.has(normalizedStatus)) {
-    return null;
-  }
-
-  return mappedStage;
+  return null;
 }
 
 function formatDashboardStage(stageKey) {
@@ -442,8 +470,11 @@ function formatDashboardSummary({ controlPanel, metadata }) {
   segments.push(`**${stateDisplay}**`);
 
   const stageKey = resolveDashboardStage({
-    status: metadata.status || controlPanel.state,
-    blockedAction: metadata.blockedAction
+    status: metadata.status,
+    state: controlPanel.state,
+    blockedAction: metadata.blockedAction,
+    lastCompletedStage:
+      controlPanel.lastCompletedStage || metadata.lastCompletedStage
   });
   const stageSegment = formatDashboardStage(stageKey);
 
