@@ -1,0 +1,72 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Implementation matches the spec: new compact dashboard template, helpers in `github-messages.mjs`, and updated tests; CI unit suite passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Factory PR descriptions render a `Factory Dashboard` section without using a table.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/pr-body.md: contains '## Factory Dashboard' and tokens for sections.",
+        "tests/github-messages.test.mjs: includes assertions that the produced body contains '## Factory Dashboard'.",
+        "CI workflow run 23378361353: unit tests succeeded (unit: success)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Top dashboard summary is rendered as compact grouped lines instead of a table and uses the prescribed segments (state, optional stage, waiting descriptor).",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: `formatDashboardSummary` and `buildDashboardSection` implement grouped summary and lines.",
+        "tests/github-messages.test.mjs: asserts specific summary line outputs for plan_ready, blocked, and implementing states."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Suggested next actions list uses slash-command suggestions drawn from control panel mutation actions.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: `buildSuggestedActionsSection` maps control panel actions to slash-command lines.",
+        "tests/github-messages.test.mjs: asserts the suggested actions list contains `/factory implement`, `/factory pause`, `/factory resume`, etc., per state."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update the PR body template and `renderPrBody` to compute the new dashboard summary, suggested actions, artifact grouping, and operator notes.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/pr-body.md: new template ordering with DASHBOARD_SECTION, SUGGESTED_ACTIONS_SECTION, ARTIFACTS_SECTION, OPERATOR_NOTES_SECTION, and 'Closes #{{ISSUE_NUMBER}}'.",
+        "scripts/lib/github-messages.mjs: renderPrBody composes the new sections and appends serialized factory-state comment."
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Artifacts section groups Plan, Run, and Review lines and omits groups when no links are present.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: `buildArtifactsSection` implements grouped Plan/Run/Review lines.",
+        "tests/github-messages.test.mjs: asserts presence and formatting of '**Plan**', '**Run**', and '**Review**' lines in rendered output."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Unit tests updated to cover the acceptance scenarios and metadata serialization remains parseable.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/github-messages.test.mjs and tests/pr-metadata.test.mjs: updated assertions covering summary lines, suggested actions, artifact lines, operator notes, and 'Closes #<issue>' placement.",
+        "CI workflow run 23378361353: unit tests succeeded."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Artifact links may point to missing files",
+      "details": "`buildArtifactLinks` constructs canonical artifact URLs but does not verify the existence of the target files; PR bodies may therefore include links that 404 until artifacts are generated.",
+      "scope": "rendering: PR body artifact links",
+      "recommendation": "Either check artifact file existence before rendering artifact link groups, or document that generated links are conservative placeholders. Consider adding a unit test for omission behavior when artifacts are absent."
+    }
+  ]
+}
