@@ -294,6 +294,31 @@ test("blocked control panel resolves review stage from intervention-only review 
   assert.deepEqual(actionIds(panel), ["reset", "pause", "open_artifacts"]);
 });
 
+test("blocked control panel treats intervention-only repeated failures as repair exhaustion", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      blockedAction: "repair",
+      repairAttempts: 1,
+      maxRepairAttempts: 3,
+      intervention: defaultFailureIntervention({
+        payload: {
+          failureType: "content_or_logic",
+          repeatedFailureCount: 2
+        }
+      })
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.match(panel.reason || "", /exhausted automatic retries/i);
+  assert.deepEqual(actionIds(panel), ["reset", "pause", "open_failure_history"]);
+});
+
 test("latest run and artifact links surface when metadata is present", () => {
   const withUrl = buildControlPanel({
     metadata: metadata({

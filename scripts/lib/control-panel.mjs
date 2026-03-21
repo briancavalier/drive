@@ -233,7 +233,11 @@ function canResumePausedRun(metadata = {}) {
 function isRepairCapExceeded(metadata = {}) {
   const attempts = Number(metadata.repairAttempts || 0);
   const limit = Number(metadata.maxRepairAttempts || 0);
-  const repeated = Number(metadata.repeatedFailureCount || 0);
+  const repeated = getFailureCounter(
+    metadata,
+    "repeatedFailureCount",
+    metadata.repeatedFailureCount
+  );
   return (limit > 0 && attempts > limit) || repeated >= 2;
 }
 
