@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildControlPanel } from "../scripts/lib/control-panel.mjs";
-import { defaultPrMetadata } from "../scripts/lib/pr-metadata.mjs";
+import { defaultFailureIntervention, defaultPrMetadata } from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 
 const repositoryUrl = "https://github.com/example/repo";
@@ -105,7 +105,14 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
         status: FACTORY_PR_STATUSES.blocked,
         lastFailureType: "stage_noop",
         stageNoopAttempts: 2,
-        lastRunUrl: `${repositoryUrl}/actions/runs/111`
+        lastRunUrl: `${repositoryUrl}/actions/runs/111`,
+        intervention: defaultFailureIntervention({
+          summary: "Factory stage completed without any repository updates.",
+          payload: {
+            failureType: "stage_noop",
+            stageNoopAttempts: 2
+          }
+        })
       }),
       expectedActionIds: ["reset", "pause", "open_diagnostics"],
       reason: /no committed changes/i
@@ -217,6 +224,26 @@ test("ready_for_review state exposes review artifacts and pause automation actio
   assert.deepEqual(actionIds(panel), ["open_review_artifacts", "pause"]);
   assert.ok(!actionIds(panel).includes("start_implement"));
   assert.ok(!actionIds(panel).includes("retry"));
+});
+
+test("blocked state falls back to legacy failure metadata when intervention is absent", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      lastFailureType: "transient_infra",
+      blockedAction: "review",
+      transientRetryAttempts: 2,
+      lastRunUrl: `${repositoryUrl}/actions/runs/333`
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.match(panel.reason || "", /transient infrastructure/i);
+  assert.deepEqual(actionIds(panel), ["resume", "pause", "open_latest_run"]);
 });
 
 test("latest run and artifact links surface when metadata is present", () => {

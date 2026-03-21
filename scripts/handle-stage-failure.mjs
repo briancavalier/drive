@@ -4,7 +4,11 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import { readFailureAdvisory } from "./lib/failure-diagnosis.mjs";
-import { buildFailureComment } from "./lib/failure-comment.mjs";
+import {
+  buildFailureComment,
+  buildFailureHeadline,
+  extractFailureDiagnosticsSections
+} from "./lib/failure-comment.mjs";
 import {
   FAILURE_TYPES,
   parseRetryLimit
@@ -102,6 +106,65 @@ export function buildStateUpdate(action, failureType, { stageNoopAttempts = 0 } 
   };
 }
 
+function buildReviewArtifactFailure(failureType, phase, failureMessage) {
+  if (failureType !== FAILURE_TYPES.reviewArtifactContract) {
+    return null;
+  }
+
+  return {
+    type: failureType,
+    phase,
+    message: failureMessage || "",
+    capturedAt: new Date().toISOString()
+  };
+}
+
+export function buildFailureIntervention({
+  action,
+  phase,
+  failureType,
+  failureMessage,
+  retryAttempts,
+  repeatedFailureCount = 0,
+  stageNoopAttempts = 0,
+  stageSetupAttempts = 0,
+  transientRetryAttempts = 0,
+  failureSignature = null,
+  runId = null,
+  runUrl = null,
+  reviewArtifactFailure = null
+}) {
+  const { detail, diagnostics } = extractFailureDiagnosticsSections(failureMessage);
+  const summary = buildFailureHeadline({ action, phase, failureType, retryAttempts });
+  const detailText = [detail, diagnostics ? `Stage diagnostics:\n${diagnostics}` : ""]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    id: null,
+    type: "failure",
+    status: "open",
+    stage: action,
+    blocking: true,
+    summary,
+    detail: detailText,
+    createdAt: new Date().toISOString(),
+    runId: runId || null,
+    runUrl: runUrl || null,
+    payload: {
+      failureType,
+      failureSignature: failureSignature || null,
+      retryAttempts,
+      repeatedFailureCount,
+      stageNoopAttempts,
+      stageSetupAttempts,
+      transientRetryAttempts,
+      reviewArtifactFailure
+    },
+    resolution: null
+  };
+}
+
 export async function main(env = process.env, dependencies = {}) {
   const execFileAsync =
     dependencies.execFileAsync || promisify(execFile);
@@ -131,6 +194,14 @@ export async function main(env = process.env, dependencies = {}) {
   const branch = env.FACTORY_BRANCH || "";
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const ciRunId = env.FACTORY_CI_RUN_ID || "";
+  const runId = `${env.GITHUB_RUN_ID || ""}`.trim();
+  const explicitRunUrl = `${env.FACTORY_RUN_URL || ""}`.trim();
+  const inferredRunUrl =
+    runId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
+      : "";
+  const resolvedRunUrl = explicitRunUrl || inferredRunUrl;
+  const reviewArtifactFailure = buildReviewArtifactFailure(failureType, phase, failureMessage);
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -263,24 +334,43 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_CI_STATUS: env.FACTORY_CI_STATUS || "pending"
   };
 
+  if (reviewArtifactFailure) {
+    childEnv.FACTORY_LAST_REVIEW_ARTIFACT_FAILURE = JSON.stringify(reviewArtifactFailure);
+  }
+
   if (env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID !== undefined) {
     childEnv.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID =
       env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID;
   }
 
-  const runId = `${env.GITHUB_RUN_ID || ""}`.trim();
-  const explicitRunUrl = `${env.FACTORY_RUN_URL || ""}`.trim();
-  const inferredRunUrl =
-    runId && env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
-      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
-      : "";
-
   if (runId) {
     childEnv.FACTORY_LAST_RUN_ID = runId;
   }
 
-  if (explicitRunUrl || inferredRunUrl) {
-    childEnv.FACTORY_LAST_RUN_URL = explicitRunUrl || inferredRunUrl;
+  if (resolvedRunUrl) {
+    childEnv.FACTORY_LAST_RUN_URL = resolvedRunUrl;
+  }
+
+  if (status === FACTORY_PR_STATUSES.blocked) {
+    childEnv.FACTORY_INTERVENTION = JSON.stringify(
+      buildFailureIntervention({
+        action,
+        phase,
+        failureType,
+        failureMessage,
+        retryAttempts,
+        repeatedFailureCount: normalizeCounter(env.FACTORY_REPEATED_FAILURE_COUNT),
+        stageNoopAttempts: computedStageNoopAttempts,
+        stageSetupAttempts: computedStageSetupAttempts,
+        transientRetryAttempts: retryAttempts,
+        failureSignature: `${env.FACTORY_LAST_FAILURE_SIGNATURE || ""}`.trim() || null,
+        runId,
+        runUrl: resolvedRunUrl,
+        reviewArtifactFailure
+      })
+    );
+  } else {
+    childEnv.FACTORY_INTERVENTION = "__CLEAR__";
   }
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {

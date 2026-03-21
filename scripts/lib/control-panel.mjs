@@ -235,8 +235,33 @@ function isRepairCapExceeded(metadata = {}) {
   return (limit > 0 && attempts > limit) || repeated >= 2;
 }
 
+function getOpenFailureIntervention(metadata = {}) {
+  const intervention = metadata.intervention;
+
+  if (
+    metadata.status === FACTORY_PR_STATUSES.blocked &&
+    intervention &&
+    intervention.type === "failure" &&
+    intervention.status === "open"
+  ) {
+    return intervention;
+  }
+
+  return null;
+}
+
+function getFailureValue(metadata = {}, key, fallback = null) {
+  const intervention = getOpenFailureIntervention(metadata);
+
+  if (intervention?.payload && intervention.payload[key] != null) {
+    return intervention.payload[key];
+  }
+
+  return fallback;
+}
+
 function hasSelfModifyGuardSignature(metadata = {}) {
-  const signature = `${metadata.lastFailureSignature || ""}`.toLowerCase();
+  const signature = `${getFailureValue(metadata, "failureSignature", metadata.lastFailureSignature) || ""}`.toLowerCase();
 
   return (
     signature.includes("factory:self-modify") ||
@@ -246,7 +271,34 @@ function hasSelfModifyGuardSignature(metadata = {}) {
 }
 
 function buildBlockedReason({ metadata }) {
-  const failureType = `${metadata.lastFailureType || ""}`.trim();
+  const intervention = getOpenFailureIntervention(metadata);
+  const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
+
+  if (intervention?.summary) {
+    if (failureType === "review_artifact_contract") {
+      const failure = getFailureValue(
+        metadata,
+        "reviewArtifactFailure",
+        metadata.lastReviewArtifactFailure
+      );
+      const detail = `${failure?.message || failure?.type || ""}`.trim();
+
+      return detail
+        ? `Review artifact contract failed: ${detail}`
+        : intervention.summary;
+    }
+
+    if (failureType === "stage_setup" && hasSelfModifyGuardSignature(metadata)) {
+      return "Self-modify guard blocked protected file changes until approved.";
+    }
+
+    if (failureType === "stage_noop") {
+      const attempts = Number(getFailureValue(metadata, "stageNoopAttempts", metadata.stageNoopAttempts) || 0);
+      return attempts > 1
+        ? "Latest stage run produced no committed changes after repeated attempts."
+        : "Latest stage run produced no committed changes.";
+    }
+  }
 
   if (isRepairCapExceeded(metadata)) {
     const attempts = Number(metadata.repairAttempts || 0);
@@ -284,7 +336,11 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "review_artifact_contract") {
-    const failure = metadata.lastReviewArtifactFailure;
+    const failure = getFailureValue(
+      metadata,
+      "reviewArtifactFailure",
+      metadata.lastReviewArtifactFailure
+    );
     const detail = `${failure?.message || failure?.type || ""}`.trim();
     return detail
       ? `Review artifact contract failed: ${detail}`
@@ -350,7 +406,7 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${metadata.lastFailureType || ""}`.trim();
+    const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       return "Escalate to a human reviewer or reset the run before trying again.";
@@ -478,7 +534,7 @@ function buildActions({
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${metadata.lastFailureType || ""}`.trim();
+    const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));

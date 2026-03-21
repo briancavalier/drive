@@ -8,7 +8,9 @@ import {
   assertFactoryPrStatus
 } from "./lib/factory-config.mjs";
 import {
+  canonicalizeIntervention,
   canonicalizePrMetadata,
+  defaultFailureIntervention,
   extractPrMetadata,
   renderPrBody
 } from "./lib/pr-metadata.mjs";
@@ -311,6 +313,54 @@ export function applyBlockedAction(metadata, envValue) {
   };
 }
 
+export function applyIntervention(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      intervention: null
+    };
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("FACTORY_INTERVENTION must be valid JSON when provided");
+  }
+
+  const intervention = canonicalizeIntervention(parsed);
+
+  if (!intervention) {
+    return {
+      ...metadata,
+      intervention: null
+    };
+  }
+
+  if (intervention.type === "failure") {
+    return {
+      ...metadata,
+      intervention: defaultFailureIntervention(intervention)
+    };
+  }
+
+  return {
+    ...metadata,
+    intervention
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -383,6 +433,7 @@ export async function main(env = process.env) {
   nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_NOOP_ATTEMPTS, "stageNoopAttempts");
   nextMetadata = applyStageCounter(nextMetadata, env.FACTORY_STAGE_SETUP_ATTEMPTS, "stageSetupAttempts");
+  nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
 
   const body = renderPrBody({

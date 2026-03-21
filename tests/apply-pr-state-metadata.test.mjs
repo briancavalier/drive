@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   applyBlockedAction,
+  applyIntervention,
   applyPaused,
   applyCostEstimateMetadata,
   applyLastCompletedStage,
@@ -17,6 +18,7 @@ import {
 } from "../scripts/apply-pr-state.mjs";
 import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import {
+  defaultFailureIntervention,
   defaultPrMetadata
 } from "../scripts/lib/pr-metadata.mjs";
 
@@ -232,6 +234,70 @@ test("applyBlockedAction updates metadata from the explicit env override", () =>
   assert.equal(applyBlockedAction(metadata, "review").blockedAction, "review");
   assert.equal(applyBlockedAction(metadata, "").blockedAction, null);
   assert.equal(applyBlockedAction(metadata, "__UNCHANGED__").blockedAction, "repair");
+});
+
+test("applyIntervention leaves metadata unchanged when env undefined", () => {
+  const metadata = defaultPrMetadata({
+    intervention: defaultFailureIntervention({
+      payload: { failureType: "configuration" }
+    })
+  });
+
+  const nextMetadata = applyIntervention(metadata, undefined);
+
+  assert.equal(nextMetadata.intervention.payload.failureType, "configuration");
+});
+
+test("applyIntervention preserves intervention when __UNCHANGED__", () => {
+  const metadata = defaultPrMetadata({
+    intervention: defaultFailureIntervention({
+      payload: { failureType: "configuration" }
+    })
+  });
+
+  const nextMetadata = applyIntervention(metadata, "__UNCHANGED__");
+
+  assert.equal(nextMetadata.intervention.payload.failureType, "configuration");
+});
+
+test("applyIntervention clears intervention when requested", () => {
+  const metadata = defaultPrMetadata({
+    intervention: defaultFailureIntervention({
+      payload: { failureType: "configuration" }
+    })
+  });
+
+  assert.equal(applyIntervention(metadata, "").intervention, null);
+  assert.equal(applyIntervention(metadata, "__CLEAR__").intervention, null);
+});
+
+test("applyIntervention applies parsed failure intervention", () => {
+  const metadata = defaultPrMetadata();
+  const intervention = {
+    type: "failure",
+    status: "open",
+    summary: "Factory encountered a configuration error and is now blocked.",
+    payload: {
+      failureType: "configuration",
+      retryAttempts: 1
+    }
+  };
+
+  const nextMetadata = applyIntervention(metadata, JSON.stringify(intervention));
+
+  assert.equal(nextMetadata.intervention.type, "failure");
+  assert.equal(nextMetadata.intervention.summary, intervention.summary);
+  assert.equal(nextMetadata.intervention.payload.failureType, "configuration");
+  assert.equal(nextMetadata.intervention.payload.retryAttempts, 1);
+});
+
+test("applyIntervention rejects invalid JSON", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.throws(
+    () => applyIntervention(metadata, "{not-json"),
+    /FACTORY_INTERVENTION must be valid JSON/
+  );
 });
 
 test("buildProjectedLabels maps metadata state into projected status labels", () => {

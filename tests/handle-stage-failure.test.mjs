@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFailureComment, buildStateUpdate, main as handleFailure } from "../scripts/handle-stage-failure.mjs";
+import {
+  buildFailureComment,
+  buildFailureIntervention,
+  buildStateUpdate,
+  main as handleFailure
+} from "../scripts/handle-stage-failure.mjs";
 import { FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
 
@@ -81,6 +86,31 @@ test("buildFailureComment renders deterministic review recovery guidance without
   assert.doesNotMatch(comment, /## Codex diagnosis/);
 });
 
+test("buildFailureIntervention captures summary, detail, and payload", () => {
+  const intervention = buildFailureIntervention({
+    action: "implement",
+    phase: "stage",
+    failureType: FAILURE_TYPES.stageSetup,
+    failureMessage: "Missing FACTORY_GITHUB_TOKEN\n\nStage diagnostics:\nworkflow: factory",
+    retryAttempts: 0,
+    repeatedFailureCount: 1,
+    stageNoopAttempts: 0,
+    stageSetupAttempts: 2,
+    transientRetryAttempts: 0,
+    failureSignature: "missing-token",
+    runId: "123",
+    runUrl: "https://github.com/example/repo/actions/runs/123"
+  });
+
+  assert.equal(intervention.type, "failure");
+  assert.equal(intervention.stage, "implement");
+  assert.match(intervention.summary, /setup prerequisites/i);
+  assert.match(intervention.detail, /Stage diagnostics:/);
+  assert.equal(intervention.payload.failureType, FAILURE_TYPES.stageSetup);
+  assert.equal(intervention.payload.failureSignature, "missing-token");
+  assert.equal(intervention.payload.stageSetupAttempts, 2);
+});
+
 test("main creates follow-up issue for actionable failure", async () => {
   let createdIssue = null;
   let execEnv = null;
@@ -118,6 +148,8 @@ test("main creates follow-up issue for actionable failure", async () => {
   assert.match(createdIssue.body, /factory-followup-meta/);
   assert.ok(execEnv.FACTORY_COMMENT.includes("Factory follow-up opened as #456"), "comment should mention follow-up issue");
   assert.equal(execEnv.FACTORY_LAST_FAILURE_TYPE, FAILURE_TYPES.configuration);
+  assert.ok(execEnv.FACTORY_INTERVENTION, "expected failure intervention payload");
+  assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).payload.failureType, FAILURE_TYPES.configuration);
 });
 
 test("main increments stage_noop attempts and records retry guidance", async () => {
@@ -146,6 +178,7 @@ test("main increments stage_noop attempts and records retry guidance", async () 
   assert.match(execEnv.FACTORY_COMMENT, /## Stage retry status/);
   assert.match(execEnv.FACTORY_COMMENT, /Factory will treat the next implement run as the last auto-retry/i);
   assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.planReady);
+  assert.equal(execEnv.FACTORY_INTERVENTION, "__CLEAR__");
 });
 
 test("main blocks stage_noop failures after exhausting retries", async () => {
@@ -173,6 +206,7 @@ test("main blocks stage_noop failures after exhausting retries", async () => {
   assert.equal(execEnv.FACTORY_STAGE_NOOP_ATTEMPTS, "2");
   assert.match(execEnv.FACTORY_COMMENT, /Automated retries are now blocked/i);
   assert.equal(execEnv.FACTORY_STATUS, FACTORY_PR_STATUSES.blocked);
+  assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).payload.stageNoopAttempts, 2);
 });
 
 test("main skips creating follow-up when signature already tracked", async () => {

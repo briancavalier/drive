@@ -1,47 +1,19 @@
 import {
   APPROVED_ISSUE_FILE_NAME,
   PR_STATE_MARKER,
-  DEFAULT_MAX_REPAIR_ATTEMPTS,
   FACTORY_PR_STATUSES,
   issueArtifactsPath
 } from "./factory-config.mjs";
 import { renderPrBody as renderGithubPrBody } from "./github-messages.mjs";
+import {
+  canonicalizeIntervention,
+  canonicalizePrMetadataShape,
+  defaultFailureIntervention,
+  defaultPrMetadata as defaultPrMetadataShape
+} from "./pr-metadata-shape.mjs";
 
 export function defaultPrMetadata(overrides = {}) {
-  return {
-    issueNumber: null,
-    artifactsPath: null,
-    status: FACTORY_PR_STATUSES.planning,
-    repairAttempts: 0,
-    maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
-    lastFailureSignature: null,
-    repeatedFailureCount: 0,
-    lastReadySha: null,
-    lastProcessedWorkflowRunId: null,
-    lastFailureType: null,
-    blockedAction: null,
-    lastReviewArtifactFailure: null,
-    transientRetryAttempts: 0,
-    lastRefreshedSha: null,
-    pendingReviewSha: null,
-    paused: false,
-    lastCompletedStage: null,
-    lastRunId: null,
-    lastRunUrl: null,
-    pauseReason: null,
-    costEstimateUsd: 0,
-    costEstimateBand: "",
-    costEstimateEmoji: "",
-    costWarnUsd: 0,
-    costHighUsd: 0,
-    costPricingSource: "",
-    lastEstimatedStage: null,
-    lastEstimatedModel: null,
-    lastStageCostEstimateUsd: 0,
-    stageNoopAttempts: 0,
-    stageSetupAttempts: 0,
-    ...overrides
-  };
+  return defaultPrMetadataShape(overrides);
 }
 
 export function extractPrMetadata(body) {
@@ -85,16 +57,7 @@ function normalizeIssueNumber(value) {
 }
 
 export function canonicalizePrMetadata(metadata = {}, issueNumber = metadata?.issueNumber) {
-  const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
-  const canonicalArtifactsPath = normalizedIssueNumber
-    ? issueArtifactsPath(normalizedIssueNumber)
-    : metadata.artifactsPath ?? null;
-
-  return defaultPrMetadata({
-    ...metadata,
-    issueNumber: normalizedIssueNumber ?? metadata.issueNumber ?? null,
-    artifactsPath: canonicalArtifactsPath
-  });
+  return canonicalizePrMetadataShape(metadata, issueNumber);
 }
 
 export function buildPlanReadyPrMetadata({
@@ -149,3 +112,5 @@ export function renderPrBody({
     labels
   }, options);
 }
+
+export { canonicalizeIntervention, defaultFailureIntervention };
