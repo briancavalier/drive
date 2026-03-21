@@ -130,10 +130,10 @@ export async function main(env = process.env, dependencies = {}) {
   const stageNoopAttemptsBase = normalizeCounter(env.FACTORY_STAGE_NOOP_ATTEMPTS);
   const stageSetupAttemptsBase = normalizeCounter(env.FACTORY_STAGE_SETUP_ATTEMPTS);
   const repeatedFailureCountBase = normalizeCounter(
-    env.FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT ?? env.FACTORY_REPEATED_FAILURE_COUNT
+    env.FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT
   );
   const previousFailureSignature =
-    `${(env.FACTORY_INTERVENTION_FAILURE_SIGNATURE ?? env.FACTORY_LAST_FAILURE_SIGNATURE) || ""}`
+    `${env.FACTORY_INTERVENTION_FAILURE_SIGNATURE || ""}`
       .trim() || null;
   const computedStageNoopAttempts =
     failureType === FAILURE_TYPES.stageNoop ? stageNoopAttemptsBase + 1 : stageNoopAttemptsBase;
