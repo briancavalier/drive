@@ -1,7 +1,7 @@
 {
   "methodology": "default",
   "decision": "pass",
-  "summary": "Implementation aligns with spec: compact dashboard template, stage-aware summary, slash-command suggestions, and grouped artifacts; unit tests cover acceptance scenarios and CI passed.",
+  "summary": "Implementation aligns with spec: compact dashboard template, stage-aware summary, slash-command suggestions, and grouped artifacts; unit tests cover acceptance scenarios and CI passed (workflow run 23379780805).",
   "blocking_findings_count": 0,
   "requirement_checks": [
     {
@@ -9,8 +9,8 @@
       "requirement": "Factory PR descriptions render a `Factory Dashboard` section without using a table.",
       "status": "satisfied",
       "evidence": [
-        "scripts/templates/github-messages/pr-body.md:1 (template starts with '## Factory Dashboard')",
-        "tests/github-messages.test.mjs:1 (unit tests assert presence of '## Factory Dashboard' and artifact lines)"
+        "scripts/templates/github-messages/pr-body.md: template includes '## Factory Dashboard'",
+        "tests/github-messages.test.mjs: unit test asserts presence of '## Factory Dashboard'"
       ]
     },
     {
@@ -18,8 +18,8 @@
       "requirement": "Top dashboard summary is rendered as compact grouped lines instead of a key/value list.",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs: formatDashboardSummary / buildDashboardSection (implements grouped segments)",
-        "tests/github-messages.test.mjs: renderPrBody renders plan_ready dashboard layout and assertions for summary, CI, cost, open lines"
+        "scripts/lib/github-messages.mjs: formatDashboardSummary / buildDashboardSection implement grouped segments",
+        "tests/github-messages.test.mjs: renderPrBody tests assert summary, CI, cost, open lines"
       ]
     },
     {
@@ -27,8 +27,8 @@
       "requirement": "Top summary line uses clearer human-facing waiting-state language (e.g. 'Human action required').",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/github-messages.mjs: WAITING_DESCRIPTORS constant and formatWaitingDescriptor implementation",
-        "tests/github-messages.test.mjs: assertions for human-facing waiting descriptors in plan_ready/blocked/ready_for_review cases"
+        "scripts/lib/github-messages.mjs: WAITING_DESCRIPTORS and formatWaitingDescriptor",
+        "tests/github-messages.test.mjs: assertions for waiting descriptors (plan_ready/blocked/ready_for_review)"
       ]
     },
     {
@@ -42,11 +42,11 @@
     },
     {
       "type": "spec_commitment",
-      "requirement": "Artifacts section renders Plan / Run / Review lines and omits empty groups.",
+      "requirement": "Artifacts section renders Plan / Build / Review lines and omits empty groups.",
       "status": "satisfied",
       "evidence": [
         "scripts/lib/github-messages.mjs: buildArtifactsSection implementation",
-        "tests/github-messages.test.mjs: assertions matching '**Plan**', '**Run**', '**Review**' lines"
+        "tests/github-messages.test.mjs: assertions matching '**Plan**', '**Build**', '**Review**' lines"
       ]
     },
     {
@@ -55,7 +55,7 @@
       "status": "satisfied",
       "evidence": [
         "tests/github-messages.test.mjs: updated/added tests covering multiple status scenarios",
-        "CI run 23379654433: unit tests passed (reported in run metadata)"
+        "CI workflow run 23379780805: unit tests and supporting checks successful"
       ]
     }
   ],
