@@ -3,6 +3,14 @@ import {
   extractFailureDiagnosticsSections
 } from "./failure-comment.mjs";
 
+function normalizeOption(option = {}) {
+  return {
+    id: `${option.id || ""}`.trim(),
+    label: `${option.label || ""}`.trim(),
+    effect: `${option.effect || ""}`.trim()
+  };
+}
+
 export function defaultFailureInterventionPayload(overrides = {}) {
   return {
     failureType: null,
@@ -14,6 +22,21 @@ export function defaultFailureInterventionPayload(overrides = {}) {
     transientRetryAttempts: 0,
     reviewArtifactFailure: null,
     ...overrides
+  };
+}
+
+export function defaultQuestionInterventionPayload(overrides = {}) {
+  return {
+    questionKind: null,
+    question: "",
+    recommendedOptionId: null,
+    options: [],
+    allowsComment: true,
+    version: 1,
+    ...overrides,
+    options: Array.isArray(overrides.options)
+      ? overrides.options.map(normalizeOption)
+      : []
   };
 }
 
@@ -38,13 +61,55 @@ export function defaultFailureIntervention(overrides = {}) {
   };
 }
 
+export function defaultQuestionIntervention(overrides = {}) {
+  const payload = defaultQuestionInterventionPayload(overrides.payload);
+
+  return {
+    id: null,
+    type: "question",
+    status: "open",
+    stage: null,
+    blocking: true,
+    summary: "",
+    detail: "",
+    createdAt: null,
+    runId: null,
+    runUrl: null,
+    payload,
+    resolution: null,
+    ...overrides,
+    payload
+  };
+}
+
+export function defaultApprovalIntervention(overrides = {}) {
+  return defaultQuestionIntervention({
+    ...overrides,
+    type: "approval",
+    payload: {
+      questionKind: "approval",
+      ...overrides.payload
+    }
+  });
+}
+
 export function canonicalizeIntervention(intervention) {
   if (!intervention) {
     return null;
   }
 
-  if (`${intervention.type || ""}`.trim() === "failure") {
+  const type = `${intervention.type || ""}`.trim();
+
+  if (type === "failure") {
     return defaultFailureIntervention(intervention);
+  }
+
+  if (type === "question") {
+    return defaultQuestionIntervention(intervention);
+  }
+
+  if (type === "approval") {
+    return defaultApprovalIntervention(intervention);
   }
 
   return intervention;
@@ -56,6 +121,20 @@ export function getOpenFailureIntervention(metadata = {}) {
   if (
     intervention &&
     intervention.type === "failure" &&
+    intervention.status === "open"
+  ) {
+    return intervention;
+  }
+
+  return null;
+}
+
+export function getOpenQuestionIntervention(metadata = {}) {
+  const intervention = canonicalizeIntervention(metadata?.intervention);
+
+  if (
+    intervention &&
+    (intervention.type === "question" || intervention.type === "approval") &&
     intervention.status === "open"
   ) {
     return intervention;
@@ -88,6 +167,23 @@ export function getFailureSignature(metadata = {}) {
 
 export function getReviewArtifactFailure(metadata = {}) {
   return getFailureValue(metadata, "reviewArtifactFailure", null);
+}
+
+export function getQuestionOptions(intervention) {
+  return Array.isArray(intervention?.payload?.options)
+    ? intervention.payload.options.map(normalizeOption)
+    : [];
+}
+
+export function getQuestionOption(intervention, optionId) {
+  const normalizedOptionId = `${optionId || ""}`.trim();
+
+  return getQuestionOptions(intervention).find((option) => option.id === normalizedOptionId) || null;
+}
+
+export function buildInterventionId(prefix = "int") {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${prefix}_${timestamp}`;
 }
 
 export function buildFailureIntervention({
@@ -129,6 +225,36 @@ export function buildFailureIntervention({
       stageSetupAttempts,
       transientRetryAttempts,
       reviewArtifactFailure
+    }
+  });
+}
+
+export function buildApprovalIntervention({
+  id = buildInterventionId("int_q"),
+  action,
+  summary,
+  detail = "",
+  question,
+  recommendedOptionId,
+  options,
+  runId = null,
+  runUrl = null,
+  allowsComment = true
+}) {
+  return defaultApprovalIntervention({
+    id,
+    stage: action,
+    summary: `${summary || ""}`.trim(),
+    detail: `${detail || ""}`.trim(),
+    createdAt: new Date().toISOString(),
+    runId: runId || null,
+    runUrl: runUrl || null,
+    payload: {
+      questionKind: "approval",
+      question: `${question || ""}`.trim(),
+      recommendedOptionId: `${recommendedOptionId || ""}`.trim() || null,
+      options: Array.isArray(options) ? options : [],
+      allowsComment
     }
   });
 }

@@ -7,7 +7,11 @@ import { readFailureAdvisory } from "./lib/failure-diagnosis.mjs";
 import {
   buildFailureComment
 } from "./lib/failure-comment.mjs";
-import { buildFailureIntervention } from "./lib/intervention-state.mjs";
+import {
+  buildApprovalIntervention,
+  buildFailureIntervention
+} from "./lib/intervention-state.mjs";
+import { renderInterventionQuestionComment } from "./lib/github-messages.mjs";
 import {
   FAILURE_TYPES,
   parseRetryLimit
@@ -119,6 +123,15 @@ function buildReviewArtifactFailure(failureType, phase, failureMessage) {
   };
 }
 
+function isSelfModifyGuardFailure(failureType, failureMessage) {
+  const normalized = `${failureMessage || ""}`.toLowerCase();
+
+  return (
+    failureType === FAILURE_TYPES.stageSetup &&
+    normalized.includes("factory:self-modify")
+  );
+}
+
 export async function main(env = process.env, dependencies = {}) {
   const execFileAsync =
     dependencies.execFileAsync || promisify(execFile);
@@ -162,6 +175,10 @@ export async function main(env = process.env, dependencies = {}) {
       : "";
   const resolvedRunUrl = explicitRunUrl || inferredRunUrl;
   const reviewArtifactFailure = buildReviewArtifactFailure(failureType, phase, failureMessage);
+  const selfModifyGuardFailure = isSelfModifyGuardFailure(
+    failureType,
+    failureMessage
+  );
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -193,7 +210,8 @@ export async function main(env = process.env, dependencies = {}) {
     ...(dependencies.followup || {})
   };
 
-  try {
+  if (!selfModifyGuardFailure) {
+    try {
     const followupAssessment = followup.classifyFollowup({
       failureType,
       phase,
@@ -262,10 +280,11 @@ export async function main(env = process.env, dependencies = {}) {
         `Follow-up skipped: ${followupAssessment.reason || "no_actionable_indicators"}.`
       );
     }
-  } catch (error) {
-    console.warn(
-      `Follow-up creation failed: ${error?.message || error}. Continuing without follow-up issue.`
-    );
+    } catch (error) {
+      console.warn(
+        `Follow-up creation failed: ${error?.message || error}. Continuing without follow-up issue.`
+      );
+    }
   }
 
   if (failureType === FAILURE_TYPES.stageNoop) {
@@ -303,24 +322,56 @@ export async function main(env = process.env, dependencies = {}) {
     childEnv.FACTORY_LAST_RUN_URL = resolvedRunUrl;
   }
 
-  childEnv.FACTORY_INTERVENTION = JSON.stringify(
-    buildFailureIntervention({
+  if (selfModifyGuardFailure) {
+    const intervention = buildApprovalIntervention({
       action,
-      phase,
-      failureType,
-      failureMessage,
-      retryAttempts,
-      repeatedFailureCount: repeatedFailureCountBase,
-      stageNoopAttempts: computedStageNoopAttempts,
-      stageSetupAttempts: computedStageSetupAttempts,
-      transientRetryAttempts: retryAttempts,
-      failureSignature: previousFailureSignature,
+      summary: "Need approval to continue with protected control-plane changes",
+      detail: failureMessage,
+      question:
+        "Should the factory continue after you manually apply the `factory:self-modify` label to this PR?",
+      recommendedOptionId: "approve_once",
+      options: [
+        {
+          id: "approve_once",
+          label: "Approve once after applying the label",
+          effect: "resume_current_stage"
+        },
+        {
+          id: "deny",
+          label: "Do not approve",
+          effect: "remain_blocked"
+        },
+        {
+          id: "human_takeover",
+          label: "Hand off to human-only handling",
+          effect: "manual_only"
+        }
+      ],
       runId,
-      runUrl: resolvedRunUrl,
-      reviewArtifactFailure,
-      blocking: status === FACTORY_PR_STATUSES.blocked
-    })
-  );
+      runUrl: resolvedRunUrl
+    });
+    childEnv.FACTORY_INTERVENTION = JSON.stringify(intervention);
+    childEnv.FACTORY_COMMENT = renderInterventionQuestionComment({ intervention });
+  } else {
+    childEnv.FACTORY_INTERVENTION = JSON.stringify(
+      buildFailureIntervention({
+        action,
+        phase,
+        failureType,
+        failureMessage,
+        retryAttempts,
+        repeatedFailureCount: repeatedFailureCountBase,
+        stageNoopAttempts: computedStageNoopAttempts,
+        stageSetupAttempts: computedStageSetupAttempts,
+        transientRetryAttempts: retryAttempts,
+        failureSignature: previousFailureSignature,
+        runId,
+        runUrl: resolvedRunUrl,
+        reviewArtifactFailure,
+        blocking: status === FACTORY_PR_STATUSES.blocked
+      })
+    );
+  }
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {
     env: childEnv,

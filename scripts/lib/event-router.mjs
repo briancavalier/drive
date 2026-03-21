@@ -19,7 +19,9 @@ import {
 import {
   buildFailureIntervention,
   getFailureCounter,
-  getFailureType
+  getFailureType,
+  getOpenQuestionIntervention,
+  getQuestionOption
 } from "./intervention-state.mjs";
 import { nextRepairState } from "./repair-state.mjs";
 
@@ -151,6 +153,31 @@ export async function routeIssueComment(payload, githubClient = {}) {
       artifactsPath: trustedContext.artifactsPath,
       stageNoopAttempts: getFailureCounter(metadata, "stageNoopAttempts"),
       stageSetupAttempts: getFailureCounter(metadata, "stageSetupAttempts")
+    };
+  }
+
+  if (parsedCommand.command === FACTORY_COMMANDS.answer) {
+    const intervention = getOpenQuestionIntervention(metadata);
+
+    if (
+      metadata?.status !== FACTORY_PR_STATUSES.blocked ||
+      !intervention ||
+      intervention.id !== parsedCommand.interventionId ||
+      !getQuestionOption(intervention, parsedCommand.optionId)
+    ) {
+      return { action: "noop" };
+    }
+
+    return {
+      action: "answer_intervention",
+      prNumber: pullRequest.number,
+      issueNumber: trustedContext.issueNumber,
+      branch: trustedContext.branch,
+      artifactsPath: trustedContext.artifactsPath,
+      interventionId: parsedCommand.interventionId,
+      optionId: parsedCommand.optionId,
+      answerNote: parsedCommand.note || "",
+      resumeAction: `${metadata.blockedAction || ""}`.trim()
     };
   }
 

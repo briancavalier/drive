@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  defaultApprovalIntervention,
   buildPlanReadyPrMetadata,
   canonicalizePrMetadata,
   defaultFailureIntervention,
@@ -168,4 +169,37 @@ test("canonicalizePrMetadata preserves populated intervention payloads", () => {
   assert.equal(metadata.intervention.type, "failure");
   assert.equal(metadata.intervention.payload.failureType, "stage_setup");
   assert.equal(metadata.intervention.payload.retryAttempts, 0);
+});
+
+test("renderPrBody preserves approval intervention metadata", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "blocked",
+      blockedAction: "implement",
+      intervention: defaultApprovalIntervention({
+        id: "int_q_123",
+        summary: "Need approval to continue with protected control-plane changes",
+        payload: {
+          question: "Should the factory continue after you apply the label?",
+          recommendedOptionId: "approve_once",
+          options: [
+            { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+            { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+          ]
+        }
+      })
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.intervention.type, "approval");
+  assert.equal(metadata.intervention.id, "int_q_123");
+  assert.equal(metadata.intervention.payload.options[0].id, "approve_once");
 });

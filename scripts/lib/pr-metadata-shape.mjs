@@ -1,11 +1,21 @@
 import { DEFAULT_MAX_REPAIR_ATTEMPTS, FACTORY_PR_STATUSES, issueArtifactsPath } from "./factory-config.mjs";
 import {
+  defaultApprovalIntervention,
   canonicalizeIntervention,
   defaultFailureIntervention,
-  defaultFailureInterventionPayload
+  defaultFailureInterventionPayload,
+  defaultQuestionIntervention,
+  defaultQuestionInterventionPayload
 } from "./intervention-state.mjs";
 
-export { canonicalizeIntervention, defaultFailureIntervention, defaultFailureInterventionPayload };
+export {
+  canonicalizeIntervention,
+  defaultApprovalIntervention,
+  defaultFailureIntervention,
+  defaultFailureInterventionPayload,
+  defaultQuestionIntervention,
+  defaultQuestionInterventionPayload
+};
 
 function stripLegacyFailureMetadata(metadata = {}) {
   const {
