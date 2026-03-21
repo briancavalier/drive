@@ -324,6 +324,11 @@ test("main converts self-modify guard failures into approval interventions", asy
   assert.equal(intervention.type, "approval");
   assert.equal(intervention.stage, "implement");
   assert.equal(intervention.payload.questionKind, "approval");
+  assert.equal(intervention.payload.resumeContext.ciRunId, null);
+  assert.equal(intervention.payload.resumeContext.reviewId, null);
+  assert.equal(intervention.payload.resumeContext.repairAttempts, 0);
+  assert.equal(intervention.payload.resumeContext.repeatedFailureCount, 0);
+  assert.equal(intervention.payload.resumeContext.stageSetupAttempts, 1);
   assert.deepEqual(
     intervention.payload.options.map((option) => option.id),
     ["approve_once", "deny", "human_takeover"]

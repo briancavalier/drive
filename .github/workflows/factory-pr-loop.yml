@@ -384,6 +384,7 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
           FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
           FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
 
@@ -505,6 +506,7 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
 
   block:
     if: needs.route.outputs.action == 'blocked'

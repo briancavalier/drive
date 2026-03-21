@@ -214,7 +214,15 @@ test("routeIssueComment routes valid intervention answers", async () => {
               options: [
                 { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
                 { id: "deny", label: "Do not approve", effect: "remain_blocked" }
-              ]
+              ],
+              resumeContext: {
+                ciRunId: "444",
+                repairAttempts: 2,
+                repeatedFailureCount: 1,
+                failureSignature: "sig-123",
+                stageNoopAttempts: 0,
+                stageSetupAttempts: 1
+              }
             }
           })
         }),
@@ -227,6 +235,46 @@ test("routeIssueComment routes valid intervention answers", async () => {
   assert.equal(route.optionId, "approve_once");
   assert.equal(route.answerNote, "Approved after label.");
   assert.equal(route.resumeAction, "implement");
+  assert.equal(route.ciRunId, "444");
+  assert.equal(route.repairState.repairAttempts, 2);
+  assert.equal(route.repairState.repeatedFailureCount, 1);
+  assert.equal(route.repairState.lastFailureSignature, "sig-123");
+  assert.equal(route.stageSetupAttempts, 1);
+});
+
+test("routeIssueComment preserves review resume context for answered repair interventions", async () => {
+  const route = await routeIssueComment(
+    prCommandPayload("/factory answer int_q_123 approve_once"),
+    {
+      getPullRequest: async () =>
+        managedPr("blocked", {
+          blockedAction: "repair",
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            payload: {
+              question: "Should the factory continue?",
+              recommendedOptionId: "approve_once",
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" }
+              ],
+              resumeContext: {
+                reviewId: "55",
+                repairAttempts: 1,
+                repeatedFailureCount: 1,
+                failureSignature: "review:55:requested changes"
+              }
+            }
+          })
+        }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  );
+
+  assert.equal(route.action, "answer_intervention");
+  assert.equal(route.resumeAction, "repair");
+  assert.equal(route.reviewId, "55");
+  assert.equal(route.repairState.repairAttempts, 1);
+  assert.equal(route.repairState.lastFailureSignature, "review:55:requested changes");
 });
 
 test("routeIssueComment rejects invalid intervention answers", async () => {

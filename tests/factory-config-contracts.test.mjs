@@ -314,6 +314,10 @@ test("factory PR loop failure jobs build diagnosis prompts and gate Codex adviso
     workflowText,
     /failure_phase:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_phase\s*\}\}/
   );
+  assert.match(
+    workflowText,
+    /name:\s+Handle classified stage failure[\s\S]*FACTORY_REVIEW_ID:\s*\$\{\{\s*needs\.route\.outputs\.review_id\s*\}\}/
+  );
 });
 
 test("factory PR loop failure jobs keep Codex diagnosis best-effort and out of repo-tracked temp paths", () => {

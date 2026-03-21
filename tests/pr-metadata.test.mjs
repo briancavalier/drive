@@ -191,7 +191,16 @@ test("renderPrBody preserves approval intervention metadata", () => {
           options: [
             { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
             { id: "deny", label: "Do not approve", effect: "remain_blocked" }
-          ]
+          ],
+          resumeContext: {
+            ciRunId: "777",
+            reviewId: "55",
+            repairAttempts: 2,
+            repeatedFailureCount: 1,
+            failureSignature: "sig-1",
+            stageNoopAttempts: 0,
+            stageSetupAttempts: 1
+          }
         }
       })
     })
@@ -202,4 +211,7 @@ test("renderPrBody preserves approval intervention metadata", () => {
   assert.equal(metadata.intervention.type, "approval");
   assert.equal(metadata.intervention.id, "int_q_123");
   assert.equal(metadata.intervention.payload.options[0].id, "approve_once");
+  assert.equal(metadata.intervention.payload.resumeContext.ciRunId, "777");
+  assert.equal(metadata.intervention.payload.resumeContext.reviewId, "55");
+  assert.equal(metadata.intervention.payload.resumeContext.repairAttempts, 2);
 });

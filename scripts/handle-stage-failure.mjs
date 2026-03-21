@@ -348,7 +348,16 @@ export async function main(env = process.env, dependencies = {}) {
         }
       ],
       runId,
-      runUrl: resolvedRunUrl
+      runUrl: resolvedRunUrl,
+      resumeContext: {
+        ciRunId: ciRunId || null,
+        reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
+        repairAttempts: Number(env.FACTORY_REPAIR_ATTEMPTS || 0),
+        repeatedFailureCount: repeatedFailureCountBase,
+        failureSignature: previousFailureSignature,
+        stageNoopAttempts: computedStageNoopAttempts,
+        stageSetupAttempts: computedStageSetupAttempts
+      }
     });
     childEnv.FACTORY_INTERVENTION = JSON.stringify(intervention);
     childEnv.FACTORY_COMMENT = renderInterventionQuestionComment({ intervention });

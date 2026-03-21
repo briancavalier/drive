@@ -11,6 +11,18 @@ function normalizeOption(option = {}) {
   };
 }
 
+function normalizeResumeContext(context = {}) {
+  return {
+    ciRunId: `${context.ciRunId || ""}`.trim() || null,
+    reviewId: `${context.reviewId || ""}`.trim() || null,
+    repairAttempts: Number(context.repairAttempts || 0),
+    repeatedFailureCount: Number(context.repeatedFailureCount || 0),
+    failureSignature: `${context.failureSignature || ""}`.trim() || null,
+    stageNoopAttempts: Number(context.stageNoopAttempts || 0),
+    stageSetupAttempts: Number(context.stageSetupAttempts || 0)
+  };
+}
+
 export function defaultFailureInterventionPayload(overrides = {}) {
   return {
     failureType: null,
@@ -33,10 +45,12 @@ export function defaultQuestionInterventionPayload(overrides = {}) {
     options: [],
     allowsComment: true,
     version: 1,
+    resumeContext: normalizeResumeContext(overrides.resumeContext),
     ...overrides,
     options: Array.isArray(overrides.options)
       ? overrides.options.map(normalizeOption)
-      : []
+      : [],
+    resumeContext: normalizeResumeContext(overrides.resumeContext)
   };
 }
 
@@ -181,6 +195,10 @@ export function getQuestionOption(intervention, optionId) {
   return getQuestionOptions(intervention).find((option) => option.id === normalizedOptionId) || null;
 }
 
+export function getQuestionResumeContext(intervention) {
+  return normalizeResumeContext(intervention?.payload?.resumeContext);
+}
+
 export function buildInterventionId(prefix = "int") {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   return `${prefix}_${timestamp}`;
@@ -239,7 +257,8 @@ export function buildApprovalIntervention({
   options,
   runId = null,
   runUrl = null,
-  allowsComment = true
+  allowsComment = true,
+  resumeContext = {}
 }) {
   return defaultApprovalIntervention({
     id,
@@ -254,7 +273,8 @@ export function buildApprovalIntervention({
       question: `${question || ""}`.trim(),
       recommendedOptionId: `${recommendedOptionId || ""}`.trim() || null,
       options: Array.isArray(options) ? options : [],
-      allowsComment
+      allowsComment,
+      resumeContext
     }
   });
 }
