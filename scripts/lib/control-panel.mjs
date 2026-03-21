@@ -154,11 +154,13 @@ function resolveLastCompletedStage({ metadata = {}, stateKey }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    if (metadata.lastFailureType === "review_artifact_contract" || metadata.pendingReviewSha) {
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
+
+    if (failureType === "review_artifact_contract" || metadata.pendingReviewSha) {
       return "review";
     }
 
-    if (metadata.lastFailureType === "plan_noop") {
+    if (failureType === "plan_noop") {
       return "plan";
     }
   }
@@ -212,7 +214,7 @@ function buildLinkAction(definition, url) {
 
 function canResumeBlockedRun(metadata = {}) {
   return (
-    FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${metadata.lastFailureType || ""}`.trim()) &&
+    FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${getFailureType(metadata) || ""}`.trim()) &&
     ["implement", "repair", "review"].includes(`${metadata.blockedAction || ""}`.trim())
   );
 }
@@ -260,6 +262,14 @@ function getFailureValue(metadata = {}, key, fallback = null) {
   return fallback;
 }
 
+function getFailureType(metadata = {}) {
+  return getFailureValue(metadata, "failureType", metadata.lastFailureType);
+}
+
+function getFailureCounter(metadata = {}, key, fallback = 0) {
+  return Number(getFailureValue(metadata, key, fallback) || 0);
+}
+
 function hasSelfModifyGuardSignature(metadata = {}) {
   const signature = `${getFailureValue(metadata, "failureSignature", metadata.lastFailureSignature) || ""}`.toLowerCase();
 
@@ -272,7 +282,7 @@ function hasSelfModifyGuardSignature(metadata = {}) {
 
 function buildBlockedReason({ metadata }) {
   const intervention = getOpenFailureIntervention(metadata);
-  const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
+  const failureType = `${getFailureType(metadata) || ""}`.trim();
 
   if (intervention?.summary) {
     if (failureType === "review_artifact_contract") {
@@ -293,7 +303,7 @@ function buildBlockedReason({ metadata }) {
     }
 
     if (failureType === "stage_noop") {
-      const attempts = Number(getFailureValue(metadata, "stageNoopAttempts", metadata.stageNoopAttempts) || 0);
+      const attempts = getFailureCounter(metadata, "stageNoopAttempts", metadata.stageNoopAttempts);
       return attempts > 1
         ? "Latest stage run produced no committed changes after repeated attempts."
         : "Latest stage run produced no committed changes.";
@@ -310,7 +320,7 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "stage_noop") {
-    const attempts = Number(metadata.stageNoopAttempts || 0);
+    const attempts = getFailureCounter(metadata, "stageNoopAttempts", metadata.stageNoopAttempts);
     return attempts > 1
       ? "Latest stage run produced no committed changes after repeated attempts."
       : "Latest stage run produced no committed changes.";
@@ -325,7 +335,11 @@ function buildBlockedReason({ metadata }) {
   }
 
   if (failureType === "transient_infra") {
-    const retries = Number(metadata.transientRetryAttempts || 0);
+    const retries = getFailureCounter(
+      metadata,
+      "transientRetryAttempts",
+      metadata.transientRetryAttempts
+    );
     return retries > 0
       ? `Run hit transient infrastructure issues after ${retries} automated retr${retries === 1 ? "y" : "ies"}.`
       : "Run hit transient infrastructure issues.";
@@ -406,7 +420,7 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       return "Escalate to a human reviewer or reset the run before trying again.";
@@ -534,7 +548,7 @@ function buildActions({
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
-    const failureType = `${getFailureValue(metadata, "failureType", metadata.lastFailureType) || ""}`.trim();
+    const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
       pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));

@@ -246,6 +246,54 @@ test("blocked state falls back to legacy failure metadata when intervention is a
   assert.deepEqual(actionIds(panel), ["resume", "pause", "open_latest_run"]);
 });
 
+test("blocked control panel uses intervention-only transient failure context", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      blockedAction: "review",
+      intervention: defaultFailureIntervention({
+        payload: {
+          failureType: "transient_infra",
+          transientRetryAttempts: 2
+        }
+      })
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.match(panel.reason || "", /after 2 automated retries/i);
+  assert.deepEqual(actionIds(panel), ["resume", "pause"]);
+});
+
+test("blocked control panel resolves review stage from intervention-only review artifact failures", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      intervention: defaultFailureIntervention({
+        payload: {
+          failureType: "review_artifact_contract",
+          reviewArtifactFailure: {
+            type: "review_artifact_contract",
+            message: "review.json missing"
+          }
+        }
+      })
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.equal(panel.lastCompletedStage, "review");
+  assert.deepEqual(actionIds(panel), ["reset", "pause", "open_artifacts"]);
+});
+
 test("latest run and artifact links surface when metadata is present", () => {
   const withUrl = buildControlPanel({
     metadata: metadata({
