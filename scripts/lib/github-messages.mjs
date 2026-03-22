@@ -80,6 +80,17 @@ const PR_SLASH_COMMANDS = Object.freeze({
     FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.reset]
 });
 
+const OPTION_EFFECT_HINTS = Object.freeze({
+  resume_current_stage: "Resumes automation",
+  remain_blocked: "Keeps automation blocked",
+  manual_only: "Manual takeover required"
+});
+
+function describeOptionEffect(effect = "") {
+  const key = `${effect}`.trim();
+  return key ? OPTION_EFFECT_HINTS[key] || null : null;
+}
+
 const ACTION_GUIDANCE = Object.freeze({
   start_implement: {
     commandKey: "implement",
@@ -663,14 +674,18 @@ export function renderPlanReadyIssueComment(
 
 export function renderInterventionQuestionComment({ intervention }) {
   const options = getQuestionOptions(intervention);
-  const answerCommands = options.map(
-    (option) =>
-      `${PR_SLASH_COMMANDS.answer} ${intervention.id} ${option.id}`
-  );
-  const optionLines = options.map(
-    (option) => `- \`${option.id}\` — ${option.label}`
-  );
-  const commandBlock = answerCommands.join("\n");
+  const recommendedOptionId = `${intervention.payload?.recommendedOptionId || ""}`.trim();
+  const summaryFacts = [
+    `**Question ID:** \`${intervention.id}\``,
+    `**Stage:** \`${intervention.stage}\``
+  ];
+
+  if (recommendedOptionId) {
+    summaryFacts.push(`**Recommended:** \`${recommendedOptionId}\``);
+  }
+
+  const questionPrompt = `${intervention.payload?.question || ""}`.trim();
+  const detail = normalizeNewlines(`${intervention.detail || ""}`).trim();
   const metadata = JSON.stringify({
     id: intervention.id,
     type: intervention.type,
@@ -678,34 +693,51 @@ export function renderInterventionQuestionComment({ intervention }) {
     status: intervention.status,
     optionIds: options.map((option) => option.id)
   });
-
-  return [
+  const lines = [
     "## Factory Question",
-    "",
-    intervention.summary,
-    "",
-    `- Intervention ID: \`${intervention.id}\``,
-    `- Type: \`${intervention.type}\``,
-    `- Stage: \`${intervention.stage}\``,
-    `- Recommended answer: \`${intervention.payload?.recommendedOptionId || ""}\``,
-    "",
-    "### Decision",
-    intervention.payload?.question || intervention.detail || "",
-    ...(intervention.detail ? ["", "### Context", intervention.detail] : []),
-    "",
-    "### Options",
-    ...optionLines,
-    "",
-    "### Answer",
-    "Reply in a new PR comment with one of:",
-    "",
-    "```text",
-    commandBlock,
-    "```",
-    "",
-    `<!-- factory-question: ${metadata} -->`
-  ]
-    .filter((line, index, lines) => !(line === "" && lines[index - 1] === ""))
+    ""
+  ];
+
+  if (`${intervention.summary || ""}`.trim()) {
+    lines.push(`${intervention.summary}`.trim());
+  }
+
+  if (summaryFacts.length) {
+    lines.push(summaryFacts.join(" · "));
+  }
+
+  if (questionPrompt) {
+    lines.push(`> _${questionPrompt}_`);
+  }
+
+  lines.push("", "### Answers", "");
+
+  if (options.length) {
+    for (const option of options) {
+      const label = `${option.label || option.id}`.trim() || option.id;
+      const effectHint = describeOptionEffect(option.effect);
+      lines.push(effectHint ? `**${label}** — ${effectHint}` : `**${label}**`);
+      lines.push("", "```text", `${PR_SLASH_COMMANDS.answer} ${intervention.id} ${option.id}`, "```", "");
+    }
+  }
+
+  if (!options.length) {
+    lines.push("_No answers available._", "");
+  }
+
+  if (detail) {
+    lines.push("<details>");
+    lines.push("<summary>Why this needs attention</summary>");
+    lines.push("");
+    lines.push(detail);
+    lines.push("</details>");
+    lines.push("");
+  }
+
+  lines.push(`<!-- factory-question: ${metadata} -->`);
+
+  return lines
+    .filter((line, index, allLines) => !(line === "" && allLines[index - 1] === ""))
     .join("\n")
     .trim();
 }

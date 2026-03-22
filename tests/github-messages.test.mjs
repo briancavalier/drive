@@ -219,29 +219,135 @@ test("renderPrBody renders blocked summary with stage from blockedAction", () =>
   ]);
 });
 
-test("renderInterventionQuestionComment includes commands and metadata", () => {
-  const comment = renderInterventionQuestionComment({
-    intervention: defaultApprovalIntervention({
-      id: "int_q_123",
-      stage: "implement",
-      summary: "Need approval to continue with protected control-plane changes",
-      detail: "Apply the label manually before approving.",
-      payload: {
-        question: "Should the factory continue after you apply the label?",
-        recommendedOptionId: "approve_once",
-        options: [
-          { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
-          { id: "deny", label: "Do not approve", effect: "remain_blocked" }
-        ]
-      }
-    })
+test("renderInterventionQuestionComment renders concise header with per-option fences", () => {
+  const intervention = defaultApprovalIntervention({
+    id: "int_q_123",
+    stage: "implement",
+    summary: "Need approval to continue with protected control-plane changes",
+    detail: "Apply the label manually before approving.",
+    payload: {
+      question: "Should the factory continue after you apply the label?",
+      recommendedOptionId: "approve_once",
+      options: [
+        { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+        { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+      ]
+    }
   });
+  const comment = renderInterventionQuestionComment({ intervention });
+  const lines = comment.split("\n");
 
-  assert.match(comment, /## Factory Question/);
-  assert.match(comment, /Intervention ID: `int_q_123`/);
-  assert.match(comment, /\/factory answer int_q_123 approve_once/);
-  assert.match(comment, /factory-question/);
+  assert.equal(lines[0], "## Factory Question");
+  assert.equal(lines[2], "Need approval to continue with protected control-plane changes");
+  assert.equal(
+    lines[3],
+    "**Question ID:** `int_q_123` · **Stage:** `implement` · **Recommended:** `approve_once`"
+  );
+  assert.equal(lines[4], "> _Should the factory continue after you apply the label?_");
+
+  const answersHeadingIndex = lines.indexOf("### Answers");
+  assert.ok(answersHeadingIndex > 0);
+
+  const firstOptionIndex = answersHeadingIndex + 2;
+  assert.equal(lines[firstOptionIndex], "**Approve once** — Resumes automation");
+  assert.equal(lines[firstOptionIndex + 1], "");
+  assert.equal(lines[firstOptionIndex + 2], "```text");
+  assert.equal(lines[firstOptionIndex + 3], "/factory answer int_q_123 approve_once");
+  assert.equal(lines[firstOptionIndex + 4], "```");
+
+  const secondOptionIndex = lines.indexOf("**Do not approve** — Keeps automation blocked");
+  assert.ok(secondOptionIndex > firstOptionIndex);
+  assert.equal(lines[secondOptionIndex + 1], "");
+  assert.equal(lines[secondOptionIndex + 2], "```text");
+  assert.equal(lines[secondOptionIndex + 3], "/factory answer int_q_123 deny");
+  assert.equal(lines[secondOptionIndex + 4], "```");
+
+  const fences = lines.filter((line) => line === "```text");
+  assert.equal(fences.length, 2);
+
+  assert.ok(!comment.includes("### Options"));
+  assert.ok(!comment.includes("Reply in a new PR comment"));
+  assert.ok(comment.includes("<details>"));
+  assert.ok(comment.includes("<summary>Why this needs attention</summary>"));
+
+  const metadataMatch = comment.match(/<!-- factory-question: ([^>]+) -->/);
+  assert.ok(metadataMatch);
+  assert.deepEqual(JSON.parse(metadataMatch[1]), {
+    id: "int_q_123",
+    type: "approval",
+    version: 1,
+    status: "open",
+    optionIds: ["approve_once", "deny"]
+  });
 });
+
+test("renderInterventionQuestionComment omits outcome hint for unknown effects", () => {
+  const intervention = defaultApprovalIntervention({
+    id: "int_unknown",
+    stage: "review",
+    summary: "Decide next step",
+    detail: "",
+    payload: {
+      question: "What should happen now?",
+      recommendedOptionId: null,
+      options: [{ id: "hold", label: "Hold for review", effect: "something_else" }]
+    }
+  });
+  const comment = renderInterventionQuestionComment({ intervention });
+  const lines = comment.split("\n");
+  const optionIndex = lines.indexOf("**Hold for review**");
+
+  assert.ok(optionIndex > -1);
+  assert.ok(!lines[optionIndex].includes(" — "));
+  assert.equal(lines[optionIndex + 1], "");
+  assert.equal(lines[optionIndex + 2], "```text");
+  assert.equal(lines[optionIndex + 3], "/factory answer int_unknown hold");
+  assert.equal(lines[optionIndex + 4], "```");
+});
+
+test("renderInterventionQuestionComment skips context section when detail absent", () => {
+  const intervention = defaultApprovalIntervention({
+    id: "int_no_detail",
+    stage: "implement",
+    summary: "Confirm deployment",
+    detail: "",
+    payload: {
+      question: "Is the deployment ready?",
+      recommendedOptionId: "approve_once",
+      options: [
+        { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+        { id: "deny", label: "Deny", effect: "remain_blocked" }
+      ]
+    }
+  });
+  const comment = renderInterventionQuestionComment({ intervention });
+
+  assert.ok(!comment.includes("<details>"));
+  assert.ok(!comment.includes("<summary>Why this needs attention</summary>"));
+});
+
+test("renderInterventionQuestionComment omits recommended fact when not provided", () => {
+  const intervention = defaultApprovalIntervention({
+    id: "int_no_recommendation",
+    stage: "implement",
+    summary: "Escalate for confirmation",
+    detail: "Follow runbook section 2 before answering.",
+    payload: {
+      question: "Continue automation?",
+      recommendedOptionId: null,
+      options: [
+        { id: "resume", label: "Resume", effect: "resume_current_stage" }
+      ]
+    }
+  });
+  const comment = renderInterventionQuestionComment({ intervention });
+  const lines = comment.split("\n");
+  const factsLine = lines.find((line) => line.startsWith("**Question ID:**"));
+
+  assert.ok(factsLine);
+  assert.equal(factsLine, "**Question ID:** `int_no_recommendation` · **Stage:** `implement`");
+});
+
 
 test("renderInterventionResolutionComment includes resolution metadata", () => {
   const comment = renderInterventionResolutionComment({

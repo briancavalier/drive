@@ -1,0 +1,88 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Change reduces visual noise in intervention question comments, renders per-option `text` code fences, moves verbose context into a details block, and preserves machine-readable metadata. Tests and CI passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Question comments show a short visible summary, question ID, and recommended answer near the top",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: summaryFacts composed and pushed to rendered lines (lines ~683-697 in commit 52b3d4e)",
+        "tests/github-messages.test.mjs: asserts for facts line (lines asserting facts in test 'renderInterventionQuestionComment renders concise header with per-option fences')",
+        "Commit 52b3d4e51f5a814204869826ff38c92dd9e42720 updates renderer and tests"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Each answer appears in its own `text` code fence with a human-readable label explaining the outcome",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: per-option loop emits '```text' fence and '/factory answer <id>' command for each option (lines ~716-725 in commit 52b3d4e)",
+        "tests/github-messages.test.mjs: asserts two '```text' fences and specific lines for first and second option commands in the new test"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The separate visible options section is removed",
+      "status": "satisfied",
+      "evidence": [
+        "tests/github-messages.test.mjs: asserts that the rendered comment does not include '### Options'",
+        "scripts/lib/github-messages.mjs: new layout constructs '### Answers' and omits previous options bullet list"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Context is moved below the answer section into a `<details>` block when present",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: renders '<details>' when detail is non-empty (lines ~728-737 in commit 52b3d4e)",
+        "tests/github-messages.test.mjs: asserts presence of '<details>' and the expected summary line in the primary test, and absence in the 'no detail' test"
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Preserve the existing machine-readable hidden metadata block in the question comment",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: appends '<!-- factory-question: ${metadata} -->' at the end of the rendered comment",
+        "tests/github-messages.test.mjs: parses the metadata JSON and asserts object shape"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update tests to assert new structure and behavior",
+      "status": "satisfied",
+      "evidence": [
+        "tests/github-messages.test.mjs: new tests added for concise header, per-option fences, unknown effect fallback, missing detail behavior, and missing recommended option",
+        "CI: unit tests passed (workflow run id: 23392704836)"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Introduce a helper to derive effect descriptions for known option.effect values",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs: OPTION_EFFECT_HINTS and describeOptionEffect introduced near top of file",
+        "tests: behavior validated via tests asserting presence/absence of effect hints"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Add explicit test for empty options array",
+      "details": "Implementation renders a fallback message when `options.length === 0`, but there is no explicit unit test asserting that fallback behavior.",
+      "scope": "tests/github-messages.test.mjs",
+      "recommendation": "Add a small test case that constructs an intervention with an empty options array and asserts the fallback text 'No answers available.' or similar behavior."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Consider exporting effect hint map",
+      "details": "The `OPTION_EFFECT_HINTS` map is private to `github-messages.mjs`. If future renderers should reuse the same human-readable wording, duplicating the mapping could cause drift.",
+      "scope": "scripts/lib/github-messages.mjs",
+      "recommendation": "Optionally export the hints or move them to a shared utility so other modules can reuse the same strings."
+    }
+  ]
+}
