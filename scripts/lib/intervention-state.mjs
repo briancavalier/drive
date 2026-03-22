@@ -45,6 +45,7 @@ export function defaultQuestionInterventionPayload(overrides = {}) {
     options: [],
     allowsComment: true,
     version: 1,
+    applySelfModifyLabelOnApproval: false,
     resumeContext: normalizeResumeContext(overrides.resumeContext),
     ...overrides,
     options: Array.isArray(overrides.options)
@@ -258,7 +259,8 @@ export function buildApprovalIntervention({
   runId = null,
   runUrl = null,
   allowsComment = true,
-  resumeContext = {}
+  resumeContext = {},
+  applySelfModifyLabelOnApproval = false
 }) {
   return defaultApprovalIntervention({
     id,
@@ -274,6 +276,7 @@ export function buildApprovalIntervention({
       recommendedOptionId: `${recommendedOptionId || ""}`.trim() || null,
       options: Array.isArray(options) ? options : [],
       allowsComment,
+      applySelfModifyLabelOnApproval,
       resumeContext
     }
   });

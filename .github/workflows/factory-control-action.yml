@@ -18,7 +18,6 @@ on:
           - retry
           - retry_review
           - reset
-          - approve_self_modify
           - escalate
       comment:
         description: "Optional note to add to the pull request"
@@ -118,17 +117,10 @@ jobs:
           FACTORY_LAST_COMPLETED_STAGE: "plan"
           FACTORY_LAST_RUN_ID: ""
           FACTORY_LAST_RUN_URL: ""
+          FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_PAUSE_REASON: ""
           FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: PR reset to plan_ready.' }}"
-
-      - name: Approve self-modify (manual guidance)
-        if: ${{ inputs.action == 'approve_self_modify' }}
-        run: node scripts/apply-pr-state.mjs
-        env:
-          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
-          FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: please manually apply the factory:self-modify label before rerunning.' }}"
 
       - name: Escalate to human-only
         if: ${{ inputs.action == 'escalate' }}
@@ -140,5 +132,7 @@ jobs:
           FACTORY_STATUS: blocked
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_REMOVE_LABELS: factory:implement
+          FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_CONVERT_TO_DRAFT: "true"
           FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: escalated to human-only handling.' }}"

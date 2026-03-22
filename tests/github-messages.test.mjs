@@ -224,12 +224,16 @@ test("renderInterventionQuestionComment renders concise header with per-option f
     id: "int_q_123",
     stage: "implement",
     summary: "Need approval to continue with protected control-plane changes",
-    detail: "Apply the label manually before approving.",
+    detail: "The next resumed stage needs temporary self-modify authorization.",
     payload: {
-      question: "Should the factory continue after you apply the label?",
+      question: "Should the factory authorize self-modify for the next resumed stage and continue?",
       recommendedOptionId: "approve_once",
       options: [
-        { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+        {
+          id: "approve_once",
+          label: "Approve once and authorize the next resumed stage",
+          effect: "resume_current_stage"
+        },
         { id: "deny", label: "Do not approve", effect: "remain_blocked" }
       ]
     }
@@ -243,13 +247,19 @@ test("renderInterventionQuestionComment renders concise header with per-option f
     lines[3],
     "**Question ID:** `int_q_123` · **Stage:** `implement` · **Recommended:** `approve_once`"
   );
-  assert.equal(lines[4], "> _Should the factory continue after you apply the label?_");
+  assert.equal(
+    lines[4],
+    "> _Should the factory authorize self-modify for the next resumed stage and continue?_"
+  );
 
   const answersHeadingIndex = lines.indexOf("### Answers");
   assert.ok(answersHeadingIndex > 0);
 
   const firstOptionIndex = answersHeadingIndex + 2;
-  assert.equal(lines[firstOptionIndex], "**Approve once** — Resumes automation");
+  assert.equal(
+    lines[firstOptionIndex],
+    "**Approve once and authorize the next resumed stage** — Resumes automation"
+  );
   assert.equal(lines[firstOptionIndex + 1], "");
   assert.equal(lines[firstOptionIndex + 2], "```text");
   assert.equal(lines[firstOptionIndex + 3], "/factory answer int_q_123 approve_once");
@@ -269,6 +279,7 @@ test("renderInterventionQuestionComment renders concise header with per-option f
   assert.ok(!comment.includes("Reply in a new PR comment"));
   assert.ok(comment.includes("<details>"));
   assert.ok(comment.includes("<summary>Why this needs attention</summary>"));
+  assert.doesNotMatch(comment, /apply the label manually/i);
 
   const metadataMatch = comment.match(/<!-- factory-question: ([^>]+) -->/);
   assert.ok(metadataMatch);

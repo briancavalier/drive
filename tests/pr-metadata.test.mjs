@@ -32,6 +32,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.lastProcessedWorkflowRunId, null);
   assert.equal(metadata.pendingReviewSha, null);
   assert.equal(metadata.intervention, null);
+  assert.equal(metadata.autoAppliedSelfModifyLabel, false);
   assert.equal(metadata.costEstimateUsd, 0);
   assert.equal(metadata.costEstimateBand, "");
   assert.match(body, /Closes #7/);
@@ -121,6 +122,7 @@ test("defaultPrMetadata includes a null intervention by default", () => {
   const metadata = defaultPrMetadata();
 
   assert.equal(metadata.intervention, null);
+  assert.equal(metadata.autoAppliedSelfModifyLabel, false);
 });
 
 test("renderPrBody preserves failure intervention metadata", () => {
@@ -186,8 +188,9 @@ test("renderPrBody preserves approval intervention metadata", () => {
         id: "int_q_123",
         summary: "Need approval to continue with protected control-plane changes",
         payload: {
-          question: "Should the factory continue after you apply the label?",
+          question: "Should the factory authorize self-modify for the next resumed stage and continue?",
           recommendedOptionId: "approve_once",
+          applySelfModifyLabelOnApproval: true,
           options: [
             { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
             { id: "deny", label: "Do not approve", effect: "remain_blocked" }
@@ -211,6 +214,7 @@ test("renderPrBody preserves approval intervention metadata", () => {
   assert.equal(metadata.intervention.type, "approval");
   assert.equal(metadata.intervention.id, "int_q_123");
   assert.equal(metadata.intervention.payload.options[0].id, "approve_once");
+  assert.equal(metadata.intervention.payload.applySelfModifyLabelOnApproval, true);
   assert.equal(metadata.intervention.payload.resumeContext.ciRunId, "777");
   assert.equal(metadata.intervention.payload.resumeContext.reviewId, "55");
   assert.equal(metadata.intervention.payload.resumeContext.repairAttempts, 2);

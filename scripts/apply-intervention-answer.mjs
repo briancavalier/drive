@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
-import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
+import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
 import {
   renderInterventionResolutionComment
@@ -13,6 +13,10 @@ import {
   getOpenQuestionIntervention,
   getQuestionOption
 } from "./lib/intervention-state.mjs";
+
+function hasLabel(labels = [], labelName) {
+  return labels.some((label) => label.name === labelName);
+}
 
 function requiredEnv(name, env = process.env) {
   const value = `${env[name] || ""}`.trim();
@@ -66,6 +70,10 @@ export async function main(env = process.env, dependencies = {}) {
   const resumeAction = option.effect === "resume_current_stage"
     ? requestedResumeAction || `${metadata.blockedAction || ""}`.trim()
     : "";
+  const shouldApplySelfModifyLabel =
+    optionId === "approve_once" &&
+    intervention.payload?.applySelfModifyLabelOnApproval === true;
+  const hasSelfModifyLabel = hasLabel(pullRequest.labels || [], FACTORY_LABELS.selfModify);
   const resolutionComment = renderInterventionResolutionComment({
     interventionId,
     optionId,
@@ -91,6 +99,14 @@ export async function main(env = process.env, dependencies = {}) {
         ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
         : ""
   };
+
+  if (shouldApplySelfModifyLabel && !hasSelfModifyLabel) {
+    childEnv.FACTORY_SELF_MODIFY_LABEL_ACTION = "add";
+    childEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL = "true";
+  } else {
+    childEnv.FACTORY_SELF_MODIFY_LABEL_ACTION = "__UNCHANGED__";
+    childEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL = "__UNCHANGED__";
+  }
 
   if (resumeAction) {
     childEnv.FACTORY_STATUS = resolveStatusFromAction(resumeAction);

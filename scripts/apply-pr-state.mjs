@@ -193,6 +193,45 @@ export function applyPaused(metadata, envValue) {
   };
 }
 
+export function applyAutoAppliedSelfModifyLabel(metadata, envValue) {
+  if (envValue === undefined || `${envValue}`.trim() === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    autoAppliedSelfModifyLabel: parseBoolean(envValue)
+  };
+}
+
+function applySelfModifyLabelAction({ prNumber, pullRequest, previousMetadata, envValue }) {
+  const action = `${envValue || ""}`.trim();
+
+  if (!action || action === "__UNCHANGED__") {
+    return Promise.resolve();
+  }
+
+  const hasSelfModifyLabel = hasLabel(pullRequest.labels || [], FACTORY_LABELS.selfModify);
+
+  if (action === "add") {
+    if (hasSelfModifyLabel) {
+      return Promise.resolve();
+    }
+
+    return addLabels(prNumber, [FACTORY_LABELS.selfModify]);
+  }
+
+  if (action === "remove_if_auto_applied") {
+    if (previousMetadata?.autoAppliedSelfModifyLabel !== true || !hasSelfModifyLabel) {
+      return Promise.resolve();
+    }
+
+    return removeLabel(prNumber, FACTORY_LABELS.selfModify);
+  }
+
+  throw new Error(`Invalid FACTORY_SELF_MODIFY_LABEL_ACTION: ${action}`);
+}
+
 export function buildProjectedLabels(metadata) {
   const labels = [FACTORY_LABELS.managed];
 
@@ -308,6 +347,10 @@ export async function main(env = process.env) {
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
   nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
+  nextMetadata = applyAutoAppliedSelfModifyLabel(
+    nextMetadata,
+    env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL
+  );
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
 
@@ -344,6 +387,13 @@ export async function main(env = process.env) {
       await addLabels(prNumber, [label]);
     }
   }
+
+  await applySelfModifyLabelAction({
+    prNumber,
+    pullRequest,
+    previousMetadata: metadata,
+    envValue: env.FACTORY_SELF_MODIFY_LABEL_ACTION
+  });
 
   if (parseBoolean(env.FACTORY_READY_FOR_REVIEW) && pullRequest.draft) {
     await markReadyForReview(pullRequest.node_id);
