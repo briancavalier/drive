@@ -256,6 +256,8 @@ jobs:
           FACTORY_PENDING_REVIEW_SHA: ""
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
+          FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_PAUSED: "false"
           FACTORY_PAUSE_REASON: ""
           FACTORY_CI_STATUS: pending

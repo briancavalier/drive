@@ -139,6 +139,15 @@ test("factory PR loop cleans up auto-applied self-modify authorization after sta
   );
 });
 
+test("factory PR loop reset clears auto-applied self-modify authorization", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+});
+
 test("factory PR loop stage caller grants reusable workflow write permissions", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
   const stageBlock = extractJobBlock(workflowText, "stage");
