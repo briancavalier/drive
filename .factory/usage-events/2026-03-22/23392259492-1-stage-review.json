@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "review",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-mini",
+  "issueNumber": 98,
+  "prNumber": 99,
+  "branch": "factory/98-clarify-the-factory-blocked-label-description",
+  "runId": "23392259492",
+  "runAttempt": 1,
+  "promptChars": 6725,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1682,
+    "cachedInputTokens": 0,
+    "outputTokens": 589,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1682,
+    "cachedInputTokens": 0,
+    "outputTokens": 589,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:review:gpt-5-mini",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0016,
+    "estimatedUsd": 0.0016,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-22T00:40:31.136Z"
+}
