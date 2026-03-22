@@ -9,9 +9,16 @@ Review against these dimensions:
 5. **Branch Protections & Merge Gates:** Workflow actions respect branch protection rules, required reviews, and status checks; emergency bypasses are gated and auditable.
 6. **Validation & Test Coverage:** Changes demonstrate verification for workflow logic (unit tests, dry runs, targeted CI), including negative paths for rollback conditions or failure handlers.
 
+Factory workflow/state-machine changes:
+
+- When a PR touches factory workflows, routing, PR state or metadata, interventions, control-panel behavior, or their related workflow-contract tests, reviewers must complete `./factory-review-checklist.md` in addition to this rubric.
+- Treat that checklist as required review procedure, not optional guidance.
+- Do not conclude `pass` or “no findings” until the checklist is complete and its evidence is reflected in the review output.
+
 Rules:
 
 - Missing evidence for a high-risk workflow change is a blocking finding.
 - Escalations that grant broad permissions or bypass branch protections must include documented mitigations; otherwise they are blocking.
 - Non_blocking findings apply to ergonomic or low-risk improvements that do not materially impact safety posture.
 - A `pass` decision requires every requirement to be `satisfied` or `not_applicable`, with explicit acknowledgment of any residual workflow risks.
+- For factory workflow/state-machine changes, a `pass` decision also requires completing `./factory-review-checklist.md`.

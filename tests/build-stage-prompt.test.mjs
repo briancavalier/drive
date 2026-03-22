@@ -651,11 +651,39 @@ test("review prompt resolves workflow-safety methodology when requested", () => 
   assert.match(result.prompt, /Review Rubric: Workflow-Safety/);
   assert.match(result.prompt, /Least-Privilege Permissions/);
   assert.match(result.prompt, /Trigger Scope & Recursion/);
+  assert.match(result.prompt, /factory-review-checklist\.md/);
+  assert.match(result.prompt, /Do not conclude `pass` or “no findings” until the checklist is complete/);
   assert.deepEqual(result.meta.methodology, {
     name: "workflow-safety",
     requested: "workflow-safety",
     fallback: false
   });
+});
+
+test("workflow-safety review checklist exists and is referenced by the rubric", () => {
+  const checklistPath = path.join(
+    process.cwd(),
+    ".factory",
+    "review-methods",
+    "workflow-safety",
+    "factory-review-checklist.md"
+  );
+  const checklist = fs.readFileSync(checklistPath, "utf8");
+  const instructions = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      ".factory",
+      "review-methods",
+      "workflow-safety",
+      "instructions.md"
+    ),
+    "utf8"
+  );
+
+  assert.match(checklist, /## Factory Workflow Review Checklist/);
+  assert.match(checklist, /## Review Worksheet/);
+  assert.match(instructions, /factory-review-checklist\.md/);
+  assert.match(instructions, /Do not conclude `pass` or “no findings” until the checklist is complete/);
 });
 
 test("review prompt includes CI evidence when workflow run provided", () => {
