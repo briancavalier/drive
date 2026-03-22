@@ -287,3 +287,52 @@ test("main leaves comment unchanged for ineligible failures", async () => {
   assert.ok(!execEnv.FACTORY_COMMENT.includes("Factory follow-up"), "comment should not mention follow-up");
   assert.equal(createCalls, 0);
 });
+
+test("main converts self-modify guard failures into approval interventions", async () => {
+  let execEnv = null;
+  let createCalls = 0;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.stageSetup,
+      FACTORY_FAILURE_MESSAGE:
+        "Protected workflow files changed without the required factory:self-modify label.",
+      FACTORY_PR_NUMBER: "456",
+      GITHUB_RUN_ID: "12345",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({ items: [] }),
+        createIssue: async () => {
+          createCalls += 1;
+          return { number: 999 };
+        }
+      }
+    }
+  );
+
+  const intervention = JSON.parse(execEnv.FACTORY_INTERVENTION);
+
+  assert.equal(createCalls, 0);
+  assert.equal(intervention.type, "approval");
+  assert.equal(intervention.stage, "implement");
+  assert.equal(intervention.payload.questionKind, "approval");
+  assert.equal(intervention.payload.resumeContext.ciRunId, null);
+  assert.equal(intervention.payload.resumeContext.reviewId, null);
+  assert.equal(intervention.payload.resumeContext.repairAttempts, 0);
+  assert.equal(intervention.payload.resumeContext.repeatedFailureCount, 0);
+  assert.equal(intervention.payload.resumeContext.stageSetupAttempts, 1);
+  assert.deepEqual(
+    intervention.payload.options.map((option) => option.id),
+    ["approve_once", "deny", "human_takeover"]
+  );
+  assert.match(execEnv.FACTORY_COMMENT, /## Factory Question/);
+  assert.match(execEnv.FACTORY_COMMENT, /\/factory answer .* approve_once/);
+});

@@ -5,11 +5,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildReviewConversationBody,
+  renderInterventionQuestionComment,
+  renderInterventionResolutionComment,
   renderIntakeRejectedComment,
   renderPlanReadyIssueComment,
   MAX_REVIEW_BODY_CHARS
 } from "../scripts/lib/github-messages.mjs";
 import {
+  defaultApprovalIntervention,
   defaultFailureIntervention,
   extractPrMetadata,
   renderPrBody
@@ -214,6 +217,42 @@ test("renderPrBody renders blocked summary with stage from blockedAction", () =>
     "- `/factory reset` — Reset to plan-ready before restarting.",
     "- `/factory pause` — Pause automation to hand off or intervene."
   ]);
+});
+
+test("renderInterventionQuestionComment includes commands and metadata", () => {
+  const comment = renderInterventionQuestionComment({
+    intervention: defaultApprovalIntervention({
+      id: "int_q_123",
+      stage: "implement",
+      summary: "Need approval to continue with protected control-plane changes",
+      detail: "Apply the label manually before approving.",
+      payload: {
+        question: "Should the factory continue after you apply the label?",
+        recommendedOptionId: "approve_once",
+        options: [
+          { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+          { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+        ]
+      }
+    })
+  });
+
+  assert.match(comment, /## Factory Question/);
+  assert.match(comment, /Intervention ID: `int_q_123`/);
+  assert.match(comment, /\/factory answer int_q_123 approve_once/);
+  assert.match(comment, /factory-question/);
+});
+
+test("renderInterventionResolutionComment includes resolution metadata", () => {
+  const comment = renderInterventionResolutionComment({
+    interventionId: "int_q_123",
+    optionId: "approve_once",
+    resumeAction: "implement"
+  });
+
+  assert.match(comment, /Resolved factory question `int_q_123` with answer `approve_once`\./);
+  assert.match(comment, /Resuming `implement`\./);
+  assert.match(comment, /factory-resolution/);
 });
 
 test("renderPrBody shows last completed stage for paused status", () => {

@@ -11,6 +11,8 @@ import {
   getFailureSignature,
   getFailureType,
   getOpenFailureIntervention,
+  getOpenQuestionIntervention,
+  getQuestionOptions,
   getReviewArtifactFailure
 } from "./intervention-state.mjs";
 
@@ -96,6 +98,11 @@ const ACTION_DEFINITIONS = Object.freeze({
     id: "open_failure_history",
     label: "🧭 Open failure history",
     kind: "link"
+  },
+  answer: {
+    id: "answer",
+    label: "",
+    kind: "mutation"
   }
 });
 
@@ -219,6 +226,21 @@ function buildLinkAction(definition, url) {
   };
 }
 
+function buildInterventionAnswerAction({ interventionId, optionId }, context) {
+  const url = buildPullRequestUrl(context.repositoryUrl, context.prNumber);
+
+  if (!url) {
+    return null;
+  }
+
+  return {
+    id: `answer_${optionId}`,
+    label: `💬 Comment ${FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.answer]} ${interventionId} ${optionId}`,
+    kind: "mutation",
+    url
+  };
+}
+
 function canResumeBlockedRun(metadata = {}) {
   return (
     FACTORY_RESUMABLE_FAILURE_TYPES.includes(`${getFailureType(metadata) || ""}`.trim()) &&
@@ -255,6 +277,12 @@ function hasSelfModifyGuardSignature(metadata = {}) {
 }
 
 function buildBlockedReason({ metadata }) {
+  const questionIntervention = getOpenQuestionIntervention(metadata);
+
+  if (questionIntervention?.summary) {
+    return questionIntervention.summary;
+  }
+
   const intervention = getOpenFailureIntervention(metadata);
   const failureType = `${getFailureType(metadata) || ""}`.trim();
 
@@ -382,6 +410,12 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
+    const questionIntervention = getOpenQuestionIntervention(metadata);
+
+    if (questionIntervention) {
+      return "Answer the open factory question in the PR conversation before continuing.";
+    }
+
     const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {
@@ -510,6 +544,23 @@ function buildActions({
   }
 
   if (stateKey === FACTORY_PR_STATUSES.blocked) {
+    const questionIntervention = getOpenQuestionIntervention(metadata);
+
+    if (questionIntervention) {
+      for (const option of getQuestionOptions(questionIntervention)) {
+        pushAction(
+          buildInterventionAnswerAction(
+            { interventionId: questionIntervention.id, optionId: option.id },
+            context
+          )
+        );
+      }
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
+      return actions;
+    }
+
     const failureType = `${getFailureType(metadata) || ""}`.trim();
 
     if (isRepairCapExceeded(metadata)) {

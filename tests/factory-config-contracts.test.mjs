@@ -107,6 +107,41 @@ test("factory PR loop stage caller grants reusable workflow write permissions", 
   );
 });
 
+test("factory PR loop normalizes effective stage dispatch across direct and answered routes", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const resolveBlock = extractJobBlock(workflowText, "resolve-stage-dispatch");
+  const stageBlock = extractJobBlock(workflowText, "stage");
+  const stageSucceededBlock = extractJobBlock(workflowText, "stage-succeeded");
+  const stageFailedBlock = extractJobBlock(workflowText, "stage-failed");
+  const processReviewBlock = extractJobBlock(workflowText, "process-review");
+  const reviewFailedBlock = extractJobBlock(workflowText, "review-processing-failed");
+
+  assert.match(resolveBlock, /needs:\s*\n\s+- route\n\s+- answer-intervention/);
+  assert.match(resolveBlock, /outputs:\s*\n\s+effective_action:\s*\$\{\{\s*steps\.resolve\.outputs\.effective_action\s*\}\}/);
+  assert.match(resolveBlock, /effective_action="\$\{RESUME_ACTION:-\$\{ROUTE_ACTION:-\}\}"/);
+
+  assert.match(stageBlock, /needs:\s*\n\s+- route\n\s+- mark-in-progress\n\s+- resolve-stage-dispatch/);
+  assert.doesNotMatch(stageBlock, /needs:\s*[\s\S]*answer-intervention/);
+  assert.match(stageBlock, /mode:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action\s*\}\}/);
+
+  assert.match(stageSucceededBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.doesNotMatch(stageSucceededBlock, /needs:\s*[\s\S]*answer-intervention/);
+  assert.match(stageSucceededBlock, /FACTORY_LAST_COMPLETED_STAGE:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action == 'implement' && 'implement' \|\| 'repair'\s*\}\}/);
+
+  assert.match(stageFailedBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.doesNotMatch(stageFailedBlock, /needs:\s*[\s\S]*answer-intervention/);
+  assert.match(stageFailedBlock, /FACTORY_FAILED_ACTION:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action\s*\}\}/);
+
+  assert.match(processReviewBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.doesNotMatch(processReviewBlock, /needs:\s*[\s\S]*mark-in-progress/);
+  assert.doesNotMatch(processReviewBlock, /needs:\s*[\s\S]*answer-intervention/);
+  assert.match(processReviewBlock, /needs\.resolve-stage-dispatch\.outputs\.effective_action == 'review'/);
+
+  assert.match(reviewFailedBlock, /needs:\s*\n\s+- route\n\s+- process-review\n\s+- resolve-stage-dispatch/);
+  assert.doesNotMatch(reviewFailedBlock, /needs:\s*[\s\S]*answer-intervention/);
+  assert.match(reviewFailedBlock, /needs\.resolve-stage-dispatch\.outputs\.effective_action == 'review'/);
+});
+
 test("factory stage workflow creates the stage artifacts path before Codex runs", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
@@ -278,6 +313,10 @@ test("factory PR loop failure jobs build diagnosis prompts and gate Codex adviso
   assert.match(
     workflowText,
     /failure_phase:\s*\$\{\{\s*steps\.process_review\.outputs\.failure_phase\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Handle classified stage failure[\s\S]*FACTORY_REVIEW_ID:\s*\$\{\{\s*needs\.route\.outputs\.review_id\s*\}\}/
   );
 });
 

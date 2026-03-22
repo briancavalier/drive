@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildControlPanel } from "../scripts/lib/control-panel.mjs";
-import { defaultFailureIntervention, defaultPrMetadata } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultApprovalIntervention,
+  defaultFailureIntervention,
+  defaultPrMetadata
+} from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 
 const repositoryUrl = "https://github.com/example/repo";
@@ -135,16 +139,40 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,
         blockedAction: "repair",
-        intervention: defaultFailureIntervention({
+        intervention: defaultApprovalIntervention({
+          id: "int_q_123",
+          summary: "Need approval to continue with protected control-plane changes",
           payload: {
-            failureType: "stage_setup",
-            failureSignature:
-              "stage setup prerequisites failed: factory stage output touches protected control-plane paths but the pull request is missing the factory:self-modify label."
+            question: "Should the factory continue after you apply the label?",
+            recommendedOptionId: "approve_once",
+            options: [
+              {
+                id: "approve_once",
+                label: "Approve once",
+                effect: "resume_current_stage"
+              },
+              {
+                id: "deny",
+                label: "Do not approve",
+                effect: "remain_blocked"
+              },
+              {
+                id: "human_takeover",
+                label: "Hand off to human-only handling",
+                effect: "manual_only"
+              }
+            ]
           }
         })
       }),
-      expectedActionIds: ["reset", "pause"],
-      reason: /self-modify guard/i
+      expectedActionIds: [
+        "answer_approve_once",
+        "answer_deny",
+        "answer_human_takeover",
+        "reset",
+        "pause"
+      ],
+      reason: /need approval/i
     },
     {
       name: "transient_infra",
@@ -319,6 +347,36 @@ test("blocked control panel treats intervention-only repeated failures as repair
 
   assert.match(panel.reason || "", /exhausted automatic retries/i);
   assert.deepEqual(actionIds(panel), ["reset", "pause", "open_failure_history"]);
+});
+
+test("approval interventions render answer commands in control panel", () => {
+  const panel = buildControlPanel({
+    metadata: metadata({
+      status: FACTORY_PR_STATUSES.blocked,
+      blockedAction: "implement",
+      intervention: defaultApprovalIntervention({
+        id: "int_q_123",
+        summary: "Need approval to continue with protected control-plane changes",
+        payload: {
+          question: "Should the factory continue after you apply the label?",
+          recommendedOptionId: "approve_once",
+          options: [
+            { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+            { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+          ]
+        }
+      })
+    }),
+    labels: [],
+    repositoryUrl,
+    branch,
+    prNumber: 7,
+    artifactLinks: baseArtifacts
+  });
+
+  assert.match(panel.reason || "", /need approval/i);
+  assert.deepEqual(actionIds(panel).slice(0, 2), ["answer_approve_once", "answer_deny"]);
+  assert.match(actionLabels(panel)[0], /\/factory answer int_q_123 approve_once/);
 });
 
 test("latest run and artifact links surface when metadata is present", () => {

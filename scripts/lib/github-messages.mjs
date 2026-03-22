@@ -11,6 +11,7 @@ import {
 } from "./factory-config.mjs";
 import { formatEstimatedUsd } from "./cost-estimation.mjs";
 import { defaultPrMetadata } from "./pr-metadata-shape.mjs";
+import { getQuestionOptions } from "./intervention-state.mjs";
 import { normalizeNewlines } from "./review-output.mjs";
 import { buildControlPanel } from "./control-panel.mjs";
 
@@ -69,6 +70,8 @@ const CI_STATUS_LABELS = Object.freeze({
 const PR_SLASH_COMMANDS = Object.freeze({
   implement:
     FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.implement],
+  answer:
+    FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.answer],
   resume:
     FACTORY_SLASH_COMMANDS[FACTORY_COMMAND_CONTEXTS.pullRequest][FACTORY_COMMANDS.resume],
   pause:
@@ -656,6 +659,83 @@ export function renderPlanReadyIssueComment(
     },
     options
   );
+}
+
+export function renderInterventionQuestionComment({ intervention }) {
+  const options = getQuestionOptions(intervention);
+  const answerCommands = options.map(
+    (option) =>
+      `${PR_SLASH_COMMANDS.answer} ${intervention.id} ${option.id}`
+  );
+  const optionLines = options.map(
+    (option) => `- \`${option.id}\` — ${option.label}`
+  );
+  const commandBlock = answerCommands.join("\n");
+  const metadata = JSON.stringify({
+    id: intervention.id,
+    type: intervention.type,
+    version: intervention.payload?.version || 1,
+    status: intervention.status,
+    optionIds: options.map((option) => option.id)
+  });
+
+  return [
+    "## Factory Question",
+    "",
+    intervention.summary,
+    "",
+    `- Intervention ID: \`${intervention.id}\``,
+    `- Type: \`${intervention.type}\``,
+    `- Stage: \`${intervention.stage}\``,
+    `- Recommended answer: \`${intervention.payload?.recommendedOptionId || ""}\``,
+    "",
+    "### Decision",
+    intervention.payload?.question || intervention.detail || "",
+    ...(intervention.detail ? ["", "### Context", intervention.detail] : []),
+    "",
+    "### Options",
+    ...optionLines,
+    "",
+    "### Answer",
+    "Reply in a new PR comment with one of:",
+    "",
+    "```text",
+    commandBlock,
+    "```",
+    "",
+    `<!-- factory-question: ${metadata} -->`
+  ]
+    .filter((line, index, lines) => !(line === "" && lines[index - 1] === ""))
+    .join("\n")
+    .trim();
+}
+
+export function renderInterventionResolutionComment({
+  interventionId,
+  optionId,
+  resumeAction = "",
+  remainsBlocked = false
+}) {
+  const lines = [
+    `Resolved factory question \`${interventionId}\` with answer \`${optionId}\`.`
+  ];
+
+  if (resumeAction) {
+    lines.push(`Resuming \`${resumeAction}\`.`);
+  } else if (remainsBlocked) {
+    lines.push("Automation will remain blocked pending manual action.");
+  }
+
+  lines.push("");
+  lines.push(
+    `<!-- factory-resolution: ${JSON.stringify({
+      interventionId,
+      kind: "answered",
+      optionId
+    })} -->`
+  );
+
+  return lines.join("\n").trim();
 }
 
 export function renderIntakeRejectedComment(

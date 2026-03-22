@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { routeIssueComment } from "../scripts/lib/event-router.mjs";
-import { defaultFailureIntervention, renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultApprovalIntervention,
+  defaultFailureIntervention,
+  renderPrBody
+} from "../scripts/lib/pr-metadata.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 
 function managedPr(status, metadata = {}) {
@@ -193,6 +197,109 @@ test("routeIssueComment routes pause and reset commands for trusted collaborator
 
   assert.equal(pauseRoute.action, "pause");
   assert.equal(resetRoute.action, "reset");
+});
+
+test("routeIssueComment routes valid intervention answers", async () => {
+  const route = await routeIssueComment(
+    prCommandPayload("/factory answer int_q_123 approve_once\n\nApproved after label."),
+    {
+      getPullRequest: async () =>
+        managedPr("blocked", {
+          blockedAction: "implement",
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            payload: {
+              question: "Should the factory continue?",
+              recommendedOptionId: "approve_once",
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+                { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+              ],
+              resumeContext: {
+                ciRunId: "444",
+                repairAttempts: 2,
+                repeatedFailureCount: 1,
+                failureSignature: "sig-123",
+                stageNoopAttempts: 0,
+                stageSetupAttempts: 1
+              }
+            }
+          })
+        }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  );
+
+  assert.equal(route.action, "answer_intervention");
+  assert.equal(route.interventionId, "int_q_123");
+  assert.equal(route.optionId, "approve_once");
+  assert.equal(route.answerNote, "Approved after label.");
+  assert.equal(route.resumeAction, "implement");
+  assert.equal(route.ciRunId, "444");
+  assert.equal(route.repairState.repairAttempts, 2);
+  assert.equal(route.repairState.repeatedFailureCount, 1);
+  assert.equal(route.repairState.lastFailureSignature, "sig-123");
+  assert.equal(route.stageSetupAttempts, 1);
+});
+
+test("routeIssueComment preserves review resume context for answered repair interventions", async () => {
+  const route = await routeIssueComment(
+    prCommandPayload("/factory answer int_q_123 approve_once"),
+    {
+      getPullRequest: async () =>
+        managedPr("blocked", {
+          blockedAction: "repair",
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            payload: {
+              question: "Should the factory continue?",
+              recommendedOptionId: "approve_once",
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" }
+              ],
+              resumeContext: {
+                reviewId: "55",
+                repairAttempts: 1,
+                repeatedFailureCount: 1,
+                failureSignature: "review:55:requested changes"
+              }
+            }
+          })
+        }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  );
+
+  assert.equal(route.action, "answer_intervention");
+  assert.equal(route.resumeAction, "repair");
+  assert.equal(route.reviewId, "55");
+  assert.equal(route.repairState.repairAttempts, 1);
+  assert.equal(route.repairState.lastFailureSignature, "review:55:requested changes");
+});
+
+test("routeIssueComment rejects invalid intervention answers", async () => {
+  const route = await routeIssueComment(
+    prCommandPayload("/factory answer int_q_999 approve_once"),
+    {
+      getPullRequest: async () =>
+        managedPr("blocked", {
+          blockedAction: "implement",
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            payload: {
+              question: "Should the factory continue?",
+              recommendedOptionId: "approve_once",
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" }
+              ]
+            }
+          })
+        }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  );
+
+  assert.equal(route.action, "noop");
 });
 
 test("routeIssueComment ignores untrusted command commenters", async () => {

@@ -65,6 +65,10 @@ jobs:
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
       failure_intervention: ${{ steps.route.outputs.failure_intervention }}
+      intervention_id: ${{ steps.route.outputs.intervention_id }}
+      intervention_option_id: ${{ steps.route.outputs.intervention_option_id }}
+      intervention_answer_note: ${{ steps.route.outputs.intervention_answer_note }}
+      resume_action: ${{ steps.route.outputs.resume_action }}
       repair_attempts: ${{ steps.route.outputs.repair_attempts }}
       intervention_repeated_failure_count: ${{ steps.route.outputs.intervention_repeated_failure_count }}
       intervention_failure_signature: ${{ steps.route.outputs.intervention_failure_signature }}
@@ -91,6 +95,41 @@ jobs:
         run: node scripts/route-pr-loop.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  answer-intervention:
+    if: needs.route.outputs.action == 'answer_intervention'
+    needs: route
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      resume_action: ${{ steps.answer.outputs.resume_action }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Apply intervention answer
+        id: answer
+        run: node scripts/apply-intervention-answer.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_INTERVENTION_ID: ${{ needs.route.outputs.intervention_id }}
+          FACTORY_OPTION_ID: ${{ needs.route.outputs.intervention_option_id }}
+          FACTORY_ANSWER_NOTE: ${{ needs.route.outputs.intervention_answer_note }}
+          FACTORY_RESUME_ACTION: ${{ needs.route.outputs.resume_action }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   mark-in-progress:
     if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
@@ -128,6 +167,35 @@ jobs:
           FACTORY_PAUSED: "false"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+
+  resolve-stage-dispatch:
+    if: |
+      always() && (
+        needs.route.outputs.action == 'implement' ||
+        needs.route.outputs.action == 'repair' ||
+        needs.route.outputs.action == 'review' ||
+        needs.answer-intervention.outputs.resume_action == 'implement' ||
+        needs.answer-intervention.outputs.resume_action == 'repair' ||
+        needs.answer-intervention.outputs.resume_action == 'review'
+      ) && (
+        needs.answer-intervention.result == 'success' ||
+        needs.answer-intervention.result == 'skipped'
+      )
+    needs:
+      - route
+      - answer-intervention
+    runs-on: ubuntu-latest
+    outputs:
+      effective_action: ${{ steps.resolve.outputs.effective_action }}
+    steps:
+      - name: Resolve effective stage action
+        id: resolve
+        run: |
+          effective_action="${RESUME_ACTION:-${ROUTE_ACTION:-}}"
+          echo "effective_action=${effective_action}" >> "$GITHUB_OUTPUT"
+        env:
+          ROUTE_ACTION: ${{ needs.route.outputs.action }}
+          RESUME_ACTION: ${{ needs.answer-intervention.outputs.resume_action }}
 
   pause-pr:
     if: needs.route.outputs.action == 'pause'
@@ -197,17 +265,29 @@ jobs:
           FACTORY_COMMENT: Factory PR reset via `/factory reset`. Status set to plan_ready.
 
   stage:
-    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
+    if: |
+      always() &&
+      (
+        needs.resolve-stage-dispatch.outputs.effective_action == 'implement' ||
+        needs.resolve-stage-dispatch.outputs.effective_action == 'repair' ||
+        needs.resolve-stage-dispatch.outputs.effective_action == 'review'
+      ) &&
+      (
+        needs.mark-in-progress.result == 'success' ||
+        needs.mark-in-progress.result == 'skipped'
+      ) &&
+      needs.resolve-stage-dispatch.result == 'success'
     needs:
       - route
       - mark-in-progress
+      - resolve-stage-dispatch
     permissions:
       contents: write
       issues: write
       pull-requests: write
     uses: ./.github/workflows/_factory-stage.yml
     with:
-      mode: ${{ needs.route.outputs.action }}
+      mode: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
       issue_number: ${{ fromJSON(needs.route.outputs.issue_number) }}
       pr_number: ${{ fromJSON(needs.route.outputs.pr_number) }}
       branch: ${{ needs.route.outputs.branch }}
@@ -220,10 +300,18 @@ jobs:
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   stage-succeeded:
-    if: (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair') && needs.stage.result == 'success'
+    if: |
+      always() &&
+      (
+        needs.resolve-stage-dispatch.outputs.effective_action == 'implement' ||
+        needs.resolve-stage-dispatch.outputs.effective_action == 'repair'
+      ) &&
+      needs.stage.result == 'success' &&
+      needs.resolve-stage-dispatch.result == 'success'
     needs:
       - route
       - stage
+      - resolve-stage-dispatch
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -246,15 +334,22 @@ jobs:
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
-          FACTORY_LAST_COMPLETED_STAGE: ${{ needs.route.outputs.action == 'implement' && 'implement' || 'repair' }}
+          FACTORY_LAST_COMPLETED_STAGE: ${{ needs.resolve-stage-dispatch.outputs.effective_action == 'implement' && 'implement' || 'repair' }}
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
 
   stage-failed:
-    if: always() && (needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review') && needs.stage.result == 'failure'
+    if: |
+      always() && (
+        needs.resolve-stage-dispatch.outputs.effective_action == 'implement' ||
+        needs.resolve-stage-dispatch.outputs.effective_action == 'repair' ||
+        needs.resolve-stage-dispatch.outputs.effective_action == 'review'
+      ) && needs.stage.result == 'failure' &&
+      needs.resolve-stage-dispatch.result == 'success'
     needs:
       - route
       - stage
+      - resolve-stage-dispatch
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -282,13 +377,14 @@ jobs:
         run: node scripts/build-failure-diagnosis-prompt.mjs
         env:
           FACTORY_FAILURE_PHASE: stage
-          FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
+          FACTORY_FAILED_ACTION: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
           FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
           FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
 
@@ -332,7 +428,7 @@ jobs:
         env:
           FACTORY_USAGE_CATEGORY: stage
           FACTORY_USAGE_OUTCOME: failed
-          FACTORY_MODE: ${{ needs.route.outputs.action }}
+          FACTORY_MODE: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
           FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
@@ -397,7 +493,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_FAILURE_PHASE: stage
-          FACTORY_FAILED_ACTION: ${{ needs.route.outputs.action }}
+          FACTORY_FAILED_ACTION: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
           FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.intervention_repeated_failure_count }}
           FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.route.outputs.intervention_failure_signature }}
@@ -410,6 +506,7 @@ jobs:
           FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
           FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
           FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
 
   block:
     if: needs.route.outputs.action == 'blocked'
@@ -446,11 +543,15 @@ jobs:
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
   process-review:
-    if: needs.route.outputs.action == 'review'
+    if: |
+      always() &&
+      needs.resolve-stage-dispatch.outputs.effective_action == 'review' &&
+      needs.stage.result == 'success' &&
+      needs.resolve-stage-dispatch.result == 'success'
     needs:
       - route
-      - mark-in-progress
       - stage
+      - resolve-stage-dispatch
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -494,10 +595,15 @@ jobs:
         run: exit 1
 
   review-processing-failed:
-    if: needs.route.outputs.action == 'review' && needs['process-review'].result == 'failure'
+    if: |
+      always() &&
+      needs.resolve-stage-dispatch.outputs.effective_action == 'review' &&
+      needs['process-review'].result == 'failure' &&
+      needs.resolve-stage-dispatch.result == 'success'
     needs:
       - route
       - process-review
+      - resolve-stage-dispatch
     runs-on: ubuntu-latest
     permissions:
       contents: write

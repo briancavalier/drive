@@ -13,6 +13,7 @@ export const FACTORY_LABELS = {
 export const FACTORY_COMMANDS = Object.freeze({
   start: "start",
   implement: "implement",
+  answer: "answer",
   resume: "resume",
   reset: "reset",
   pause: "pause"
@@ -34,6 +35,7 @@ export const FACTORY_SLASH_COMMANDS = Object.freeze({
   }),
   [FACTORY_COMMAND_CONTEXTS.pullRequest]: Object.freeze({
     [FACTORY_COMMANDS.implement]: "/factory implement",
+    [FACTORY_COMMANDS.answer]: "/factory answer",
     [FACTORY_COMMANDS.resume]: "/factory resume",
     [FACTORY_COMMANDS.reset]: "/factory reset",
     [FACTORY_COMMANDS.pause]: "/factory pause"

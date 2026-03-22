@@ -6,9 +6,11 @@ import {
 } from "./factory-config.mjs";
 import { renderPrBody as renderGithubPrBody } from "./github-messages.mjs";
 import {
+  defaultApprovalIntervention,
   canonicalizeIntervention,
   canonicalizePrMetadataShape,
   defaultFailureIntervention,
+  defaultQuestionIntervention,
   defaultPrMetadata as defaultPrMetadataShape
 } from "./pr-metadata-shape.mjs";
 
@@ -113,4 +115,9 @@ export function renderPrBody({
   }, options);
 }
 
-export { canonicalizeIntervention, defaultFailureIntervention };
+export {
+  canonicalizeIntervention,
+  defaultApprovalIntervention,
+  defaultFailureIntervention,
+  defaultQuestionIntervention
+};
