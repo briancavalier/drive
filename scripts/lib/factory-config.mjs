@@ -121,7 +121,8 @@ export const LABEL_DEFINITIONS = [
   {
     name: FACTORY_LABELS.blocked,
     color: "D93F0B",
-    description: "Factory execution is blocked and needs human attention"
+    description:
+      "Factory execution is blocked and waiting for human intervention to proceed."
   },
   {
     name: FACTORY_LABELS.paused,

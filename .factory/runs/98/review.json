@@ -1,0 +1,44 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Updates the `factory:blocked` label description to explicitly state it is waiting for human intervention; unit tests assert the new description and CI/unit tests passed.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Configuration description update: `LABEL_DEFINITIONS` contains the `factory:blocked` description 'Factory execution is blocked and waiting for human intervention to proceed.'",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/factory-config.mjs: label entry for FACTORY_LABELS.blocked has description 'Factory execution is blocked and waiting for human intervention to proceed.'",
+        "git diff origin/main...HEAD shows the description replaced in scripts/lib/factory-config.mjs (commit bf61a794)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Test coverage alignment: `tests/factory-config.test.mjs` asserts the updated `factory:blocked` description and test suite passes.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/factory-config.test.mjs: contains test 'label definitions include the blocked label metadata' asserting the new description and color.",
+        "CI workflow run id 23392255741: unit tests reported success (see run metadata provided in the review context)."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Limit changes to control-plane files and related tests under `scripts/**` and `tests/`",
+      "status": "satisfied",
+      "evidence": [
+        "git diff origin/main...HEAD lists modified files: scripts/lib/factory-config.mjs and tests/factory-config.test.mjs (plus .factory run artifacts).",
+        "No other source files outside `scripts/` and `tests/` were modified in this change set."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Consider adding a changelog entry",
+      "details": "The change clarifies operator-facing label text; a short note in CHANGELOG or release notes would improve discoverability for operators.",
+      "scope": "repo documentation",
+      "recommendation": "Add a brief line to the project's changelog or release notes mentioning the clarified wording for the `factory:blocked` label."
+    }
+  ]
+}

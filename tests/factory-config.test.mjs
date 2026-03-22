@@ -175,6 +175,19 @@ test("label definitions include the intake rejection label metadata", () => {
   assert.equal(definition.color, "D73A4A");
 });
 
+test("label definitions include the blocked label metadata", () => {
+  const definition = LABEL_DEFINITIONS.find(
+    (entry) => entry.name === FACTORY_LABELS.blocked
+  );
+
+  assert.ok(definition, "expected blocked label definition");
+  assert.equal(
+    definition.description,
+    "Factory execution is blocked and waiting for human intervention to proceed."
+  );
+  assert.equal(definition.color, "D93F0B");
+});
+
 test("label definitions include the self-modify label metadata", () => {
   const definition = LABEL_DEFINITIONS.find(
     (entry) => entry.name === FACTORY_LABELS.selfModify
