@@ -41,6 +41,15 @@ function createArtifacts({
       }
     ],
     findings: [],
+    checklist: {
+      state_changed: true,
+      writers_reviewed: true,
+      readers_reviewed: true,
+      workflow_paths_checked: true,
+      cleanup_paths_checked: true,
+      tests_evidence_checked: true,
+      residual_risks: "No additional residual workflow risks identified."
+    },
     ...reviewJson
   };
   const traceability = renderCanonicalTraceabilityMarkdown(
@@ -96,6 +105,55 @@ test("loadValidatedReviewArtifacts accepts workflow-safety methodology", () => {
   });
 
   assert.equal(review.methodology, "workflow-safety");
+  assert.equal(review.checklist.state_changed, true);
+});
+
+test("loadValidatedReviewArtifacts rejects workflow-safety reviews without checklist", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      methodology: "workflow-safety",
+      checklist: undefined
+    }
+  });
+  const reviewJsonPath = path.join(artifactsPath, "review.json");
+  const parsed = JSON.parse(fs.readFileSync(reviewJsonPath, "utf8"));
+  delete parsed.checklist;
+  fs.writeFileSync(reviewJsonPath, JSON.stringify(parsed, null, 2));
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: "workflow-safety"
+      }),
+    /checklist must be an object for workflow-safety reviews/
+  );
+});
+
+test("loadValidatedReviewArtifacts rejects workflow-safety pass reviews with incomplete checklist booleans", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      methodology: "workflow-safety",
+      checklist: {
+        state_changed: true,
+        writers_reviewed: true,
+        readers_reviewed: false,
+        workflow_paths_checked: true,
+        cleanup_paths_checked: true,
+        tests_evidence_checked: true,
+        residual_risks: "Reader inventory was incomplete."
+      }
+    }
+  });
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: "workflow-safety"
+      }),
+    /workflow-safety pass reviews must mark every checklist boolean as true/
+  );
 });
 
 test("loadValidatedReviewArtifacts rejects mismatched methodology", () => {
