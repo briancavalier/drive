@@ -82,20 +82,22 @@ const STAGE_SECTION_CONFIG = {
     dropPriority: ["factory-policy", "non-goals", "affected-area", "risk", "constraints", "artifacts", "acceptance", "goals", "problem"]
   },
   [FACTORY_STAGE_MODES.implement]: {
-    order: ["run-metadata", "factory-policy", "issue-synopsis", "artifact-index"],
+    order: ["run-metadata", "factory-policy", "human-decision", "issue-synopsis", "artifact-index"],
     preferredChars: {
       "run-metadata": 500,
       "factory-policy": 500,
+      "human-decision": 800,
       "issue-synopsis": 1200,
       "artifact-index": 5000
     },
     minChars: {
       "run-metadata": 200,
       "factory-policy": 0,
+      "human-decision": 0,
       "issue-synopsis": 200,
       "artifact-index": 800
     },
-    dropPriority: ["factory-policy", "issue-synopsis", "artifact-index"]
+    dropPriority: ["factory-policy", "human-decision", "issue-synopsis", "artifact-index"]
   },
   [FACTORY_STAGE_MODES.repair]: {
     order: ["run-metadata", "factory-policy", "failure-context", "artifact-index", "repair-log-tail", "issue-synopsis"],
@@ -404,6 +406,25 @@ function renderRunMetadata({
   return lines.join("\n");
 }
 
+function renderPendingStageDecision(metadata) {
+  const decision = metadata?.pendingStageDecision;
+
+  if (!decision) {
+    return "";
+  }
+
+  return [
+    `- Source intervention: ${decision.sourceInterventionId}`,
+    `- Decision kind: ${decision.kind}`,
+    `- Selected option: ${decision.selectedOptionLabel} (${decision.selectedOptionId})`,
+    `- Required direction: ${decision.instruction}`,
+    decision.answeredBy ? `- Answered by: ${decision.answeredBy}` : "",
+    decision.answeredAt ? `- Answered at: ${decision.answeredAt}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function renderFailureContext({
   mode,
   ciRunId,
@@ -672,6 +693,11 @@ function buildSectionsForMode({
 
   if (mode === FACTORY_STAGE_MODES.implement) {
     sections.push(
+      buildSection(
+        "human-decision",
+        "Human Decision",
+        renderPendingStageDecision(metadata)
+      ),
       buildSection(
         "issue-synopsis",
         "Issue Synopsis",

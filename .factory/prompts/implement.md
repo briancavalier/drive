@@ -12,6 +12,12 @@ Implementation rules:
 - Implement only the approved scope.
 - Add or update tests that prove the acceptance criteria.
 - Do not edit unrelated files.
+- If the context includes a `Human Decision` section, treat it as binding for
+  this run and follow that direction exactly.
+- If the issue, plan, artifacts, and repo still leave two materially different
+  valid implementation directions, do not guess and do not edit code. Instead,
+  write `.factory/tmp/intervention-request.json` with a structured ambiguity
+  question and stop.
 - If the plan is clearly impossible, document the blocker in
   `{{ARTIFACTS_PATH}}/repair-log.md` and stop.
 

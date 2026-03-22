@@ -386,6 +386,8 @@ export async function main(env = process.env, dependencies = {}) {
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {
     env: {
       ...childEnv,
+      FACTORY_PENDING_STAGE_DECISION:
+        env.FACTORY_PENDING_STAGE_DECISION || "__UNCHANGED__",
       FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
       FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
     },

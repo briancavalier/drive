@@ -120,6 +120,12 @@ on:
       usage_calibration_generated_at:
         description: Calibration generation timestamp.
         value: ${{ jobs.run.outputs.usage_calibration_generated_at }}
+      intervention_requested:
+        description: Indicates whether the stage requested a human intervention instead of producing output.
+        value: ${{ jobs.run.outputs.intervention_requested }}
+      intervention_payload:
+        description: Validated stage-authored intervention payload.
+        value: ${{ jobs.run.outputs.intervention_payload }}
     secrets:
       OPENAI_API_KEY:
         required: true
@@ -133,8 +139,8 @@ jobs:
       review_methodology: ${{ steps.build.outputs.review_methodology }}
       review_methodology_fallback: ${{ steps.build.outputs.review_methodology_fallback }}
       review_methodology_requested: ${{ steps.build.outputs.review_methodology_requested }}
-      failure_type: ${{ steps.validate_context.outputs.failure_type || steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
-      failure_message: ${{ steps.validate_context.outputs.failure_message || steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
+      failure_type: ${{ steps.validate_context.outputs.failure_type || steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.detect_intervention.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
+      failure_message: ${{ steps.validate_context.outputs.failure_message || steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.detect_intervention.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
       transient_retry_attempts: ${{ steps.model_preflight.outputs.transient_retry_attempts || steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
       refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
       refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}
@@ -158,6 +164,8 @@ jobs:
       usage_calibration_cached_input_multiplier: ${{ steps.cost.outputs.usage_calibration_cached_input_multiplier }}
       usage_calibration_output_multiplier: ${{ steps.cost.outputs.usage_calibration_output_multiplier }}
       usage_calibration_generated_at: ${{ steps.cost.outputs.usage_calibration_generated_at }}
+      intervention_requested: ${{ steps.detect_intervention.outputs.intervention_requested || 'false' }}
+      intervention_payload: ${{ steps.detect_intervention.outputs.intervention_payload }}
     permissions:
       contents: write
       pull-requests: write
@@ -301,8 +309,20 @@ jobs:
           echo "failure_message=Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
           exit 1
 
+      - name: Detect stage intervention request
+        id: detect_intervention
+        continue-on-error: true
+        run: node scripts/detect-stage-intervention-request.mjs
+        env:
+          FACTORY_MODE: ${{ inputs.mode }}
+
+      - name: Stop on stage intervention validation failure
+        if: steps.detect_intervention.outcome == 'failure'
+        run: exit 1
+
       - name: Prepare stage output for push
         id: prepare
+        if: steps.detect_intervention.outputs.intervention_requested != 'true'
         continue-on-error: true
         run: node scripts/prepare-stage-push.mjs
         env:
@@ -320,11 +340,12 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Stop on stage output preparation failure
-        if: steps.prepare.outcome == 'failure'
+        if: steps.detect_intervention.outputs.intervention_requested != 'true' && steps.prepare.outcome == 'failure'
         run: exit 1
 
       - name: Push stage output
         id: push
+        if: steps.detect_intervention.outputs.intervention_requested != 'true'
         continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
@@ -332,11 +353,11 @@ jobs:
           FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Stop on push failure
-        if: steps.push.outcome == 'failure'
+        if: steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'failure'
         run: exit 1
 
       - name: Record cost estimate on pull request
-        if: inputs.pr_number > 0 && steps.push.outcome == 'success'
+        if: inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success'
         run: node scripts/apply-pr-state.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}
@@ -356,7 +377,7 @@ jobs:
       # Two-stage review guard: record the freshly pushed review commit so CI completion
       # from the same SHA does not trigger an immediate rerun. process-review clears it.
       - name: Record pending review commit
-        if: inputs.mode == 'review' && inputs.pr_number > 0 && steps.push.outcome == 'success' && steps.prepare.outputs.prepared_head_sha != '' && steps.prepare.outputs.prepared_head_sha != steps.capture_head.outputs.refreshed_head_sha
+        if: inputs.mode == 'review' && inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success' && steps.prepare.outputs.prepared_head_sha != '' && steps.prepare.outputs.prepared_head_sha != steps.capture_head.outputs.refreshed_head_sha
         run: node scripts/apply-pr-state.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN || github.token }}

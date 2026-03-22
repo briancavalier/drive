@@ -86,6 +86,10 @@ test("factory control-action escalate clears auto-applied self-modify authorizat
     workflowText,
     /name:\s+Escalate to human-only[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
   );
+  assert.match(
+    workflowText,
+    /name:\s+Escalate to human-only[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*"__CLEAR__"/
+  );
 });
 
 test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
@@ -106,6 +110,10 @@ test("factory reset workflow clears canonical intervention state when repair sta
   assert.match(
     workflowText,
     /name:\s+Reset factory PR state[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*\$\{\{\s*inputs\.clear_repair_state && '__CLEAR__' \|\| '__UNCHANGED__'\s*\}\}/
   );
 });
 
@@ -140,6 +148,10 @@ test("factory PR loop cleans up auto-applied self-modify authorization after sta
   );
   assert.match(
     workflowText,
+    /name:\s+Record successful stage metadata[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*"__CLEAR__"/
+  );
+  assert.match(
+    workflowText,
     /name:\s+Mark PR as blocked[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
   );
   assert.match(
@@ -158,6 +170,10 @@ test("factory PR loop reset clears auto-applied self-modify authorization", () =
   assert.match(
     workflowText,
     /name:\s+Reset factory PR state[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*"__CLEAR__"/
   );
 });
 
@@ -323,6 +339,49 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
   );
 });
 
+test("factory stage workflow detects implement-stage intervention requests before push", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /intervention_requested:\s*\n\s+description:\s+Indicates whether the stage requested a human intervention instead of producing output\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.intervention_requested\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /intervention_payload:\s*\n\s+description:\s+Validated stage-authored intervention payload\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.intervention_payload\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Detect stage intervention request[\s\S]*node scripts\/detect-stage-intervention-request\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\| steps\.detect_intervention\.outputs\.failure_type \|\| steps\.prepare\.outputs\.failure_type \|\| steps\.push\.outputs\.failure_type\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Prepare stage output for push[\s\S]*if:\s*steps\.detect_intervention\.outputs\.intervention_requested != 'true'/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Push stage output[\s\S]*if:\s*steps\.detect_intervention\.outputs\.intervention_requested != 'true'/
+  );
+});
+
+test("factory PR loop blocks implement PRs on stage intervention requests", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+  const stageSucceededBlock = extractJobBlock(workflowText, "stage-succeeded");
+  const interventionBlock = extractJobBlock(workflowText, "block-on-stage-intervention");
+
+  assert.match(stageSucceededBlock, /needs\.stage\.outputs\.intervention_requested != 'true'/);
+  assert.match(interventionBlock, /needs\.stage\.outputs\.intervention_requested == 'true'/);
+  assert.match(interventionBlock, /run: node scripts\/handle-stage-intervention-request\.mjs/);
+  assert.match(
+    interventionBlock,
+    /FACTORY_INTERVENTION_REQUEST:\s*\$\{\{\s*needs\.stage\.outputs\.intervention_payload\s*\}\}/
+  );
+});
+
 test("factory stage workflow records estimated cost only after a successful push", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
   const estimateIndex = workflowText.indexOf("name: Estimate stage cost");
@@ -349,7 +408,7 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
-    /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
+    /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.detect_intervention\.outputs\.intervention_requested != 'true' && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
   );
   assert.match(workflowText, /name:\s+Budget preflight hook[\s\S]*Budget enforcement hook not configured/);
 });

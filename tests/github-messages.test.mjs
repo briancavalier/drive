@@ -316,6 +316,47 @@ test("renderInterventionQuestionComment omits outcome hint for unknown effects",
   assert.equal(lines[optionIndex + 4], "```");
 });
 
+test("renderInterventionQuestionComment renders generic ambiguity questions", () => {
+  const comment = renderInterventionQuestionComment({
+    intervention: {
+      id: "int_q_ambiguity",
+      type: "question",
+      stage: "implement",
+      summary: "Need a decision between two valid implementation directions",
+      detail: "Both paths satisfy the approved plan, but they lead to materially different code.",
+      payload: {
+        questionKind: "ambiguity",
+        question: "Which implementation direction should the factory take?",
+        recommendedOptionId: "api_first",
+        options: [
+          {
+            id: "api_first",
+            label: "API-first path",
+            effect: "resume_current_stage",
+            instruction: "Implement the API-first path."
+          },
+          {
+            id: "ui_first",
+            label: "UI-first path",
+            effect: "resume_current_stage",
+            instruction: "Implement the UI-first path."
+          },
+          {
+            id: "human_takeover",
+            label: "Hand off to human-only handling",
+            effect: "manual_only"
+          }
+        ]
+      }
+    }
+  });
+
+  assert.match(comment, /Need a decision between two valid implementation directions/);
+  assert.match(comment, /\/factory answer int_q_ambiguity api_first/);
+  assert.match(comment, /\/factory answer int_q_ambiguity ui_first/);
+  assert.match(comment, /\/factory answer int_q_ambiguity human_takeover/);
+});
+
 test("renderInterventionQuestionComment skips context section when detail absent", () => {
   const intervention = defaultApprovalIntervention({
     id: "int_no_detail",

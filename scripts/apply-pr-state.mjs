@@ -204,6 +204,38 @@ export function applyAutoAppliedSelfModifyLabel(metadata, envValue) {
   };
 }
 
+export function applyPendingStageDecision(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      pendingStageDecision: null
+    };
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("FACTORY_PENDING_STAGE_DECISION must be valid JSON when provided");
+  }
+
+  return {
+    ...metadata,
+    pendingStageDecision: parsed
+  };
+}
+
 function applySelfModifyLabelAction({ prNumber, pullRequest, previousMetadata, envValue }) {
   const action = `${envValue || ""}`.trim();
 
@@ -350,6 +382,10 @@ export async function main(env = process.env) {
   nextMetadata = applyAutoAppliedSelfModifyLabel(
     nextMetadata,
     env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL
+  );
+  nextMetadata = applyPendingStageDecision(
+    nextMetadata,
+    env.FACTORY_PENDING_STAGE_DECISION
   );
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
