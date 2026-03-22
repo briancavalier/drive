@@ -94,3 +94,21 @@ Use this compact shape in notes or review artifacts:
 - Residual risks:
 - Findings:
 ```
+
+For `workflow-safety` review artifacts, encode the worksheet in `review.json` as:
+
+```json
+{
+  "checklist": {
+    "state_changed": true,
+    "writers_reviewed": true,
+    "readers_reviewed": true,
+    "workflow_paths_checked": true,
+    "cleanup_paths_checked": true,
+    "tests_evidence_checked": true,
+    "residual_risks": "No additional residual workflow risks identified."
+  }
+}
+```
+
+`request_changes` reviews may record incomplete checklist booleans when that incompleteness is itself part of the finding. `pass` reviews must set every checklist boolean to `true`.

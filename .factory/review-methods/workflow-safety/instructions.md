@@ -14,6 +14,7 @@ Factory workflow/state-machine changes:
 - When a PR touches factory workflows, routing, PR state or metadata, interventions, control-panel behavior, or their related workflow-contract tests, reviewers must complete `./factory-review-checklist.md` in addition to this rubric.
 - Treat that checklist as required review procedure, not optional guidance.
 - Do not conclude `pass` or “no findings” until the checklist is complete and its evidence is reflected in the review output.
+- For `workflow-safety` reviews, `review.json` must include a `checklist` object with the fields `state_changed`, `writers_reviewed`, `readers_reviewed`, `workflow_paths_checked`, `cleanup_paths_checked`, `tests_evidence_checked`, and `residual_risks`.
 
 Rules:
 
@@ -22,3 +23,4 @@ Rules:
 - Non_blocking findings apply to ergonomic or low-risk improvements that do not materially impact safety posture.
 - A `pass` decision requires every requirement to be `satisfied` or `not_applicable`, with explicit acknowledgment of any residual workflow risks.
 - For factory workflow/state-machine changes, a `pass` decision also requires completing `./factory-review-checklist.md`.
+- For `workflow-safety` reviews with `decision: "pass"`, every checklist boolean must be `true`.

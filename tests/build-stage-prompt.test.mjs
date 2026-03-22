@@ -653,6 +653,8 @@ test("review prompt resolves workflow-safety methodology when requested", () => 
   assert.match(result.prompt, /Trigger Scope & Recursion/);
   assert.match(result.prompt, /factory-review-checklist\.md/);
   assert.match(result.prompt, /Do not conclude `pass` or “no findings” until the checklist is complete/);
+  assert.match(result.prompt, /`review\.json` must include a `checklist` object/);
+  assert.match(result.prompt, /`state_changed`, `writers_reviewed`, `readers_reviewed`/);
   assert.deepEqual(result.meta.methodology, {
     name: "workflow-safety",
     requested: "workflow-safety",
@@ -682,8 +684,10 @@ test("workflow-safety review checklist exists and is referenced by the rubric", 
 
   assert.match(checklist, /## Factory Workflow Review Checklist/);
   assert.match(checklist, /## Review Worksheet/);
+  assert.match(checklist, /"checklist": \{/);
   assert.match(instructions, /factory-review-checklist\.md/);
   assert.match(instructions, /Do not conclude `pass` or “no findings” until the checklist is complete/);
+  assert.match(instructions, /`review\.json` must include a `checklist` object/);
 });
 
 test("review prompt includes CI evidence when workflow run provided", () => {
