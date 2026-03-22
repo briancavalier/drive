@@ -132,5 +132,7 @@ jobs:
           FACTORY_STATUS: blocked
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_REMOVE_LABELS: factory:implement
+          FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_CONVERT_TO_DRAFT: "true"
           FACTORY_COMMENT: "${{ inputs.comment != '' && inputs.comment || 'Factory control panel: escalated to human-only handling.' }}"

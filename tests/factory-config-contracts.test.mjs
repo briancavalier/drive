@@ -75,6 +75,19 @@ test("factory control-action no longer exposes manual approve_self_modify dispat
   assert.doesNotMatch(workflowText, /Approve self-modify/);
 });
 
+test("factory control-action escalate clears auto-applied self-modify authorization", () => {
+  const workflowText = readWorkflowText("factory-control-action.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Escalate to human-only[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*remove_if_auto_applied/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Escalate to human-only[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+});
+
 test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
   const workflowText = readWorkflowText("factory-reset-pr.yml");
 
