@@ -324,6 +324,7 @@ test("main converts self-modify guard failures into approval interventions", asy
   assert.equal(intervention.type, "approval");
   assert.equal(intervention.stage, "implement");
   assert.equal(intervention.payload.questionKind, "approval");
+  assert.equal(intervention.payload.applySelfModifyLabelOnApproval, true);
   assert.equal(intervention.payload.resumeContext.ciRunId, null);
   assert.equal(intervention.payload.resumeContext.reviewId, null);
   assert.equal(intervention.payload.resumeContext.repairAttempts, 0);
@@ -333,6 +334,10 @@ test("main converts self-modify guard failures into approval interventions", asy
     intervention.payload.options.map((option) => option.id),
     ["approve_once", "deny", "human_takeover"]
   );
+  assert.match(intervention.payload.question, /authorize self-modify for the next resumed stage/);
+  assert.match(intervention.payload.options[0].label, /authorize the next resumed stage/);
   assert.match(execEnv.FACTORY_COMMENT, /## Factory Question/);
   assert.match(execEnv.FACTORY_COMMENT, /\/factory answer .* approve_once/);
+  assert.equal(execEnv.FACTORY_SELF_MODIFY_LABEL_ACTION, "remove_if_auto_applied");
+  assert.equal(execEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "false");
 });

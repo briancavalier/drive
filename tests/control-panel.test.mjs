@@ -143,7 +143,7 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
           id: "int_q_123",
           summary: "Need approval to continue with protected control-plane changes",
           payload: {
-            question: "Should the factory continue after you apply the label?",
+            question: "Should the factory authorize self-modify for the next resumed stage and continue?",
             recommendedOptionId: "approve_once",
             options: [
               {
@@ -358,7 +358,7 @@ test("approval interventions render answer commands in control panel", () => {
         id: "int_q_123",
         summary: "Need approval to continue with protected control-plane changes",
         payload: {
-          question: "Should the factory continue after you apply the label?",
+          question: "Should the factory authorize self-modify for the next resumed stage and continue?",
           recommendedOptionId: "approve_once",
           options: [
             { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },

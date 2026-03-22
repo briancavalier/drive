@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   applyBlockedAction,
+  applyAutoAppliedSelfModifyLabel,
   applyIntervention,
   applyPaused,
   applyCostEstimateMetadata,
@@ -199,6 +200,20 @@ test("applyPaused updates metadata from the explicit env override", () => {
   assert.equal(applyPaused(metadata, "true").paused, true);
   assert.equal(applyPaused(metadata, "false").paused, false);
   assert.equal(applyPaused({ ...metadata, paused: true }, "__UNCHANGED__").paused, true);
+});
+
+test("applyAutoAppliedSelfModifyLabel updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.equal(applyAutoAppliedSelfModifyLabel(metadata, "true").autoAppliedSelfModifyLabel, true);
+  assert.equal(applyAutoAppliedSelfModifyLabel(metadata, "false").autoAppliedSelfModifyLabel, false);
+  assert.equal(
+    applyAutoAppliedSelfModifyLabel(
+      { ...metadata, autoAppliedSelfModifyLabel: true },
+      "__UNCHANGED__"
+    ).autoAppliedSelfModifyLabel,
+    true
+  );
 });
 
 test("applyBlockedAction updates metadata from the explicit env override", () => {

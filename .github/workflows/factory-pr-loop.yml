@@ -333,6 +333,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
+          FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_LAST_COMPLETED_STAGE: ${{ needs.resolve-stage-dispatch.outputs.effective_action == 'implement' && 'implement' || 'repair' }}
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
@@ -540,6 +542,8 @@ jobs:
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
           FACTORY_BLOCKED_ACTION: repair
           FACTORY_INTERVENTION: ${{ needs.route.outputs.failure_intervention }}
+          FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
   process-review:
@@ -738,6 +742,8 @@ jobs:
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
           FACTORY_CI_STATUS: pending
           FACTORY_INTERVENTION: ${{ steps.prepare_repair.outputs.failure_intervention }}
+          FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
 
       - name: Mark PR as blocked after review processing failure
         if: steps.prepare_repair.outcome != 'success' || steps.prepare_repair.outputs.blocked == 'true'
@@ -807,6 +813,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
+          FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
           FACTORY_LAST_COMPLETED_STAGE: "repair"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}

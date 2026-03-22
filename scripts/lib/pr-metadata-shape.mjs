@@ -47,6 +47,7 @@ export function defaultPrMetadata(overrides = {}) {
     lastRefreshedSha: null,
     pendingReviewSha: null,
     paused: false,
+    autoAppliedSelfModifyLabel: false,
     lastCompletedStage: null,
     lastRunId: null,
     lastRunUrl: null,

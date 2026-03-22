@@ -54,6 +54,8 @@ async function clearPendingReviewSha({
   try {
     await runApplyPrState(execFileAsync, env, {
       FACTORY_PENDING_REVIEW_SHA: "",
+      FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
+      FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false",
       FACTORY_CI_STATUS: `${ciStatus || env.FACTORY_CI_STATUS || ""}`.trim() || "pending",
       FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: env.FACTORY_CI_RUN_ID || ""
     });
@@ -88,6 +90,8 @@ async function handlePass({
       FACTORY_STATUS: FACTORY_PR_STATUSES.readyForReview,
       FACTORY_CI_STATUS: "success",
       FACTORY_READY_FOR_REVIEW: "true",
+      FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
+      FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false",
       FACTORY_REMOVE_LABELS: "factory:blocked",
       FACTORY_LAST_READY_SHA: currentHead,
       FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: env.FACTORY_CI_RUN_ID || "",

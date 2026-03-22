@@ -70,10 +70,13 @@ Configure these before using the scaffold in a live repository:
     implement/repair runs. If the merge conflicts, the PR is blocked and needs
     a human to resolve the conflict before retrying.
 16. Optional: set `FACTORY_ENABLE_SELF_MODIFY=true` only when you intend to let
-    a factory-managed PR modify protected control-plane paths. The PR must also
-    carry the `factory:self-modify` label, and `FACTORY_GITHUB_TOKEN` must be
-    configured. Without all three, self-modifying stage output is rejected
-    before push.
+    a factory-managed PR modify protected control-plane paths. The self-modify
+    push guard still requires the live PR to carry the `factory:self-modify`
+    label and `FACTORY_GITHUB_TOKEN` to be configured. In the normal operator
+    flow, answering the self-modify approval intervention with `approve_once`
+    mints that label for the next resumed stage automatically; manual labeling
+    remains available as a fallback. Without all three, self-modifying stage
+    output is rejected before push.
 
 ## Factory operator flow
 
@@ -163,7 +166,11 @@ If a factory run touches any of those paths, the stage will stop before
 - `FACTORY_GITHUB_TOKEN` is configured
 
 This gate is checked from live PR state during stage preparation, so removing
-the label or disabling the variable immediately re-locks later reruns.
+the label or disabling the variable immediately re-locks later reruns. The
+recommended operator path is to answer the self-modify approval intervention;
+on `approve_once`, trusted automation applies the label for the next resumed
+stage and removes it again after that stage completes. Manually applying the
+label remains a fallback if needed.
 
 The factory also supports a protected cross-run policy file at
 `.factory/FACTORY.md`. This file is human-authored durable factory policy,
@@ -256,6 +263,11 @@ The workflows create and manage these labels automatically:
 - `factory:cost-medium`
 - `factory:cost-high`
 
+`factory:self-modify` is a special case: it remains the live enforcement bit
+for protected control-plane changes, but automation may apply it only as the
+direct result of a trusted answered self-modify approval intervention for one
+resumed stage. Manual application remains a supported fallback.
+
 ## Factory Control Panel
 
 Every factory-managed pull request now includes a durable **Factory Control Panel**
@@ -278,10 +290,11 @@ state and surfaces the safest next actions for operators:
 
 Common actions include starting implementation, pausing/resuming automation,
 retrying a blocked stage, re-running review processing, or resetting the PR back to
-`plan_ready`. Guardrail-specific actions such as **Approve self-modify** post manual
-instructions—per repository policy the `factory:self-modify` label still must be
-applied by a human operator. The **Escalate to human-only** action parks the PR in
-`blocked`, converts it back to draft, and adds a durable note for manual follow-up.
+`plan_ready`. Self-modify approval now flows through the PR-comment intervention
+question and `/factory answer <intervention-id> approve_once`, which authorizes the
+next resumed stage and applies the label automatically for that one run. The
+**Escalate to human-only** action parks the PR in `blocked`, converts it back to
+draft, and adds a durable note for manual follow-up.
 
 All actions accept an optional free-form comment. When no comment is supplied,
 the workflow writes a default note so reviewers can audit why the state changed.

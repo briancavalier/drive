@@ -7,7 +7,7 @@ This directory contains top-level factory entrypoints used by GitHub Actions.
 - Keep entrypoint scripts thin. They should read env or event inputs, call shared helpers, and emit outputs or side effects with minimal inline logic.
 - Move reusable parsing, routing, metadata, and policy logic into `scripts/lib/` instead of growing entrypoints.
 - Preserve GitHub Actions contracts: env var names, `GITHUB_OUTPUT` behavior, exit semantics, and user-facing log messages.
-- Do not add or automate application of the `factory:self-modify` label. That label must remain a human-applied control for explicit self-modifying runs. If a change would cause workflows, scripts, or agents to add, infer, preserve-by-default, or bulk-apply `factory:self-modify`, stop and require explicit human direction instead.
+- Treat `factory:self-modify` as a high-trust authorization control. Automation may apply it only as the direct result of a trusted answered factory approval intervention for a single resumed stage, with explicit cleanup after that stage finishes. Do not add implicit, default, preserve-by-default, or bulk application paths for `factory:self-modify`.
 
 ## Ownership
 

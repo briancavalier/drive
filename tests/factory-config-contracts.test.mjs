@@ -54,10 +54,25 @@ test("factory control-action reset clears canonical intervention state", () => {
     workflowText,
     /name:\s+Reset factory PR[\s\S]*FACTORY_BLOCKED_ACTION:\s*""/
   );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*remove_if_auto_applied/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
   assert.doesNotMatch(
     workflowText,
     /name:\s+Reset factory PR[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS|STAGE_NOOP_ATTEMPTS|STAGE_SETUP_ATTEMPTS):/
   );
+});
+
+test("factory control-action no longer exposes manual approve_self_modify dispatch", () => {
+  const workflowText = readWorkflowText("factory-control-action.yml");
+
+  assert.doesNotMatch(workflowText, /approve_self_modify/);
+  assert.doesNotMatch(workflowText, /Approve self-modify/);
 });
 
 test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
@@ -70,6 +85,14 @@ test("factory reset workflow clears canonical intervention state when repair sta
   assert.doesNotMatch(
     workflowText,
     /name:\s+Reset factory PR state[\s\S]*FACTORY_(?:REPEATED_FAILURE_COUNT|LAST_FAILURE_SIGNATURE|LAST_FAILURE_TYPE|TRANSIENT_RETRY_ATTEMPTS):/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*remove_if_auto_applied/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
   );
 });
 
@@ -93,6 +116,27 @@ test("factory PR loop uses intervention-named intermediate failure outputs", () 
   assert.match(workflowText, /FACTORY_INTERVENTION_FAILURE_SIGNATURE/);
   assert.doesNotMatch(workflowText, /\brepeated_failure_count:\s*\$\{\{\s*steps\.route\.outputs\.repeated_failure_count/);
   assert.doesNotMatch(workflowText, /\blast_failure_signature:\s*\$\{\{\s*steps\.route\.outputs\.last_failure_signature/);
+});
+
+test("factory PR loop cleans up auto-applied self-modify authorization after stage transitions", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Record successful stage metadata[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Mark PR as blocked[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Update PR metadata for review artifact repair[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Record successful repair metadata[\s\S]*FACTORY_SELF_MODIFY_LABEL_ACTION:\s*"remove_if_auto_applied"[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
+  );
 });
 
 test("factory PR loop stage caller grants reusable workflow write permissions", () => {

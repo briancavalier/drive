@@ -70,6 +70,8 @@ jobs:
           FACTORY_STATUS: ${{ inputs.status }}
           FACTORY_REPAIR_ATTEMPTS: ${{ inputs.clear_repair_state && '0' || '' }}
           FACTORY_INTERVENTION: ${{ inputs.clear_repair_state && '__CLEAR__' || '__UNCHANGED__' }}
+          FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
+          FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_BLOCKED_ACTION: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}
           FACTORY_LAST_READY_SHA: ${{ inputs.clear_repair_state && '' || '__UNCHANGED__' }}

@@ -428,7 +428,7 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
 
     if (failureType === "stage_setup") {
       if (hasSelfModifyGuardSignature(metadata)) {
-        return "Approve self-modify or reset the PR before rerunning the stage.";
+        return "Answer the self-modify approval question or reset the PR before rerunning the stage.";
       }
 
       return "Fix the setup prerequisites (tokens, permissions, etc.) and retry the stage.";

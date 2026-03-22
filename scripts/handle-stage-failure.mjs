@@ -328,12 +328,12 @@ export async function main(env = process.env, dependencies = {}) {
       summary: "Need approval to continue with protected control-plane changes",
       detail: failureMessage,
       question:
-        "Should the factory continue after you manually apply the `factory:self-modify` label to this PR?",
+        "Should the factory authorize self-modify for the next resumed stage and continue?",
       recommendedOptionId: "approve_once",
       options: [
         {
           id: "approve_once",
-          label: "Approve once after applying the label",
+          label: "Approve once and authorize the next resumed stage",
           effect: "resume_current_stage"
         },
         {
@@ -349,6 +349,7 @@ export async function main(env = process.env, dependencies = {}) {
       ],
       runId,
       runUrl: resolvedRunUrl,
+      applySelfModifyLabelOnApproval: true,
       resumeContext: {
         ciRunId: ciRunId || null,
         reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
@@ -383,7 +384,11 @@ export async function main(env = process.env, dependencies = {}) {
   }
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {
-    env: childEnv,
+    env: {
+      ...childEnv,
+      FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
+      FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
+    },
     stdio: "inherit"
   });
 }
