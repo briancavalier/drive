@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "implement",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 98,
+  "prNumber": 99,
+  "branch": "factory/98-clarify-the-factory-blocked-label-description",
+  "runId": "23392225810",
+  "runAttempt": 1,
+  "promptChars": 3096,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 774,
+    "cachedInputTokens": 0,
+    "outputTokens": 968,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 774,
+    "cachedInputTokens": 0,
+    "outputTokens": 968,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:implement:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0106,
+    "estimatedUsd": 0.0106,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-22T00:38:57.652Z"
+}
