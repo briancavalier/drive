@@ -82,6 +82,15 @@ function makeArtifacts(overrides = {}) {
       }
     ],
     findings: [],
+    checklist: {
+      state_changed: true,
+      writers_reviewed: true,
+      readers_reviewed: true,
+      workflow_paths_checked: true,
+      cleanup_paths_checked: true,
+      tests_evidence_checked: true,
+      residual_risks: "No additional residual workflow risks identified."
+    },
     ...overrides.reviewJson
   };
   const reviewMd = overrides.reviewMd || renderReviewMarkdown(reviewJson, overrides.reviewMdExtras);
@@ -179,6 +188,36 @@ test("processReview accepts workflow-safety methodology configuration", async ()
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_REVIEW_METHOD, "workflow-safety");
   assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
+});
+
+test("processReview rejects workflow-safety pass reviews when checklist evidence is missing", async () => {
+  const { dir } = makeArtifacts({
+    reviewJson: {
+      methodology: "workflow-safety"
+    }
+  });
+  const reviewJsonPath = path.join(dir, "review.json");
+  const parsed = JSON.parse(fs.readFileSync(reviewJsonPath, "utf8"));
+  delete parsed.checklist;
+  fs.writeFileSync(reviewJsonPath, JSON.stringify(parsed, null, 2));
+  const env = baseEnv({
+    artifactsPath: dir,
+    reviewMethod: "workflow-safety"
+  });
+
+  await assert.rejects(
+    processReview({
+      env,
+      execFileImpl: (_file, _args, _options, callback) => {
+        callback(null, "", "");
+      },
+      githubClient: {
+        commentOnIssue: async () => {},
+        submitPullRequestReview: async () => {}
+      }
+    }),
+    /checklist must be an object for workflow-safety reviews/
+  );
 });
 
 test("processReview uses configured pass-comment overrides", async () => {

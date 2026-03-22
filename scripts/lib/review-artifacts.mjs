@@ -80,6 +80,14 @@ function ensureInteger(value, fieldName) {
   return value;
 }
 
+function ensureBoolean(value, fieldName) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${fieldName} must be a boolean`);
+  }
+
+  return value;
+}
+
 function validateFindings(findings) {
   if (!Array.isArray(findings)) {
     throw new Error("findings must be an array");
@@ -150,6 +158,44 @@ function validateRequirementChecks(requirementChecks) {
   });
 }
 
+function validateWorkflowSafetyChecklist(checklist, decision) {
+  if (typeof checklist !== "object" || checklist === null || Array.isArray(checklist)) {
+    throw new Error("checklist must be an object for workflow-safety reviews");
+  }
+
+  const normalizedChecklist = {
+    state_changed: ensureBoolean(checklist.state_changed, "checklist.state_changed"),
+    writers_reviewed: ensureBoolean(checklist.writers_reviewed, "checklist.writers_reviewed"),
+    readers_reviewed: ensureBoolean(checklist.readers_reviewed, "checklist.readers_reviewed"),
+    workflow_paths_checked: ensureBoolean(
+      checklist.workflow_paths_checked,
+      "checklist.workflow_paths_checked"
+    ),
+    cleanup_paths_checked: ensureBoolean(
+      checklist.cleanup_paths_checked,
+      "checklist.cleanup_paths_checked"
+    ),
+    tests_evidence_checked: ensureBoolean(
+      checklist.tests_evidence_checked,
+      "checklist.tests_evidence_checked"
+    ),
+    residual_risks: ensureString(checklist.residual_risks, "checklist.residual_risks")
+  };
+
+  if (
+    decision === "pass" &&
+    Object.entries(normalizedChecklist).some(
+      ([key, value]) => key !== "residual_risks" && value !== true
+    )
+  ) {
+    throw new Error(
+      "workflow-safety pass reviews must mark every checklist boolean as true"
+    );
+  }
+
+  return normalizedChecklist;
+}
+
 function validateReviewPayload(payload, expectedMethodology) {
   if (typeof payload !== "object" || payload === null) {
     throw new Error("review.json must contain an object");
@@ -173,6 +219,10 @@ function validateReviewPayload(payload, expectedMethodology) {
   const blockingCount = ensureInteger(payload.blocking_findings_count, "blocking_findings_count");
   const requirementChecks = validateRequirementChecks(payload.requirement_checks);
   const findings = validateFindings(payload.findings);
+  const checklist =
+    methodology === "workflow-safety"
+      ? validateWorkflowSafetyChecklist(payload.checklist, decision)
+      : payload.checklist;
   const computedBlocking = countBlockingFindings(findings);
 
   if (computedBlocking !== blockingCount) {
@@ -206,7 +256,8 @@ function validateReviewPayload(payload, expectedMethodology) {
     summary,
     blocking_findings_count: blockingCount,
     requirement_checks: requirementChecks,
-    findings
+    findings,
+    ...(checklist ? { checklist } : {})
   };
 }
 
