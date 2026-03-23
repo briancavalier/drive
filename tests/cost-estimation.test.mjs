@@ -7,7 +7,8 @@ import {
   estimateInputTokensFromChars,
   estimateStageCost,
   loadCostSummary,
-  resolveCostThresholds
+  resolveCostThresholds,
+  summarizeIssueUsageEvents
 } from "../scripts/lib/cost-estimation.mjs";
 
 test("resolveCostThresholds falls back to defaults", () => {
@@ -108,6 +109,80 @@ test("estimateStageCost marks unknown model pricing as fallback", () => {
 
   assert.equal(summary.current.derivedCost.pricingSource, "fallback");
   assert.equal(summary.stages.review.derivedCost.pricingSource, "fallback");
+});
+
+test("summarizeIssueUsageEvents preserves actual usage and actual USD", () => {
+  const summary = summarizeIssueUsageEvents(
+    [
+      {
+        category: "stage",
+        stage: "plan",
+        provider: "openai",
+        apiSurface: "codex-cli",
+        model: "gpt-5-codex",
+        promptChars: 4000,
+        estimatedUsageBeforeCalibration: {
+          inputTokens: 1000,
+          cachedInputTokens: 0,
+          outputTokens: 150,
+          reasoningTokens: null
+        },
+        estimatedUsage: {
+          inputTokens: 1000,
+          cachedInputTokens: 0,
+          outputTokens: 150,
+          reasoningTokens: null
+        },
+        actualUsage: {
+          inputTokens: 1876900,
+          cachedInputTokens: 1517696,
+          outputTokens: 16517,
+          reasoningTokens: null
+        },
+        usageCalibration: {
+          bucket: "openai:stage:plan:gpt-5-codex",
+          sampleSize: 0,
+          generatedAt: "",
+          source: "default",
+          multipliers: {
+            inputTokens: 1,
+            cachedInputTokens: 1,
+            outputTokens: 1
+          }
+        },
+        derivedCost: {
+          estimatedUsdBeforeCalibration: 0.0028,
+          estimatedUsd: 0.0028,
+          actualUsd: 2.1687,
+          pricingSource: "model"
+        },
+        recordedAt: "2026-03-23T22:57:32.583Z",
+        sourceEventPath:
+          ".factory/usage-events/2026-03-23/23464079563-1-stage-plan.json"
+      }
+    ],
+    {
+      issueNumber: 109,
+      prNumber: 117,
+      branch: "factory/109-add-repair-exhaustion-decision-interventions"
+    }
+  );
+
+  assert.equal(summary.apiSurface, "codex-cli");
+  assert.deepEqual(summary.current.actualUsage, {
+    inputTokens: 1876900,
+    cachedInputTokens: 1517696,
+    outputTokens: 16517,
+    reasoningTokens: null
+  });
+  assert.equal(summary.current.derivedCost.actualUsd, 2.1687);
+  assert.deepEqual(summary.stages.plan.actualUsage, {
+    inputTokens: 1876900,
+    cachedInputTokens: 1517696,
+    outputTokens: 16517,
+    reasoningTokens: null
+  });
+  assert.equal(summary.stages.plan.derivedCost.actualUsd, 2.1687);
 });
 
 test("buildCostMetadataFromSummary extracts PR metadata fields", () => {

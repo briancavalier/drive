@@ -72,6 +72,7 @@ export function main(env = process.env) {
 
   const payload = {
     source: "codex-exec-json",
+    apiSurface: "codex-cli",
     sourcePath: inputPath,
     eventCount: events.length,
     eventType: resolved.eventType,

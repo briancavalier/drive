@@ -382,6 +382,7 @@ test("persistCostSummaryForStage includes actual usage telemetry when provided",
         branch: "factory/55-telemetry",
         runId: "987654321",
         runAttempt: "2",
+        apiSurface: "codex-cli",
         actualUsage: {
           inputTokens: 321,
           cachedInputTokens: 111,
@@ -404,6 +405,17 @@ test("persistCostSummaryForStage includes actual usage telemetry when provided",
       outputTokens: 77,
       reasoningTokens: 40
     });
+    assert.equal(event.apiSurface, "codex-cli");
+    assert.equal(event.derivedCost.actualUsd, 0.0012);
+
+    const persistedSummary = JSON.parse(
+      fs.readFileSync(path.join(artifactsPath, "cost-summary.json"), "utf8")
+    );
+    assert.equal(persistedSummary.apiSurface, "codex-cli");
+    assert.equal(persistedSummary.current.apiSurface, "codex-cli");
+    assert.equal(persistedSummary.current.derivedCost.actualUsd, 0.0012);
+    assert.equal(persistedSummary.stages.plan.apiSurface, "codex-cli");
+    assert.equal(persistedSummary.stages.plan.derivedCost.actualUsd, 0.0012);
   } finally {
     process.chdir(originalCwd);
   }
@@ -416,6 +428,7 @@ test("readActualUsageTelemetry returns usage payloads when the file exists", () 
   fs.writeFileSync(
     usagePath,
     JSON.stringify({
+      apiSurface: "codex-cli",
       actualUsage: {
         inputTokens: 123,
         cachedInputTokens: 45,
@@ -432,7 +445,8 @@ test("readActualUsageTelemetry returns usage payloads when the file exists", () 
       outputTokens: 67,
       reasoningTokens: 8
     },
-    actualUsd: null
+    actualUsd: null,
+    apiSurface: "codex-cli"
   });
 });
 

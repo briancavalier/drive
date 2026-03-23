@@ -35,6 +35,7 @@ test("parse-codex-json-telemetry extracts actual usage from turn.completed event
   assert.equal(resultPath, outputPath);
   assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
     source: "codex-exec-json",
+    apiSurface: "codex-cli",
     sourcePath: inputPath,
     eventCount: 3,
     eventType: "turn.completed",
