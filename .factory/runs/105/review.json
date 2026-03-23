@@ -1,0 +1,73 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Dashboard-first review templates implemented; rendering logic and tests updated to preserve compact summary and collapse deep details.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The default factory review templates are updated to match the proposed structure or an equivalent structure.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/review-pass-comment.md:1 contains the compact summary block starting with '## Factory Review'.",
+        "scripts/templates/github-messages/review-request-changes.md:1 contains the matching visible headings and summary block for request-changes.",
+        "tests/github-messages.test.mjs and tests/process-review.test.mjs contain assertions that the comment body starts with '## Factory Review' and includes the summary lines (see tests asserting commentBody.startsWith and includes Decision/Artifacts lines)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Both PASS and REQUEST_CHANGES review templates use the same visible section headings and ordering.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/review-pass-comment.md:1 (PASS template) — shows heading order '## Factory Review' then summary block, '### Blocking Findings', '### Requirement Gaps'.",
+        "scripts/templates/github-messages/review-request-changes.md:1 (REQUEST_CHANGES template) — same visible headings and ordering."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The top block clearly shows decision, method, summary, findings counts, and artifact paths before any long content.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/review-pass-comment.md:2-6 include tokens '{{REVIEW_DECISION_EMOJI}} {{REVIEW_DECISION_LABEL}}', '{{REVIEW_METHOD}}', '{{REVIEW_SUMMARY}}', '{{BLOCKING_FINDINGS_COUNT}}', '{{UNMET_REQUIREMENT_CHECKS_COUNT}}', and '{{REVIEW_MARKDOWN_PATH}}'/'{{REVIEW_JSON_PATH}}'.",
+        "tests/github-messages.test.mjs contains assertions that produced comment bodies include '**✅ PASS** · Method: `default`', the Summary line, and the Artifacts line referencing review.md/review.json (see the test 'processReview marks PR ready and comments on pass decision')."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Deep detail is rendered in collapsible summary/details sections rather than dumped inline.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/review-output.mjs exports 'renderDetailsBlock', 'renderTraceabilityDetails', 'renderFullBlockingFindingsDetails', and 'renderFullReviewDetails' which build '<details>' sections.",
+        "scripts/templates/github-messages/review-pass-comment.md and review-request-changes.md include '{{TRACEABILITY_DETAILS}}' and '{{FULL_REVIEW_DETAILS}}' tokens which are populated by the '<details>' renderers."
+      ]
+    },
+    {
+      "type": "spec_commitment",
+      "requirement": "Extend 'buildReviewConversationBody' to render the new dashboard-first templates, provide tokens, and perform progressive truncation while preserving the summary.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/github-messages.mjs exports 'buildReviewConversationBody' that constructs the token map (buildReviewTemplateVariables) and performs progressive trimming of OPTIONAL_REVIEW_DETAIL_TOKENS before composing a truncation fallback.",
+        "tests/github-messages.test.mjs includes unit tests that exercise truncation behaviour and confirm the summary block remains intact (see tests referencing MAX_REVIEW_BODY_CHARS and assertions about the truncation notice)."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Tests or fixtures that validate rendered review comments are updated to reflect the new format and overrides.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/process-review.test.mjs and tests/github-messages.test.mjs updated: they assert the new templates render the summary, artifact paths, and respect overrides (see tests that create overridesRoot and assert override content is used).",
+        "CI evidence: unit tests passed in the workflow run (see provided CI metadata 'unit: success' and workflow id 23443554822)."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Add explicit trimming-order documentation",
+      "details": "While the code trims 'FULL_REVIEW_DETAILS', 'FULL_BLOCKING_FINDINGS_DETAILS', then 'TRACEABILITY_DETAILS' in that priority, the templates do not explicitly document this order for maintainers or override authors.",
+      "scope": "scripts/lib/github-messages.mjs + scripts/templates/github-messages/*",
+      "recommendation": "Add a short comment in the templates or a one-line README in '.factory/messages/' documenting the priority order used when trimming optional sections so override authors know which tokens are most likely to be removed.",
+      "level_detail": null
+    }
+  ]
+}
