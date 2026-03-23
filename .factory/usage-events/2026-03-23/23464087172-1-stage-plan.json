@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "plan",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 111,
+  "prNumber": 0,
+  "branch": "factory/111-add-shared-ask-human-policy-helpers-for-question",
+  "runId": "23464087172",
+  "runAttempt": 1,
+  "promptChars": 4098,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1025,
+    "cachedInputTokens": 0,
+    "outputTokens": 154,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1025,
+    "cachedInputTokens": 0,
+    "outputTokens": 154,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": 1987159,
+    "cachedInputTokens": 1897472,
+    "outputTokens": 18750,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:plan:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0028,
+    "estimatedUsd": 0.0028,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-23T22:57:43.863Z"
+}

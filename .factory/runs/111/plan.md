@@ -1,0 +1,25 @@
+# Implementation Plan – Run 111
+
+- Create `scripts/lib/question-policy.mjs` with the shared API:
+  - Implement `normalizeDecisionFactors`, `resolveQuestionPolicy`, and `buildAutonomyDecision` per the spec, including defaults and structured reason codes.
+  - Export any supporting constants (e.g., accepted ambiguity values) so tests and callers can reuse them.
+  - Add dedicated unit coverage in `tests/question-policy.test.mjs` for all decision branches and validation errors.
+- Extend `scripts/detect-stage-intervention-request.mjs` to understand the new request metadata:
+  - Parse and validate the optional `policyContext`, normalizing to the helper’s factor shape.
+  - Include the normalized policy factors in the returned payload so downstream scripts no longer reparse raw strings.
+  - Update `tests/detect-stage-intervention-request.test.mjs` to cover valid, missing, and invalid `policyContext` blocks.
+- Refactor `scripts/handle-stage-intervention-request.mjs` to route through the helper:
+  - Call `resolveQuestionPolicy` with the request factors and stage metadata.
+  - On `ask`, build the existing ambiguity intervention and embed the helper’s rationale in the posted comment.
+  - On `auto_continue`, synthesize an automatic ambiguity decision (`FACTORY_PENDING_STAGE_DECISION`, status resume, comment) via `buildAutonomyDecision`, keeping `metadata.intervention` clear.
+  - On `fail`, translate the request into a stage-setup failure comment and intervention using the helper reason details.
+  - Update `tests/handle-stage-intervention-request.test.mjs` accordingly for all three outcomes.
+- Update `scripts/handle-stage-failure.mjs` to depend on the shared policy:
+  - Derive the decision factors for self-modify guard failures and pass them to `resolveQuestionPolicy`.
+  - Keep the approval intervention path for the normal `ask` outcome while ensuring the helper’s rationale is logged/commented.
+  - Extend `tests/handle-stage-failure.test.mjs` to verify the helper is invoked and behavior remains unchanged.
+- Enhance comment utilities in `scripts/lib/github-messages.mjs`:
+  - Add helpers to render auto-resolution notices and policy rationale snippets used by both question producers.
+  - Cover these additions in `tests/github-messages.test.mjs`.
+- Refresh `.factory/prompts/implement.md` so implement-stage runs know to populate the `policyContext` block with the accepted values.
+- Run the targeted Jest suites (`npm test -- tests/question-policy.test.mjs tests/detect-stage-intervention-request.test.mjs tests/handle-stage-intervention-request.test.mjs tests/handle-stage-failure.test.mjs tests/github-messages.test.mjs`) and the broader suite if cascading changes require it.
