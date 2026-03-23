@@ -285,7 +285,7 @@ test("factory stage workflow gates the Codex CLI hybrid canary to plan mode", ()
   );
   assert.match(
     workflowText,
-    /name:\s+Run Codex[\s\S]*if:\s*!\(inputs\.mode == 'plan' && vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'\)/
+    /name:\s+Run Codex[\s\S]*if:\s*inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'/
   );
 });
 

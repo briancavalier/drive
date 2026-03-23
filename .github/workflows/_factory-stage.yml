@@ -313,10 +313,12 @@ jobs:
           canary_dir="${RUNNER_TEMP}/codex-cli-canary/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ inputs.mode }}"
           mkdir -p "$canary_dir"
 
-          echo "canary_dir=$canary_dir" >> "$GITHUB_OUTPUT"
-          echo "jsonl_path=$canary_dir/codex-events.jsonl" >> "$GITHUB_OUTPUT"
-          echo "final_message_path=$canary_dir/final-message.md" >> "$GITHUB_OUTPUT"
-          echo "actual_usage_path=$canary_dir/actual-usage.json" >> "$GITHUB_OUTPUT"
+          {
+            echo "canary_dir=$canary_dir"
+            echo "jsonl_path=$canary_dir/codex-events.jsonl"
+            echo "final_message_path=$canary_dir/final-message.md"
+            echo "actual_usage_path=$canary_dir/actual-usage.json"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Execute Codex CLI canary
         id: codex_cli
@@ -359,7 +361,7 @@ jobs:
 
       - name: Run Codex
         id: codex
-        if: !(inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true')
+        if: inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
