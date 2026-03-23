@@ -151,10 +151,18 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
   assert.equal(execCalls[0].options.env.FACTORY_INTERVENTION, "__CLEAR__");
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
-  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
-  assert.match(commentBody, /## 📝 Summary/);
-  assert.match(commentBody, /## 🧭 Traceability/);
-  assert.match(commentBody, /Artifacts: `.+\/review\.md`/);
+  const reviewMarkdownPath = path.join(dir, "review.md");
+  const reviewJsonPath = path.join(dir, "review.json");
+  assert.ok(commentBody.startsWith("## Factory Review"));
+  assert.ok(commentBody.includes("**✅ PASS** · Method: `default`"));
+  assert.ok(commentBody.includes("Summary: All acceptance criteria are satisfied."));
+  assert.ok(
+    commentBody.includes(
+      `Artifacts: \`${reviewMarkdownPath}\` · \`${reviewJsonPath}\``
+    )
+  );
+  assert.ok(commentBody.includes("### Blocking Findings"));
+  assert.ok(commentBody.includes("### Requirement Gaps"));
 });
 
 test("processReview accepts workflow-safety methodology configuration", async () => {
@@ -187,7 +195,8 @@ test("processReview accepts workflow-safety methodology configuration", async ()
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_REVIEW_METHOD, "workflow-safety");
-  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
+  assert.ok(commentBody.startsWith("## Factory Review"));
+  assert.ok(commentBody.includes("**✅ PASS** · Method: `workflow-safety`"));
 });
 
 test("processReview rejects workflow-safety pass reviews when checklist evidence is missing", async () => {
@@ -244,11 +253,10 @@ test("processReview uses configured pass-comment overrides", async () => {
     }
   });
 
-  const expectedBody = `${renderReviewMarkdown(JSON.parse(
-    fs.readFileSync(path.join(dir, "review.json"), "utf8")
-  ))}\n\n—\nArtifacts: \`${path.join(dir, "review.md")}\``;
-
-  assert.equal(commentBody, expectedBody);
+  assert.equal(
+    commentBody,
+    "PASS OVERRIDE default :: All acceptance criteria are satisfied."
+  );
 });
 
 test("processReview rejects pass decision when blocking findings present", async () => {
@@ -428,22 +436,32 @@ test("processReview normalizes mixed-case enums before rendering request changes
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
-  assert.doesNotMatch(reviewPayload.body, /`not_satisfied`/);
-  assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria \(❌ 1\)/);
-  assert.match(
-    reviewPayload.body,
-    /- ❌ \*\*Not satisfied\*\*: Acceptance criteria are fully covered by tests\./
+  assert.ok(reviewPayload.body.startsWith("## Factory Review"));
+  assert.ok(reviewPayload.body.includes("**❌ REQUEST_CHANGES** · Method: `default`"));
+  assert.ok(reviewPayload.body.includes("### Blocking Findings"));
+  assert.ok(
+    reviewPayload.body.includes(
+      "- **Missing tests** (tests/new-feature.test.js) -- Acceptance criteria are not fully covered. Recommendation: Add tests covering negative paths."
+    )
   );
-  assert.match(
-    reviewPayload.body,
-    /  - \*\*Evidence:\*\* Negative-path coverage is missing\./
+  assert.ok(reviewPayload.body.includes("### Requirement Gaps"));
+  assert.ok(
+    reviewPayload.body.includes(
+      "[acceptance_criterion] `not_satisfied` Acceptance criteria are fully covered by tests. -- Evidence: Negative-path coverage is missing.; ci / test did not cover the negative path."
+    )
   );
-  assert.match(
-    reviewPayload.body,
-    /  - \*\*Evidence:\*\* ci \/ test did not cover the negative path\./
+  assert.ok(reviewPayload.body.includes("<summary>Full Blocking Findings</summary>"));
+  assert.ok(reviewPayload.body.includes("<summary>Traceability</summary>"));
+  assert.ok(
+    reviewPayload.body.includes(
+      "- ❌ **Not satisfied**: Acceptance criteria are fully covered by tests."
+    )
+  );
+  assert.ok(
+    reviewPayload.body.includes("  - **Evidence:** Negative-path coverage is missing.")
+  );
+  assert.ok(
+    reviewPayload.body.includes("  - **Evidence:** ci / test did not cover the negative path.")
   );
 });
 
@@ -523,11 +541,17 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
 
   assert.equal(reviewPayload.prNumber, 33);
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /## 🧭 Traceability/);
-  assert.match(reviewPayload.body, /<details>/);
+  assert.ok(reviewPayload.body.startsWith("## Factory Review"));
+  assert.ok(reviewPayload.body.includes("**❌ REQUEST_CHANGES** · Method: `default`"));
+  assert.ok(reviewPayload.body.includes("### Blocking Findings"));
+  assert.ok(reviewPayload.body.includes("### Requirement Gaps"));
+  assert.ok(
+    reviewPayload.body.includes(
+      "- **Missing tests** (tests/new-feature.test.js) -- Acceptance criteria are not fully covered. Recommendation: Add tests covering negative paths."
+    )
+  );
+  assert.ok(reviewPayload.body.includes("<summary>Traceability</summary>"));
+  assert.ok(reviewPayload.body.includes("<summary>Full Blocking Findings</summary>"));
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
@@ -714,7 +738,15 @@ test("processReview uses configured request-changes overrides and preserves trun
     reviewMd: longReviewMd
   });
   const overridesRoot = makeOverrides({
-    "review-request-changes.md": "OVERRIDE {{REVIEW_METHOD}}\n\n{{REVIEW_MARKDOWN}}"
+    "review-request-changes.md": [
+      "OVERRIDE {{REVIEW_METHOD}}",
+      "",
+      "Artifacts: `{{REVIEW_MARKDOWN_PATH}}`",
+      "",
+      "{{BLOCKING_FINDINGS_SUMMARY}}",
+      "",
+      "{{TRUNCATION_NOTICE}}"
+    ].join("\n")
   });
   const env = baseEnv({ artifactsPath: dir });
   let reviewPayload = null;
@@ -736,9 +768,14 @@ test("processReview uses configured request-changes overrides and preserves trun
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
-  assert.match(reviewPayload.body, /Artifacts: `.+\/review\.md`/);
+  assert.ok(reviewPayload.body.startsWith("OVERRIDE default"));
+  assert.ok(reviewPayload.body.includes(`Artifacts: \`${path.join(dir, "review.md")}\``));
+  assert.ok(
+    reviewPayload.body.includes(
+      "- **Missing tests** (tests/new-feature.test.js) -- Acceptance criteria are not fully covered. Recommendation: Add tests covering negative paths."
+    )
+  );
+  assert.ok(!reviewPayload.body.includes("Review body truncated due to length"));
 });
 
 test("processReview rejects missing requirement checks", async () => {

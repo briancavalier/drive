@@ -1,7 +1,20 @@
-✅ Autonomous review completed with decision **PASS** (methodology: {{REVIEW_METHOD}}).
+## Factory Review
 
+**{{REVIEW_DECISION_EMOJI}} {{REVIEW_DECISION_LABEL}}** · Method: `{{REVIEW_METHOD}}`
 Summary: {{REVIEW_SUMMARY}}
+**Findings:** Blocking {{BLOCKING_FINDINGS_COUNT}} · Requirement gaps {{UNMET_REQUIREMENT_CHECKS_COUNT}}
+Artifacts: `{{REVIEW_MARKDOWN_PATH}}` · `{{REVIEW_JSON_PATH}}`
 
-{{BLOCKING_FINDINGS_LINE}}
+### Blocking Findings
 
-Artifacts: `{{REVIEW_MARKDOWN_PATH}}`
+{{BLOCKING_FINDINGS_SUMMARY}}
+
+### Requirement Gaps
+
+{{UNMET_REQUIREMENT_CHECKS_SUMMARY}}
+
+{{TRACEABILITY_DETAILS}}
+
+{{FULL_REVIEW_DETAILS}}
+
+{{TRUNCATION_NOTICE}}

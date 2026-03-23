@@ -72,7 +72,8 @@ async function handlePass({
   prNumber,
   env,
   execFileAsync,
-  githubClient
+  githubClient,
+  githubMessageOptions = {}
 }) {
   let currentHead = "";
   const workflowRunId = `${env.GITHUB_RUN_ID || env.FACTORY_CI_RUN_ID || ""}`.trim();
@@ -101,17 +102,18 @@ async function handlePass({
       FACTORY_LAST_REFRESHED_SHA: env.FACTORY_LAST_REFRESHED_SHA || "",
       FACTORY_COMMENT: "",
       FACTORY_CLEAR_IMPLEMENT_LABEL: "false",
-    FACTORY_PENDING_REVIEW_SHA: "",
-    FACTORY_LAST_COMPLETED_STAGE: "review",
-    FACTORY_LAST_RUN_ID: workflowRunId,
-    FACTORY_LAST_RUN_URL: workflowRunUrl
+      FACTORY_PENDING_REVIEW_SHA: "",
+      FACTORY_LAST_COMPLETED_STAGE: "review",
+      FACTORY_LAST_RUN_ID: workflowRunId,
+      FACTORY_LAST_RUN_URL: workflowRunUrl
   });
 
   const comment = buildReviewConversationBody({
+    review,
     reviewMarkdown,
     artifactsPath,
-    decision: review.decision,
-    maxBodyChars: MAX_REVIEW_BODY_CHARS
+    maxBodyChars: MAX_REVIEW_BODY_CHARS,
+    githubMessageOptions
   });
   await githubClient.commentOnIssue(prNumber, comment);
 }
@@ -121,13 +123,15 @@ async function handleRequestChanges({
   reviewMarkdown,
   artifactsPath,
   prNumber,
-  githubClient
+  githubClient,
+  githubMessageOptions = {}
 }) {
   const body = buildReviewConversationBody({
+    review,
     reviewMarkdown,
     artifactsPath,
-    decision: review.decision,
-    maxBodyChars: MAX_REVIEW_BODY_CHARS
+    maxBodyChars: MAX_REVIEW_BODY_CHARS,
+    githubMessageOptions
   });
 
   await githubClient.submitPullRequestReview({
@@ -180,7 +184,8 @@ export async function processReview({
     commentOnIssue,
     submitPullRequestReview
   },
-  execFileImpl = execFile
+  execFileImpl = execFile,
+  githubMessageOptions = {}
 } = {}) {
   const execFileAsync = promisify(execFileImpl);
   const prNumber = Number(requiredEnv(env, "FACTORY_PR_NUMBER"));
@@ -224,7 +229,8 @@ export async function processReview({
         prNumber,
         env,
         execFileAsync,
-        githubClient
+        githubClient,
+        githubMessageOptions
       });
       console.log("Autonomous review passed. PR marked ready for human review.");
       return;
@@ -235,7 +241,8 @@ export async function processReview({
       reviewMarkdown,
       artifactsPath,
       prNumber,
-      githubClient
+      githubClient,
+      githubMessageOptions
     });
     await clearPendingReviewSha({
       execFileAsync,

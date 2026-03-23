@@ -589,93 +589,98 @@ test("renderIntakeRejectedComment uses valid override templates", () => {
   assert.equal(message, "Missing sections: Goals, Risk");
 });
 
-function sampleReviewMarkdown({ decision = "pass" } = {}) {
-  const decisionEmoji = decision === "pass" ? "✅" : "❌";
-  const decisionLabel = decision === "pass" ? "PASS" : "REQUEST_CHANGES";
-
-  return [
-    `# ${decisionEmoji} Autonomous Review Decision: ${decisionLabel}`,
-    "",
-    "## 📝 Summary",
-    "Everything looks good.",
-    "",
-    "## 🧭 Traceability",
-    "",
-    "<details>",
-    "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
-    "",
-    "- ✅ **Satisfied**: Ensure quality",
-    "  - **Evidence:** Tests cover expectations.",
-    "",
-    "</details>"
-  ].join("\n");
+function makeSampleReview(overrides = {}) {
+  return {
+    methodology: "default",
+    decision: "pass",
+    summary: "All acceptance criteria are satisfied.",
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Ensure quality",
+        status: "satisfied",
+        evidence: ["Tests cover expectations."]
+      }
+    ],
+    findings: [],
+    ...overrides
+  };
 }
 
-test("buildReviewConversationBody posts full review plus footer within limit", () => {
-  const reviewMarkdown = sampleReviewMarkdown();
-  const artifactsPath = ".factory/runs/11";
+test("buildReviewConversationBody renders dashboard layout for pass decision", () => {
+  const review = makeSampleReview();
+  const reviewMarkdown = "# ✅ Autonomous Review Decision: PASS\n\nFull details live here.";
   const body = buildReviewConversationBody({
+    review,
     reviewMarkdown,
-    artifactsPath
+    artifactsPath: ".factory/runs/11"
   });
 
-  const expectedFooter = "\n\n—\nArtifacts: `.factory/runs/11/review.md`";
+  const lines = body.split("\n");
 
-  assert.equal(body, `${reviewMarkdown}${expectedFooter}`);
-  assert.match(body, /✅ Autonomous Review Decision: PASS/);
-  assert.match(body, /## 📝 Summary/);
-  assert.match(body, /## 🧭 Traceability/);
+  assert.equal(lines[0], "## Factory Review");
+  assert.equal(lines[2], "**✅ PASS** · Method: `default`");
+  assert.ok(body.includes("Summary: All acceptance criteria are satisfied."));
+  assert.ok(body.includes("**Findings:** Blocking 0 · Requirement gaps 0"));
+  assert.ok(
+    body.includes("Artifacts: `.factory/runs/11/review.md` · `.factory/runs/11/review.json`")
+  );
+  assert.ok(body.includes("### Blocking Findings"));
+  assert.ok(body.includes("- None recorded in review.json."));
+  assert.ok(body.includes("### Requirement Gaps"));
+  assert.ok(body.includes("<summary>Traceability</summary>"));
+  assert.ok(body.includes("<summary>Full review.md</summary>"));
+  assert.ok(!body.includes("Review body truncated due to length"));
 });
 
-test("buildReviewConversationBody retains traceability section when truncated", () => {
-  const traceabilitySection = [
-    "## 🧭 Traceability",
-    "",
-    "<details>",
-    "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
-    "",
-    "- ✅ **Satisfied**: Ensure quality",
-    "  - **Evidence:** Tests cover expectations.",
-    "",
-    "</details>"
-  ].join("\n");
-  const longPreview = `# ❌ Autonomous Review Decision: REQUEST_CHANGES\n\n## 📝 Summary\n${"A".repeat(1000)}\n\n${traceabilitySection}\n\n${"Z".repeat(5000)}`;
+test("buildReviewConversationBody drops optional sections before hitting the length limit", () => {
+  const review = makeSampleReview();
+  const reviewMarkdown = `# Review\n\n${"A".repeat(4000)}`;
   const body = buildReviewConversationBody({
-    reviewMarkdown: longPreview,
+    review,
+    reviewMarkdown,
     artifactsPath: ".factory/runs/44",
     maxBodyChars: 900
   });
 
-  assert.match(body, /❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(body, /## 🧭 Traceability/);
-  assert.match(body, /Review truncated after traceability details/);
-  assert.match(body, /Artifacts: `.factory\/runs\/44\/review\.md`/);
+  assert.ok(body.startsWith("## Factory Review"));
+  assert.ok(!body.includes("<summary>Full review.md</summary>"));
+  assert.ok(body.includes("<summary>Traceability</summary>"));
+  assert.ok(body.includes("Review body truncated due to length. See `.factory/runs/44/review.md`"));
   assert.ok(body.length <= 900);
 });
 
-test("buildReviewConversationBody falls back to raw slice when traceability still too long", () => {
-  const reviewMarkdown = [
-    "# ✅ Autonomous Review Decision: PASS",
-    "",
-    "Intro",
-    "",
-    "## 📝 Summary",
-    "",
-    "Line 1",
-    "Line 2",
-    "Line 3",
-    "",
-    `${"Extended context ".repeat(20)}`
-  ].join("\n");
+test("buildReviewConversationBody falls back to summary block when even summaries exceed the limit", () => {
+  const review = makeSampleReview({
+    summary: "Summary " + "x".repeat(160),
+    requirement_checks: Array.from({ length: 20 }, (_, index) => ({
+      type: "acceptance_criterion",
+      requirement: `Requirement ${index}`,
+      status: index % 2 === 0 ? "not_satisfied" : "partially_satisfied",
+      evidence: [`Evidence details ${"y".repeat(50)}`]
+    })),
+    findings: Array.from({ length: 10 }, (_, index) => ({
+      title: `Finding ${index}`,
+      level: "blocking",
+      scope: "scope",
+      details: `Details ${"z".repeat(60)}`,
+      recommendation: "Fix it"
+    }))
+  });
   const body = buildReviewConversationBody({
-    reviewMarkdown,
+    review,
+    reviewMarkdown: "# Review\n\nDense body",
     artifactsPath: ".factory/runs/55",
-    maxBodyChars: 220
+    maxBodyChars: 350
   });
 
-  assert.match(body, /Review truncated after traceability details/);
-  assert.match(body, /Artifacts: `.factory\/runs\/55\/review\.md`/);
-  assert.match(body, /# ✅ Autonomous Review Decision: PASS/);
-  assert.match(body, /## 📝 Summary/);
-  assert.ok(body.length <= 220);
+  const lines = body.split("\n");
+
+  assert.equal(lines[0], "## Factory Review");
+  assert.ok(body.includes("**✅ PASS** · Method: `default`"));
+  assert.ok(body.includes("**Findings:** Blocking"));
+  assert.ok(body.includes("Review body truncated due to length. See `.factory/runs/55/review.md`"));
+  assert.ok(!body.includes("### Blocking Findings"));
+  assert.ok(!body.includes("<details>"));
+  assert.ok(body.length <= 350);
 });
