@@ -563,3 +563,22 @@ test("factory intake finalize job checks out the planned factory branch before f
     /name:\s+Finalize planning state[\s\S]*?run:\s+node scripts\/finalize-plan\.mjs/
   );
 });
+
+test("factory hybrid canary workflow dispatches the reusable plan stage and optional finalize", () => {
+  const workflowText = readWorkflowText("factory-hybrid-canary.yml");
+  const planJob = extractJobBlock(workflowText, "plan");
+  const finalizeJob = extractJobBlock(workflowText, "finalize");
+
+  assert.match(workflowText, /on:\s*\n\s+workflow_dispatch:/);
+  assert.match(workflowText, /issue_number:\s*\n\s+description:\s+Issue number associated with the prepared factory branch\./);
+  assert.match(workflowText, /branch:\s*\n\s+description:\s+Existing factory branch to run the plan-stage canary against\./);
+  assert.match(workflowText, /artifacts_path:\s*\n\s+description:\s+Existing artifacts path for the issue, e\.g\. \.factory\/runs\/123\./);
+  assert.match(planJob, /uses:\s+\.\/\.github\/workflows\/_factory-stage\.yml/);
+  assert.match(planJob, /mode:\s+plan/);
+  assert.match(planJob, /branch:\s+\$\{\{\s*inputs\.branch\s*\}\}/);
+  assert.match(planJob, /artifacts_path:\s+\$\{\{\s*inputs\.artifacts_path\s*\}\}/);
+  assert.match(planJob, /max_repair_attempts:\s+\$\{\{\s*fromJSON\(inputs\.max_repair_attempts\)\s*\}\}/);
+  assert.match(finalizeJob, /if:\s+inputs\.finalize_plan && needs\.plan\.result == 'success'/);
+  assert.match(finalizeJob, /name:\s+Checkout repository[\s\S]*ref:\s+\$\{\{\s*inputs\.branch\s*\}\}/);
+  assert.match(finalizeJob, /name:\s+Finalize planning state[\s\S]*run:\s+node scripts\/finalize-plan\.mjs/);
+});
