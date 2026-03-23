@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "review",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-mini",
+  "issueNumber": 106,
+  "prNumber": 107,
+  "branch": "factory/106-update-factory-intervention-question-template-to",
+  "runId": "23441807434",
+  "runAttempt": 1,
+  "promptChars": 6876,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 1719,
+    "cachedInputTokens": 0,
+    "outputTokens": 602,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 1719,
+    "cachedInputTokens": 0,
+    "outputTokens": 602,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:review:gpt-5-mini",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0016,
+    "estimatedUsd": 0.0016,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-23T14:16:39.669Z"
+}
