@@ -225,6 +225,8 @@ test("renderInterventionQuestionComment renders concise header with per-option f
     stage: "implement",
     summary: "Need approval to continue with protected control-plane changes",
     detail: "The next resumed stage needs temporary self-modify authorization.",
+    runId: "123456789",
+    runUrl: "https://github.com/example/repo/actions/runs/123456789",
     payload: {
       question: "Should the factory authorize self-modify for the next resumed stage and continue?",
       recommendedOptionId: "approve_once",
@@ -242,24 +244,27 @@ test("renderInterventionQuestionComment renders concise header with per-option f
   const lines = comment.split("\n");
 
   assert.equal(lines[0], "## Factory Question");
-  assert.equal(lines[2], "Need approval to continue with protected control-plane changes");
+  assert.equal(lines[1], "**🧑 Human action required** · Stage: `implement`");
+  assert.equal(lines[2], "Summary: Need approval to continue with protected control-plane changes");
+  assert.equal(lines[3], "Question ID: `int_q_123`");
+  assert.equal(lines[4], "Recommended: `approve_once`");
   assert.equal(
-    lines[3],
-    "**Question ID:** `int_q_123` · **Stage:** `implement` · **Recommended:** `approve_once`"
+    lines[5],
+    "Run: [GitHub Actions #123456789](https://github.com/example/repo/actions/runs/123456789)"
   );
+  assert.equal(lines[6], "");
+  assert.equal(lines[7], "### Answer With");
+  assert.equal(lines[8], "");
   assert.equal(
-    lines[4],
+    lines[9],
     "> _Should the factory authorize self-modify for the next resumed stage and continue?_"
   );
 
-  const answersHeadingIndex = lines.indexOf("### Answers");
-  assert.ok(answersHeadingIndex > 0);
-
-  const firstOptionIndex = answersHeadingIndex + 2;
-  assert.equal(
-    lines[firstOptionIndex],
+  const firstOptionIndex = lines.indexOf(
     "**Approve once and authorize the next resumed stage** — Resumes automation"
   );
+  assert.ok(firstOptionIndex > 0);
+  assert.equal(lines[firstOptionIndex - 1], "");
   assert.equal(lines[firstOptionIndex + 1], "");
   assert.equal(lines[firstOptionIndex + 2], "```text");
   assert.equal(lines[firstOptionIndex + 3], "/factory answer int_q_123 approve_once");
@@ -291,6 +296,7 @@ test("renderInterventionQuestionComment renders concise header with per-option f
     optionIds: ["approve_once", "deny"]
   });
 });
+
 
 test("renderInterventionQuestionComment omits outcome hint for unknown effects", () => {
   const intervention = defaultApprovalIntervention({
@@ -378,6 +384,45 @@ test("renderInterventionQuestionComment skips context section when detail absent
   assert.ok(!comment.includes("<summary>Why this needs attention</summary>"));
 });
 
+
+test("renderInterventionQuestionComment handles missing optional values", () => {
+  const intervention = defaultApprovalIntervention({
+    id: "int_minimal",
+    stage: "review",
+    summary: "",
+    detail: "",
+    runId: null,
+    runUrl: null,
+    payload: {
+      question: "Manual decision required?",
+      recommendedOptionId: null,
+      options: []
+    }
+  });
+  const comment = renderInterventionQuestionComment({ intervention });
+  const lines = comment.split("\n");
+  const headingIndex = lines.indexOf("### Answer With");
+  const header = lines.slice(0, headingIndex).filter((line) => line);
+
+  assert.deepEqual(header, [
+    "## Factory Question",
+    "**🧑 Human action required** · Stage: `review`",
+    "Question ID: `int_minimal`"
+  ]);
+  assert.equal(lines[headingIndex - 1], "");
+  assert.equal(lines[headingIndex + 1], "");
+  assert.equal(lines[headingIndex + 2], "> _Manual decision required?_");
+  assert.equal(lines[headingIndex + 3], "");
+  assert.equal(lines[headingIndex + 4], "_No answers available._");
+  assert.ok(!comment.includes("Summary:"));
+  assert.ok(!comment.includes("Recommended:"));
+  assert.ok(!comment.includes("Run:"));
+  const metadataMatch = comment.match(/<!-- factory-question: ([^>]+) -->/);
+  assert.ok(metadataMatch);
+  assert.deepEqual(JSON.parse(metadataMatch[1]).optionIds, []);
+});
+
+
 test("renderInterventionQuestionComment omits recommended fact when not provided", () => {
   const intervention = defaultApprovalIntervention({
     id: "int_no_recommendation",
@@ -394,10 +439,14 @@ test("renderInterventionQuestionComment omits recommended fact when not provided
   });
   const comment = renderInterventionQuestionComment({ intervention });
   const lines = comment.split("\n");
-  const factsLine = lines.find((line) => line.startsWith("**Question ID:**"));
+  const headingIndex = lines.indexOf("### Answer With");
+  const header = lines.slice(0, headingIndex).filter((line) => line);
 
-  assert.ok(factsLine);
-  assert.equal(factsLine, "**Question ID:** `int_no_recommendation` · **Stage:** `implement`");
+  assert.ok(header.includes("**🧑 Human action required** · Stage: `implement`"));
+  assert.ok(header.includes("Summary: Escalate for confirmation"));
+  assert.ok(header.includes("Question ID: `int_no_recommendation`"));
+  assert.ok(!header.some((line) => line.startsWith("Recommended:")));
+  assert.equal(lines[headingIndex - 1], "");
 });
 
 
