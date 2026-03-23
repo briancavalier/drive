@@ -582,3 +582,22 @@ test("factory hybrid canary workflow dispatches the reusable plan stage and opti
   assert.match(finalizeJob, /name:\s+Checkout repository[\s\S]*ref:\s+\$\{\{\s*inputs\.branch\s*\}\}/);
   assert.match(finalizeJob, /name:\s+Finalize planning state[\s\S]*run:\s+node scripts\/finalize-plan\.mjs/);
 });
+
+test("factory bootstrap workflow can dispatch the hybrid canary against a prepared branch", () => {
+  const workflowText = readWorkflowText("factory-bootstrap.yml");
+  const canaryJob = extractJobBlock(workflowText, "hybrid-canary");
+  const finalizeJob = extractJobBlock(workflowText, "finalize-canary");
+
+  assert.match(workflowText, /run_hybrid_canary:\s*\n\s+description:\s+Run the plan-stage hybrid Codex canary instead of bootstrap-only setup\./);
+  assert.match(workflowText, /issue_number:\s*\n\s+description:\s+Issue number associated with the prepared factory branch\./);
+  assert.match(workflowText, /branch:\s*\n\s+description:\s+Existing prepared factory branch to run the canary against\./);
+  assert.match(canaryJob, /if:\s+inputs\.run_hybrid_canary/);
+  assert.match(canaryJob, /uses:\s+\.\/\.github\/workflows\/_factory-stage\.yml/);
+  assert.match(canaryJob, /mode:\s+plan/);
+  assert.match(canaryJob, /issue_number:\s+\$\{\{\s*inputs\.issue_number\s*\}\}/);
+  assert.match(canaryJob, /branch:\s+\$\{\{\s*inputs\.branch\s*\}\}/);
+  assert.match(canaryJob, /artifacts_path:\s+\$\{\{\s*inputs\.artifacts_path\s*\}\}/);
+  assert.match(canaryJob, /max_repair_attempts:\s+\$\{\{\s*fromJSON\(inputs\.max_repair_attempts\)\s*\}\}/);
+  assert.match(finalizeJob, /if:\s+inputs\.run_hybrid_canary && inputs\.finalize_plan && needs\.hybrid-canary\.result == 'success'/);
+  assert.match(finalizeJob, /name:\s+Finalize planning state[\s\S]*run:\s+node scripts\/finalize-plan\.mjs/);
+});
