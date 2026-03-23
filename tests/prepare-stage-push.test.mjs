@@ -6,6 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
   persistCostSummaryForStage,
+  readActualUsageTelemetry,
   resolveStagePushAuthorization,
   resolveStageCommitAction,
   shouldPersistCostSummary,
@@ -268,6 +269,171 @@ test("persistCostSummaryForStage writes a usage event and derived summary when a
   } finally {
     process.chdir(originalCwd);
   }
+});
+
+test("persistCostSummaryForStage includes actual usage telemetry when provided", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
+  const originalCwd = process.cwd();
+  const summaryPath = path.join(tempDir, "estimate.json");
+  const artifactsPath = path.join(tempDir, "artifacts");
+
+  fs.writeFileSync(
+    summaryPath,
+    JSON.stringify(
+      {
+        issueNumber: 55,
+        branch: "factory/55-telemetry",
+        provider: "openai",
+        apiSurface: "codex-action",
+        pricing: {
+          version: "openai-2026-03-19",
+          model: "gpt-5-codex",
+          currency: "USD"
+        },
+        current: {
+          stage: "plan",
+          model: "gpt-5-codex",
+          promptChars: 800,
+          estimatedUsageBeforeCalibration: {
+            inputTokens: 200,
+            cachedInputTokens: 0,
+            outputTokens: 70,
+            reasoningTokens: null
+          },
+          estimatedUsage: {
+            inputTokens: 200,
+            cachedInputTokens: 0,
+            outputTokens: 70,
+            reasoningTokens: null
+          },
+          usageCalibration: {
+            bucket: "plan:gpt-5-codex:openai",
+            sampleSize: 0,
+            generatedAt: "",
+            source: "default",
+            multipliers: {
+              inputTokens: 1,
+              cachedInputTokens: 1,
+              outputTokens: 1
+            }
+          },
+          derivedCost: {
+            stageUsdBeforeCalibration: 0.0002,
+            stageUsd: 0.0002,
+            totalEstimatedUsd: 0.0002,
+            band: "low",
+            emoji: "🟢",
+            pricingSource: "model"
+          }
+        },
+        stages: {
+          plan: {
+            mode: "plan",
+            provider: "openai",
+            apiSurface: "codex-action",
+            model: "gpt-5-codex",
+            promptChars: 800,
+            estimatedUsageBeforeCalibration: {
+              inputTokens: 200,
+              cachedInputTokens: 0,
+              outputTokens: 70,
+              reasoningTokens: null
+            },
+            estimatedUsage: {
+              inputTokens: 200,
+              cachedInputTokens: 0,
+              outputTokens: 70,
+              reasoningTokens: null
+            },
+            usageCalibration: {
+              bucket: "plan:gpt-5-codex:openai",
+              sampleSize: 0,
+              generatedAt: "",
+              source: "default",
+              multipliers: {
+                inputTokens: 1,
+                cachedInputTokens: 1,
+                outputTokens: 1
+              }
+            },
+            derivedCost: {
+              stageUsdBeforeCalibration: 0.0002,
+              stageUsd: 0.0002,
+              pricingSource: "model"
+            }
+          }
+        },
+        thresholds: { warnUsd: 0.25, highUsd: 1 }
+      },
+      null,
+      2
+    )
+  );
+
+  try {
+    process.chdir(tempDir);
+    persistCostSummaryForStage({
+      mode: "plan",
+      artifactsPath,
+      costSummaryPath: summaryPath,
+      worktreeHasChanges: false,
+      telemetryContext: {
+        issueNumber: 55,
+        branch: "factory/55-telemetry",
+        runId: "987654321",
+        runAttempt: "2",
+        actualUsage: {
+          inputTokens: 321,
+          cachedInputTokens: 111,
+          outputTokens: 77,
+          reasoningTokens: 40
+        }
+      },
+      now: new Date("2026-03-18T12:00:00Z")
+    });
+
+    const usageEventsDir = path.join(tempDir, ".factory", "usage-events");
+    const usageDates = fs.readdirSync(usageEventsDir);
+    const eventDir = path.join(usageEventsDir, usageDates[0]);
+    const eventFile = fs.readdirSync(eventDir)[0];
+    const event = JSON.parse(fs.readFileSync(path.join(eventDir, eventFile), "utf8"));
+
+    assert.deepEqual(event.actualUsage, {
+      inputTokens: 321,
+      cachedInputTokens: 111,
+      outputTokens: 77,
+      reasoningTokens: 40
+    });
+  } finally {
+    process.chdir(originalCwd);
+  }
+});
+
+test("readActualUsageTelemetry returns usage payloads when the file exists", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-actual-usage-"));
+  const usagePath = path.join(tempDir, "usage.json");
+
+  fs.writeFileSync(
+    usagePath,
+    JSON.stringify({
+      actualUsage: {
+        inputTokens: 123,
+        cachedInputTokens: 45,
+        outputTokens: 67,
+        reasoningTokens: 8
+      }
+    })
+  );
+
+  assert.deepEqual(readActualUsageTelemetry(usagePath), {
+    actualUsage: {
+      inputTokens: 123,
+      cachedInputTokens: 45,
+      outputTokens: 67,
+      reasoningTokens: 8
+    },
+    actualUsd: null
+  });
 });
 
 test("validateReviewArtifactsForStage skips non-review modes", () => {
