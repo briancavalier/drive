@@ -675,17 +675,12 @@ export function renderPlanReadyIssueComment(
 export function renderInterventionQuestionComment({ intervention }) {
   const options = getQuestionOptions(intervention);
   const recommendedOptionId = `${intervention.payload?.recommendedOptionId || ""}`.trim();
-  const summaryFacts = [
-    `**Question ID:** \`${intervention.id}\``,
-    `**Stage:** \`${intervention.stage}\``
-  ];
-
-  if (recommendedOptionId) {
-    summaryFacts.push(`**Recommended:** \`${recommendedOptionId}\``);
-  }
-
   const questionPrompt = `${intervention.payload?.question || ""}`.trim();
   const detail = normalizeNewlines(`${intervention.detail || ""}`).trim();
+  const stage = `${intervention.stage || "unknown"}`.trim() || "unknown";
+  const summary = `${intervention.summary || ""}`.trim();
+  const runId = `${intervention.runId || ""}`.trim();
+  const runUrl = `${intervention.runUrl || ""}`.trim();
   const metadata = JSON.stringify({
     id: intervention.id,
     type: intervention.type,
@@ -695,37 +690,49 @@ export function renderInterventionQuestionComment({ intervention }) {
   });
   const lines = [
     "## Factory Question",
-    ""
+    `**🧑 Human action required** · Stage: \`${stage}\``
   ];
 
-  if (`${intervention.summary || ""}`.trim()) {
-    lines.push(`${intervention.summary}`.trim());
+  if (summary) {
+    lines.push(`Summary: ${summary}`);
   }
 
-  if (summaryFacts.length) {
-    lines.push(summaryFacts.join(" · "));
+  lines.push(`Question ID: \`${intervention.id}\``);
+
+  if (recommendedOptionId) {
+    lines.push(`Recommended: \`${recommendedOptionId}\``);
   }
+
+  if (runUrl && runId) {
+    lines.push(`Run: [GitHub Actions #${runId}](${runUrl})`);
+  } else if (runUrl) {
+    lines.push(`Run: [GitHub Actions run](${runUrl})`);
+  } else if (runId) {
+    lines.push(`Run: #${runId}`);
+  }
+
+  lines.push("", "### Answer With");
 
   if (questionPrompt) {
-    lines.push(`> _${questionPrompt}_`);
+    lines.push("", `> _${questionPrompt}_`);
   }
 
-  lines.push("", "### Answers", "");
-
   if (options.length) {
+    lines.push("");
     for (const option of options) {
       const label = `${option.label || option.id}`.trim() || option.id;
       const effectHint = describeOptionEffect(option.effect);
       lines.push(effectHint ? `**${label}** — ${effectHint}` : `**${label}**`);
       lines.push("", "```text", `${PR_SLASH_COMMANDS.answer} ${intervention.id} ${option.id}`, "```", "");
     }
-  }
-
-  if (!options.length) {
-    lines.push("_No answers available._", "");
+  } else {
+    lines.push("", "_No answers available._", "");
   }
 
   if (detail) {
+    if (lines[lines.length - 1] !== "") {
+      lines.push("");
+    }
     lines.push("<details>");
     lines.push("<summary>Why this needs attention</summary>");
     lines.push("");
