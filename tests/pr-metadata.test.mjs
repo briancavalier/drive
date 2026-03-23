@@ -6,6 +6,7 @@ import {
   canonicalizePrMetadata,
   defaultFailureIntervention,
   defaultPrMetadata,
+  defaultQuestionIntervention,
   extractPrMetadata,
   renderPrBody
 } from "../scripts/lib/pr-metadata.mjs";
@@ -33,6 +34,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.pendingReviewSha, null);
   assert.equal(metadata.intervention, null);
   assert.equal(metadata.autoAppliedSelfModifyLabel, false);
+  assert.equal(metadata.pendingStageDecision, null);
   assert.equal(metadata.costEstimateUsd, 0);
   assert.equal(metadata.costEstimateBand, "");
   assert.match(body, /Closes #7/);
@@ -123,6 +125,7 @@ test("defaultPrMetadata includes a null intervention by default", () => {
 
   assert.equal(metadata.intervention, null);
   assert.equal(metadata.autoAppliedSelfModifyLabel, false);
+  assert.equal(metadata.pendingStageDecision, null);
 });
 
 test("renderPrBody preserves failure intervention metadata", () => {
@@ -218,4 +221,78 @@ test("renderPrBody preserves approval intervention metadata", () => {
   assert.equal(metadata.intervention.payload.resumeContext.ciRunId, "777");
   assert.equal(metadata.intervention.payload.resumeContext.reviewId, "55");
   assert.equal(metadata.intervention.payload.resumeContext.repairAttempts, 2);
+});
+
+test("renderPrBody preserves generic question intervention option instructions", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "blocked",
+      blockedAction: "implement",
+      intervention: defaultQuestionIntervention({
+        id: "int_q_ambiguity",
+        stage: "implement",
+        summary: "Need a decision between two valid implementation directions",
+        payload: {
+          questionKind: "ambiguity",
+          question: "Which implementation direction should the factory take?",
+          recommendedOptionId: "api_first",
+          options: [
+            {
+              id: "api_first",
+              label: "API-first path",
+              effect: "resume_current_stage",
+              instruction: "Implement the API-first path."
+            },
+            {
+              id: "human_takeover",
+              label: "Hand off to human-only handling",
+              effect: "manual_only"
+            }
+          ]
+        }
+      })
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.intervention.type, "question");
+  assert.equal(metadata.intervention.payload.questionKind, "ambiguity");
+  assert.equal(metadata.intervention.payload.options[0].instruction, "Implement the API-first path.");
+});
+
+test("renderPrBody preserves pending stage decision metadata", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "implementing",
+      pendingStageDecision: {
+        sourceInterventionId: "int_q_123",
+        kind: "ambiguity",
+        selectedOptionId: "api_first",
+        selectedOptionLabel: "API-first path",
+        instruction: "Implement the API-first path and ignore the UI-only alternative.",
+        answeredBy: "maintainer",
+        answeredAt: "2026-03-22T20:00:00Z"
+      }
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.pendingStageDecision.sourceInterventionId, "int_q_123");
+  assert.equal(metadata.pendingStageDecision.kind, "ambiguity");
+  assert.equal(metadata.pendingStageDecision.selectedOptionId, "api_first");
+  assert.match(metadata.pendingStageDecision.instruction, /API-first path/);
 });

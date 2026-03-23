@@ -32,6 +32,40 @@ function stripLegacyFailureMetadata(metadata = {}) {
   return rest;
 }
 
+function normalizePendingStageDecision(decision) {
+  if (!decision || typeof decision !== "object") {
+    return null;
+  }
+
+  const sourceInterventionId = `${decision.sourceInterventionId || ""}`.trim();
+  const kind = `${decision.kind || ""}`.trim();
+  const selectedOptionId = `${decision.selectedOptionId || ""}`.trim();
+  const selectedOptionLabel = `${decision.selectedOptionLabel || ""}`.trim();
+  const instruction = `${decision.instruction || ""}`.trim();
+  const answeredBy = `${decision.answeredBy || ""}`.trim();
+  const answeredAt = `${decision.answeredAt || ""}`.trim();
+
+  if (
+    !sourceInterventionId ||
+    !kind ||
+    !selectedOptionId ||
+    !selectedOptionLabel ||
+    !instruction
+  ) {
+    return null;
+  }
+
+  return {
+    sourceInterventionId,
+    kind,
+    selectedOptionId,
+    selectedOptionLabel,
+    instruction,
+    answeredBy: answeredBy || null,
+    answeredAt: answeredAt || null
+  };
+}
+
 export function defaultPrMetadata(overrides = {}) {
   const normalizedOverrides = stripLegacyFailureMetadata(overrides);
 
@@ -48,6 +82,7 @@ export function defaultPrMetadata(overrides = {}) {
     pendingReviewSha: null,
     paused: false,
     autoAppliedSelfModifyLabel: false,
+    pendingStageDecision: null,
     lastCompletedStage: null,
     lastRunId: null,
     lastRunUrl: null,
@@ -63,6 +98,9 @@ export function defaultPrMetadata(overrides = {}) {
     lastStageCostEstimateUsd: 0,
     intervention: null,
     ...normalizedOverrides,
+    pendingStageDecision: normalizePendingStageDecision(
+      normalizedOverrides.pendingStageDecision
+    ),
     intervention: canonicalizeIntervention(normalizedOverrides.intervention ?? null)
   };
 }
@@ -84,6 +122,9 @@ export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadat
     ...normalizedMetadata,
     issueNumber: normalizedIssueNumber ?? normalizedMetadata.issueNumber ?? null,
     artifactsPath: canonicalArtifactsPath,
+    pendingStageDecision: normalizePendingStageDecision(
+      normalizedMetadata.pendingStageDecision
+    ),
     intervention: canonicalizeIntervention(normalizedMetadata.intervention)
   });
 }

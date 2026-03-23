@@ -543,6 +543,88 @@ test("implement prompt metadata lists last failure type and stage counters", () 
   assert.match(result.prompt, /Previous stage produced no repository changes/);
 });
 
+test("implement prompt includes binding human decision guidance when pendingStageDecision is present", () => {
+  const artifactsDir = makeArtifactsDir();
+  const metadata = defaultPrMetadata({
+    issueNumber: 1,
+    artifactsPath: artifactsDir,
+    status: "implementing",
+    pendingStageDecision: {
+      sourceInterventionId: "int_q_ambiguity",
+      kind: "ambiguity",
+      selectedOptionId: "api_first",
+      selectedOptionLabel: "API-first path",
+      instruction: "Implement the API-first path and ignore the UI-only alternative.",
+      answeredBy: "maintainer",
+      answeredAt: "2026-03-22T20:00:00Z"
+    }
+  });
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata
+  });
+
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.match(result.prompt, /## Human Decision/);
+  assert.match(result.prompt, /Source intervention: int_q_ambiguity/);
+  assert.match(result.prompt, /Selected option: API-first path \(api_first\)/);
+  assert.match(result.prompt, /Required direction: Implement the API-first path and ignore the UI-only alternative\./);
+  assert.ok(result.meta.includedSections.includes("human-decision"));
+});
+
+test("implement prompt omits the human decision section when absent", () => {
+  const artifactsDir = makeArtifactsDir();
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata: defaultPrMetadata({
+      issueNumber: 1,
+      artifactsPath: artifactsDir,
+      status: "implementing"
+    })
+  });
+
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.doesNotMatch(result.prompt, /## Human Decision/);
+});
+
 test("review prompt embeds methodology instructions and metadata", () => {
   const artifactsDir = makeArtifactsDir();
   const pullRequestBody = renderPrBody({

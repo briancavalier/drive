@@ -67,6 +67,7 @@ test("applyInterventionAnswer resolves approval and resumes the blocked action",
   assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCall.env.FACTORY_STATUS, "implementing");
   assert.equal(execCall.env.FACTORY_INTERVENTION, "__CLEAR__");
+  assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
   assert.equal(execCall.env.FACTORY_BLOCKED_ACTION, "");
   assert.equal(execCall.env.FACTORY_PAUSED, "false");
   assert.equal(execCall.env.FACTORY_SELF_MODIFY_LABEL_ACTION, "add");
@@ -74,6 +75,121 @@ test("applyInterventionAnswer resolves approval and resumes the blocked action",
   assert.match(execCall.env.FACTORY_COMMENT, /Resolved factory question `int_q_123`/);
   assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
   assert.match(execCall.env.FACTORY_COMMENT, /Approved after applying the label\./);
+});
+
+test("applyInterventionAnswer persists an ambiguity decision before resuming implement", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_ambiguity",
+      FACTORY_OPTION_ID: "api_first",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          intervention: {
+            id: "int_q_ambiguity",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "ambiguity",
+              question: "Which implementation direction should the factory take?",
+              recommendedOptionId: "api_first",
+              options: [
+                {
+                  id: "api_first",
+                  label: "API-first path",
+                  effect: "resume_current_stage",
+                  instruction: "Implement the API-first path and ignore the UI-only alternative."
+                },
+                {
+                  id: "human_takeover",
+                  label: "Hand off to human-only handling",
+                  effect: "manual_only"
+                }
+              ]
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
+  const decision = JSON.parse(execCall.env.FACTORY_PENDING_STAGE_DECISION);
+  assert.equal(decision.sourceInterventionId, "int_q_ambiguity");
+  assert.equal(decision.kind, "ambiguity");
+  assert.equal(decision.selectedOptionId, "api_first");
+  assert.equal(decision.selectedOptionLabel, "API-first path");
+  assert.match(decision.instruction, /API-first path/);
+  assert.equal(decision.answeredBy, "maintainer");
+  assert.equal(execCall.env.FACTORY_STATUS, "implementing");
+});
+
+test("applyInterventionAnswer does not persist a pending decision for human takeover", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_ambiguity",
+      FACTORY_OPTION_ID: "human_takeover",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          intervention: {
+            id: "int_q_ambiguity",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "ambiguity",
+              question: "Which implementation direction should the factory take?",
+              recommendedOptionId: "api_first",
+              options: [
+                {
+                  id: "api_first",
+                  label: "API-first path",
+                  effect: "resume_current_stage",
+                  instruction: "Implement the API-first path and ignore the UI-only alternative."
+                },
+                {
+                  id: "human_takeover",
+                  label: "Hand off to human-only handling",
+                  effect: "manual_only"
+                }
+              ]
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
+  assert.equal(execCall.env.FACTORY_STATUS, "blocked");
 });
 
 test("applyInterventionAnswer preserves an existing self-modify label on approval", async () => {

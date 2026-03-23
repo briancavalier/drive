@@ -4,6 +4,7 @@ import {
   applyBlockedAction,
   applyAutoAppliedSelfModifyLabel,
   applyIntervention,
+  applyPendingStageDecision,
   applyPaused,
   applyCostEstimateMetadata,
   applyLastCompletedStage,
@@ -213,6 +214,57 @@ test("applyAutoAppliedSelfModifyLabel updates metadata from the explicit env ove
       "__UNCHANGED__"
     ).autoAppliedSelfModifyLabel,
     true
+  );
+});
+
+test("applyPendingStageDecision updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata();
+  const decision = {
+    sourceInterventionId: "int_q_123",
+    kind: "ambiguity",
+    selectedOptionId: "api_first",
+    selectedOptionLabel: "API-first path",
+    instruction: "Implement the API-first path only."
+  };
+
+  assert.deepEqual(
+    applyPendingStageDecision(metadata, JSON.stringify(decision)).pendingStageDecision,
+    decision
+  );
+  assert.equal(applyPendingStageDecision(metadata, "__CLEAR__").pendingStageDecision, null);
+  assert.equal(
+    applyPendingStageDecision(
+      { ...metadata, pendingStageDecision: decision },
+      "__UNCHANGED__"
+    ).pendingStageDecision.sourceInterventionId,
+    "int_q_123"
+  );
+  assert.equal(applyPendingStageDecision(metadata, "").pendingStageDecision, null);
+});
+
+test("applyPendingStageDecision leaves metadata unchanged when env undefined", () => {
+  const metadata = defaultPrMetadata({
+    pendingStageDecision: {
+      sourceInterventionId: "int_q_123",
+      kind: "ambiguity",
+      selectedOptionId: "api_first",
+      selectedOptionLabel: "API-first path",
+      instruction: "Implement the API-first path only."
+    }
+  });
+
+  assert.equal(
+    applyPendingStageDecision(metadata, undefined).pendingStageDecision.sourceInterventionId,
+    "int_q_123"
+  );
+});
+
+test("applyPendingStageDecision rejects invalid JSON", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.throws(
+    () => applyPendingStageDecision(metadata, "{not-json"),
+    /FACTORY_PENDING_STAGE_DECISION must be valid JSON/
   );
 });
 

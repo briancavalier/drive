@@ -7,7 +7,8 @@ function normalizeOption(option = {}) {
   return {
     id: `${option.id || ""}`.trim(),
     label: `${option.label || ""}`.trim(),
-    effect: `${option.effect || ""}`.trim()
+    effect: `${option.effect || ""}`.trim(),
+    instruction: `${option.instruction || ""}`.trim() || null
   };
 }
 
@@ -277,6 +278,39 @@ export function buildApprovalIntervention({
       options: Array.isArray(options) ? options : [],
       allowsComment,
       applySelfModifyLabelOnApproval,
+      resumeContext
+    }
+  });
+}
+
+export function buildQuestionIntervention({
+  id = buildInterventionId("int_q"),
+  action,
+  questionKind,
+  summary,
+  detail = "",
+  question,
+  recommendedOptionId,
+  options,
+  runId = null,
+  runUrl = null,
+  allowsComment = true,
+  resumeContext = {}
+}) {
+  return defaultQuestionIntervention({
+    id,
+    stage: action,
+    summary: `${summary || ""}`.trim(),
+    detail: `${detail || ""}`.trim(),
+    createdAt: new Date().toISOString(),
+    runId: runId || null,
+    runUrl: runUrl || null,
+    payload: {
+      questionKind: `${questionKind || ""}`.trim() || null,
+      question: `${question || ""}`.trim(),
+      recommendedOptionId: `${recommendedOptionId || ""}`.trim() || null,
+      options: Array.isArray(options) ? options : [],
+      allowsComment,
       resumeContext
     }
   });

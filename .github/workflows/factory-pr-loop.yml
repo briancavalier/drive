@@ -256,6 +256,7 @@ jobs:
           FACTORY_PENDING_REVIEW_SHA: ""
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
+          FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_PAUSED: "false"
@@ -308,6 +309,7 @@ jobs:
         needs.resolve-stage-dispatch.outputs.effective_action == 'implement' ||
         needs.resolve-stage-dispatch.outputs.effective_action == 'repair'
       ) &&
+      needs.stage.outputs.intervention_requested != 'true' &&
       needs.stage.result == 'success' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
@@ -335,12 +337,50 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
+          FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_LAST_COMPLETED_STAGE: ${{ needs.resolve-stage-dispatch.outputs.effective_action == 'implement' && 'implement' || 'repair' }}
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+
+  block-on-stage-intervention:
+    if: |
+      always() &&
+      needs.resolve-stage-dispatch.outputs.effective_action == 'implement' &&
+      needs.stage.result == 'success' &&
+      needs.stage.outputs.intervention_requested == 'true' &&
+      needs.resolve-stage-dispatch.result == 'success'
+    needs:
+      - route
+      - stage
+      - resolve-stage-dispatch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Block PR on stage intervention request
+        run: node scripts/handle-stage-intervention-request.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_STAGE_ACTION: implement
+          FACTORY_INTERVENTION_REQUEST: ${{ needs.stage.outputs.intervention_payload }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   stage-failed:
     if: |
