@@ -55,6 +55,39 @@ function hasWorktreeChanges() {
   return git(["status", "--porcelain"]).length > 0;
 }
 
+function maybeReadJson(filePath) {
+  if (!filePath) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export function readActualUsageTelemetry(filePath) {
+  const parsed = maybeReadJson(filePath);
+
+  if (!parsed) {
+    return {
+      actualUsage: {},
+      actualUsd: null
+    };
+  }
+
+  return {
+    actualUsage: parsed.actualUsage || {},
+    actualUsd:
+      parsed.actualUsd == null ? null : Number(parsed.actualUsd) || 0
+  };
+}
+
 export function shouldPersistCostSummary(mode, worktreeHasChanges) {
   if (mode === "implement" || mode === "repair") {
     return worktreeHasChanges;
@@ -315,6 +348,7 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
   const issueTitle = env.FACTORY_ISSUE_TITLE || "";
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const costSummaryPath = env.FACTORY_COST_SUMMARY_PATH || "";
+  const actualUsagePath = env.FACTORY_STAGE_ACTUAL_USAGE_PATH || "";
   const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
   const prNumberRaw = env.FACTORY_PR_NUMBER || "";
   const githubRunId = env.GITHUB_RUN_ID || "";
@@ -374,6 +408,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
     });
   }
 
+  const actualUsageTelemetry = readActualUsageTelemetry(actualUsagePath);
+
   persistCostSummaryForStage({
     mode,
     artifactsPath,
@@ -384,7 +420,9 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       prNumber: Number(prNumberRaw) > 0 ? Number(prNumberRaw) : null,
       branch,
       runId: githubRunId,
-      runAttempt: githubRunAttempt
+      runAttempt: githubRunAttempt,
+      actualUsage: actualUsageTelemetry.actualUsage,
+      actualUsd: actualUsageTelemetry.actualUsd
     }
   });
   git(["add", "-A"]);
