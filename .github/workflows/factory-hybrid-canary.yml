@@ -9,6 +9,9 @@ run-name: >-
   }}
 
 on:
+  push:
+    branches:
+      - codex/hybrid-codex-json
   workflow_dispatch:
     inputs:
       issue_number:
@@ -38,7 +41,26 @@ permissions:
   contents: read
 
 jobs:
+  plan-push:
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/_factory-stage.yml
+    with:
+      mode: plan
+      issue_number: 114
+      pr_number: 0
+      branch: factory/114-rename-pr-dashboard-heading-to-factory-status
+      artifacts_path: .factory/runs/114
+      max_repair_attempts: 3
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+
   plan:
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
       issues: write
@@ -56,7 +78,7 @@ jobs:
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
 
   finalize:
-    if: inputs.finalize_plan && needs.plan.result == 'success'
+    if: github.event_name == 'workflow_dispatch' && inputs.finalize_plan && needs.plan.result == 'success'
     needs:
       - plan
     runs-on: ubuntu-latest
