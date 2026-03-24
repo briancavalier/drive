@@ -27,22 +27,23 @@ export function main(env = process.env) {
   const current = summary?.current || {};
   const actualUsage = current.actualUsage || {};
   const derivedCost = current.derivedCost || {};
+  const clear = "__CLEAR__";
 
   setOutputs({
-    actual_api_surface: `${current.apiSurface || summary?.apiSurface || ""}`.trim(),
+    actual_api_surface: `${current.apiSurface || summary?.apiSurface || ""}`.trim() || clear,
     actual_stage_cost_usd:
-      derivedCost.actualUsd == null ? "" : String(Number(derivedCost.actualUsd) || 0),
+      derivedCost.actualUsd == null ? clear : String(Number(derivedCost.actualUsd) || 0),
     actual_input_tokens:
-      actualUsage.inputTokens == null ? "" : String(Number(actualUsage.inputTokens) || 0),
+      actualUsage.inputTokens == null ? clear : String(Number(actualUsage.inputTokens) || 0),
     actual_cached_input_tokens:
       actualUsage.cachedInputTokens == null
-        ? ""
+        ? clear
         : String(Number(actualUsage.cachedInputTokens) || 0),
     actual_output_tokens:
-      actualUsage.outputTokens == null ? "" : String(Number(actualUsage.outputTokens) || 0),
+      actualUsage.outputTokens == null ? clear : String(Number(actualUsage.outputTokens) || 0),
     actual_reasoning_tokens:
       actualUsage.reasoningTokens == null
-        ? ""
+        ? clear
         : String(Number(actualUsage.reasoningTokens) || 0)
   });
 

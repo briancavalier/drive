@@ -55,6 +55,30 @@ function applyCostMetadataField(metadata, key, envValue, { numeric = false } = {
   };
 }
 
+function applyNullableTelemetryField(metadata, key, envValue, { numeric = false } = {}) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue || ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      [key]: null
+    };
+  }
+
+  return {
+    ...metadata,
+    [key]: numeric ? Number(normalized) : normalized
+  };
+}
+
 export function resolveNextStatus(metadataStatus, envStatus) {
   const requestedStatus = `${envStatus || ""}`.trim();
 
@@ -181,36 +205,36 @@ export function applyCostEstimateMetadata(metadata, env = {}) {
 export function applyActualUsageMetadata(metadata, env = {}) {
   let nextMetadata = { ...metadata };
 
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualApiSurface",
     env.FACTORY_ACTUAL_API_SURFACE
   );
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualStageCostUsd",
     env.FACTORY_ACTUAL_STAGE_COST_USD,
     { numeric: true }
   );
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualInputTokens",
     env.FACTORY_ACTUAL_INPUT_TOKENS,
     { numeric: true }
   );
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualCachedInputTokens",
     env.FACTORY_ACTUAL_CACHED_INPUT_TOKENS,
     { numeric: true }
   );
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualOutputTokens",
     env.FACTORY_ACTUAL_OUTPUT_TOKENS,
     { numeric: true }
   );
-  nextMetadata = applyCostMetadataField(
+  nextMetadata = applyNullableTelemetryField(
     nextMetadata,
     "actualReasoningTokens",
     env.FACTORY_ACTUAL_REASONING_TOKENS,
