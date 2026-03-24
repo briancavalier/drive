@@ -9,6 +9,7 @@ test("finalizePlan removes obsolete cost labels, adds plan-ready labels, and com
   const commentCalls = [];
   const updateCalls = [];
   const createCalls = [];
+  const renderCalls = [];
 
   await finalizePlan({
     env: {
@@ -49,14 +50,23 @@ test("finalizePlan removes obsolete cost labels, adds plan-ready labels, and com
     buildCostMetadataFromSummaryImpl: () => ({
       costEstimateUsd: 0.2,
       costEstimateBand: "medium",
-      costEstimateEmoji: "🟡"
+      costEstimateEmoji: "🟡",
+      actualApiSurface: "codex-cli",
+      actualStageCostUsd: 2.2984,
+      actualInputTokens: 1596969,
+      actualCachedInputTokens: 1401216,
+      actualOutputTokens: 12706,
+      actualReasoningTokens: null
     }),
     buildCostLabelUpdateImpl: () => ({
       addLabel: FACTORY_LABELS.costMedium
     }),
     renderPlanReadyIssueCommentImpl: ({ prNumber }) =>
       `PR #${prNumber} ready; comment /factory implement`,
-    renderPrBodyImpl: ({ prNumber = null }) => `PR body for ${prNumber ?? "draft"}`
+    renderPrBodyImpl: (payload) => {
+      renderCalls.push(payload);
+      return `PR body for ${payload.prNumber ?? "draft"}`;
+    }
   });
 
   assert.equal(createCalls.length, 1);
@@ -82,4 +92,17 @@ test("finalizePlan removes obsolete cost labels, adds plan-ready labels, and com
       body: "PR #85 ready; comment /factory implement"
     }
   ]);
+  assert.equal(renderCalls.length, 2);
+  assert.equal(renderCalls[0].metadata.actualApiSurface, "codex-cli");
+  assert.equal(renderCalls[0].metadata.actualStageCostUsd, 2.2984);
+  assert.equal(renderCalls[0].metadata.actualInputTokens, 1596969);
+  assert.equal(renderCalls[0].metadata.actualCachedInputTokens, 1401216);
+  assert.equal(renderCalls[0].metadata.actualOutputTokens, 12706);
+  assert.equal(renderCalls[0].metadata.actualReasoningTokens, null);
+  assert.equal(renderCalls[1].metadata.actualApiSurface, "codex-cli");
+  assert.equal(renderCalls[1].metadata.actualStageCostUsd, 2.2984);
+  assert.equal(renderCalls[1].metadata.actualInputTokens, 1596969);
+  assert.equal(renderCalls[1].metadata.actualCachedInputTokens, 1401216);
+  assert.equal(renderCalls[1].metadata.actualOutputTokens, 12706);
+  assert.equal(renderCalls[1].metadata.actualReasoningTokens, null);
 });

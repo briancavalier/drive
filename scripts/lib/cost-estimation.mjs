@@ -528,6 +528,7 @@ export function buildCostMetadataFromSummary(summary) {
   const current = summary?.current || {};
   const thresholds = summary?.thresholds || {};
   const derivedCost = current.derivedCost || {};
+  const actualUsage = current.actualUsage || {};
 
   return {
     costEstimateUsd: Number(derivedCost.totalEstimatedUsd) || 0,
@@ -538,7 +539,22 @@ export function buildCostMetadataFromSummary(summary) {
     costPricingSource: derivedCost.pricingSource || "",
     lastEstimatedStage: current.stage || "",
     lastEstimatedModel: current.model || "",
-    lastStageCostEstimateUsd: Number(derivedCost.stageUsd) || 0
+    lastStageCostEstimateUsd: Number(derivedCost.stageUsd) || 0,
+    actualApiSurface: current.apiSurface || summary?.apiSurface || null,
+    actualStageCostUsd:
+      derivedCost.actualUsd == null ? null : Number(derivedCost.actualUsd),
+    actualInputTokens:
+      actualUsage.inputTokens == null ? null : Number(actualUsage.inputTokens),
+    actualCachedInputTokens:
+      actualUsage.cachedInputTokens == null
+        ? null
+        : Number(actualUsage.cachedInputTokens),
+    actualOutputTokens:
+      actualUsage.outputTokens == null ? null : Number(actualUsage.outputTokens),
+    actualReasoningTokens:
+      actualUsage.reasoningTokens == null
+        ? null
+        : Number(actualUsage.reasoningTokens)
   };
 }
 
