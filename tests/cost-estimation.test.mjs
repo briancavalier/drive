@@ -188,6 +188,41 @@ test("summarizeIssueUsageEvents preserves actual usage and actual USD", () => {
 test("buildCostMetadataFromSummary extracts PR metadata fields", () => {
   const metadata = buildCostMetadataFromSummary({
     thresholds: { warnUsd: 0.25, highUsd: 1 },
+    apiSurface: "codex-cli",
+    current: {
+      stage: "plan",
+      model: "gpt-5-codex",
+      apiSurface: "codex-cli",
+      actualUsage: {
+        inputTokens: 1596969,
+        cachedInputTokens: 1401216,
+        outputTokens: 12706,
+        reasoningTokens: null
+      },
+      derivedCost: {
+        totalEstimatedUsd: 0.3,
+        band: "medium",
+        emoji: "🟡",
+        pricingSource: "model",
+        stageUsd: 0.3,
+        actualUsd: 2.2984
+      }
+    }
+  });
+
+  assert.equal(metadata.costEstimateBand, "medium");
+  assert.equal(metadata.lastEstimatedModel, "gpt-5-codex");
+  assert.equal(metadata.actualApiSurface, "codex-cli");
+  assert.equal(metadata.actualStageCostUsd, 2.2984);
+  assert.equal(metadata.actualInputTokens, 1596969);
+  assert.equal(metadata.actualCachedInputTokens, 1401216);
+  assert.equal(metadata.actualOutputTokens, 12706);
+  assert.equal(metadata.actualReasoningTokens, null);
+});
+
+test("buildCostMetadataFromSummary leaves actual telemetry null when absent", () => {
+  const metadata = buildCostMetadataFromSummary({
+    thresholds: { warnUsd: 0.25, highUsd: 1 },
     current: {
       stage: "plan",
       model: "gpt-5-codex",
@@ -201,8 +236,12 @@ test("buildCostMetadataFromSummary extracts PR metadata fields", () => {
     }
   });
 
-  assert.equal(metadata.costEstimateBand, "medium");
-  assert.equal(metadata.lastEstimatedModel, "gpt-5-codex");
+  assert.equal(metadata.actualApiSurface, null);
+  assert.equal(metadata.actualStageCostUsd, null);
+  assert.equal(metadata.actualInputTokens, null);
+  assert.equal(metadata.actualCachedInputTokens, null);
+  assert.equal(metadata.actualOutputTokens, null);
+  assert.equal(metadata.actualReasoningTokens, null);
 });
 
 test("buildCostLabelUpdate returns one add label and removes the other bands", () => {
