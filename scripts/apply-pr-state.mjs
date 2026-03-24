@@ -55,6 +55,30 @@ function applyCostMetadataField(metadata, key, envValue, { numeric = false } = {
   };
 }
 
+function applyNullableTelemetryField(metadata, key, envValue, { numeric = false } = {}) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue || ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      [key]: null
+    };
+  }
+
+  return {
+    ...metadata,
+    [key]: numeric ? Number(normalized) : normalized
+  };
+}
+
 export function resolveNextStatus(metadataStatus, envStatus) {
   const requestedStatus = `${envStatus || ""}`.trim();
 
@@ -172,6 +196,48 @@ export function applyCostEstimateMetadata(metadata, env = {}) {
     nextMetadata,
     "lastStageCostEstimateUsd",
     env.FACTORY_LAST_STAGE_COST_ESTIMATE_USD,
+    { numeric: true }
+  );
+
+  return nextMetadata;
+}
+
+export function applyActualUsageMetadata(metadata, env = {}) {
+  let nextMetadata = { ...metadata };
+
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualApiSurface",
+    env.FACTORY_ACTUAL_API_SURFACE
+  );
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualStageCostUsd",
+    env.FACTORY_ACTUAL_STAGE_COST_USD,
+    { numeric: true }
+  );
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualInputTokens",
+    env.FACTORY_ACTUAL_INPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualCachedInputTokens",
+    env.FACTORY_ACTUAL_CACHED_INPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualOutputTokens",
+    env.FACTORY_ACTUAL_OUTPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyNullableTelemetryField(
+    nextMetadata,
+    "actualReasoningTokens",
+    env.FACTORY_ACTUAL_REASONING_TOKENS,
     { numeric: true }
   );
 
@@ -378,6 +444,7 @@ export async function main(env = process.env) {
 
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
+  nextMetadata = applyActualUsageMetadata(nextMetadata, env);
   nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
   nextMetadata = applyAutoAppliedSelfModifyLabel(
     nextMetadata,

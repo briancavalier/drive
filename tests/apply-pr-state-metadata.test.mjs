@@ -4,6 +4,7 @@ import {
   applyBlockedAction,
   applyAutoAppliedSelfModifyLabel,
   applyIntervention,
+  applyActualUsageMetadata,
   applyPendingStageDecision,
   applyPaused,
   applyCostEstimateMetadata,
@@ -173,6 +174,51 @@ test("applyCostEstimateMetadata updates advisory cost fields", () => {
   assert.equal(nextMetadata.lastEstimatedStage, "plan");
   assert.equal(nextMetadata.lastEstimatedModel, "gpt-5-codex");
   assert.equal(nextMetadata.lastStageCostEstimateUsd, 0.42);
+});
+
+test("applyActualUsageMetadata updates actual telemetry fields", () => {
+  const metadata = defaultPrMetadata();
+  const nextMetadata = applyActualUsageMetadata(metadata, {
+    FACTORY_ACTUAL_API_SURFACE: "codex-cli",
+    FACTORY_ACTUAL_STAGE_COST_USD: "2.6601",
+    FACTORY_ACTUAL_INPUT_TOKENS: "1840867",
+    FACTORY_ACTUAL_CACHED_INPUT_TOKENS: "1578496",
+    FACTORY_ACTUAL_OUTPUT_TOKENS: "16172",
+    FACTORY_ACTUAL_REASONING_TOKENS: ""
+  });
+
+  assert.equal(nextMetadata.actualApiSurface, "codex-cli");
+  assert.equal(nextMetadata.actualStageCostUsd, 2.6601);
+  assert.equal(nextMetadata.actualInputTokens, 1840867);
+  assert.equal(nextMetadata.actualCachedInputTokens, 1578496);
+  assert.equal(nextMetadata.actualOutputTokens, 16172);
+  assert.equal(nextMetadata.actualReasoningTokens, null);
+});
+
+test("applyActualUsageMetadata clears stale actual telemetry fields", () => {
+  const metadata = defaultPrMetadata({
+    actualApiSurface: "codex-cli",
+    actualStageCostUsd: 2.6601,
+    actualInputTokens: 1840867,
+    actualCachedInputTokens: 1578496,
+    actualOutputTokens: 16172,
+    actualReasoningTokens: 240
+  });
+  const nextMetadata = applyActualUsageMetadata(metadata, {
+    FACTORY_ACTUAL_API_SURFACE: "__CLEAR__",
+    FACTORY_ACTUAL_STAGE_COST_USD: "__CLEAR__",
+    FACTORY_ACTUAL_INPUT_TOKENS: "__CLEAR__",
+    FACTORY_ACTUAL_CACHED_INPUT_TOKENS: "__CLEAR__",
+    FACTORY_ACTUAL_OUTPUT_TOKENS: "__CLEAR__",
+    FACTORY_ACTUAL_REASONING_TOKENS: "__CLEAR__"
+  });
+
+  assert.equal(nextMetadata.actualApiSurface, null);
+  assert.equal(nextMetadata.actualStageCostUsd, null);
+  assert.equal(nextMetadata.actualInputTokens, null);
+  assert.equal(nextMetadata.actualCachedInputTokens, null);
+  assert.equal(nextMetadata.actualOutputTokens, null);
+  assert.equal(nextMetadata.actualReasoningTokens, null);
 });
 
 test("canonicalizeUpdatedMetadata rewrites drifted artifacts paths and preserves other fields", () => {
