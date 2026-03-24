@@ -96,6 +96,12 @@ export function defaultPrMetadata(overrides = {}) {
     lastEstimatedStage: null,
     lastEstimatedModel: null,
     lastStageCostEstimateUsd: 0,
+    actualApiSurface: null,
+    actualStageCostUsd: null,
+    actualInputTokens: null,
+    actualCachedInputTokens: null,
+    actualOutputTokens: null,
+    actualReasoningTokens: null,
     intervention: null,
     ...normalizedOverrides,
     pendingStageDecision: normalizePendingStageDecision(

@@ -391,11 +391,39 @@ function formatRepairsDisplay({ attempts, maxAttempts }) {
   return `\`${attemptValue} / ${maxValue}\``;
 }
 
+function formatTokenCompact(value) {
+  if (value == null || `${value}`.trim() === "") {
+    return "";
+  }
+
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    return "";
+  }
+
+  if (amount >= 1_000_000) {
+    return `${(amount / 1_000_000).toFixed(2).replace(/\.00$/, "")}M`;
+  }
+
+  if (amount >= 1_000) {
+    return `${(amount / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+
+  return `${Math.round(amount)}`;
+}
+
 function formatCostLine({
   costEstimateUsd,
   costEstimateEmoji,
   lastStageCostEstimateUsd,
-  lastEstimatedModel
+  lastEstimatedModel,
+  actualStageCostUsd,
+  actualInputTokens,
+  actualCachedInputTokens,
+  actualOutputTokens,
+  actualReasoningTokens,
+  actualApiSurface
 }) {
   const totalEstimate = Number(costEstimateUsd);
 
@@ -415,7 +443,44 @@ function formatCostLine({
     estimateSegment = `Estimate: $${formatEstimatedUsd(stageEstimateValue)} via ${lastEstimatedModel}`;
   }
 
-  return `Cost: ${totalSegment} · ${estimateSegment}`;
+  const hasActualCostField =
+    actualStageCostUsd != null && `${actualStageCostUsd}`.trim() !== "";
+  const actualCostValue = hasActualCostField ? Number(actualStageCostUsd) : Number.NaN;
+  const hasActualCost = Number.isFinite(actualCostValue) && actualCostValue >= 0;
+  const inputDisplay = formatTokenCompact(actualInputTokens);
+  const cachedDisplay = formatTokenCompact(actualCachedInputTokens);
+  const outputDisplay = formatTokenCompact(actualOutputTokens);
+  const reasoningDisplay = formatTokenCompact(actualReasoningTokens);
+  const tokenSegments = [];
+
+  if (inputDisplay) {
+    tokenSegments.push(`${inputDisplay} in`);
+  }
+  if (cachedDisplay) {
+    tokenSegments.push(`${cachedDisplay} cached`);
+  }
+  if (outputDisplay) {
+    tokenSegments.push(`${outputDisplay} out`);
+  }
+  if (reasoningDisplay) {
+    tokenSegments.push(`${reasoningDisplay} reasoning`);
+  }
+
+  let actualSegment = "";
+
+  if (hasActualCost) {
+    actualSegment = `Actual: $${formatEstimatedUsd(actualCostValue)} this stage`;
+    if (tokenSegments.length) {
+      actualSegment = `${actualSegment} (${tokenSegments.join(" / ")})`;
+    }
+    if (`${actualApiSurface || ""}`.trim()) {
+      actualSegment = `${actualSegment} via ${actualApiSurface}`;
+    }
+  }
+
+  return `Cost: ${[totalSegment, estimateSegment, actualSegment]
+    .filter(Boolean)
+    .join(" · ")}`;
 }
 
 function formatOpenLinksLine({ controlPanel, links }) {

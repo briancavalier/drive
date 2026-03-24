@@ -178,6 +178,48 @@ export function applyCostEstimateMetadata(metadata, env = {}) {
   return nextMetadata;
 }
 
+export function applyActualUsageMetadata(metadata, env = {}) {
+  let nextMetadata = { ...metadata };
+
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualApiSurface",
+    env.FACTORY_ACTUAL_API_SURFACE
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualStageCostUsd",
+    env.FACTORY_ACTUAL_STAGE_COST_USD,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualInputTokens",
+    env.FACTORY_ACTUAL_INPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualCachedInputTokens",
+    env.FACTORY_ACTUAL_CACHED_INPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualOutputTokens",
+    env.FACTORY_ACTUAL_OUTPUT_TOKENS,
+    { numeric: true }
+  );
+  nextMetadata = applyCostMetadataField(
+    nextMetadata,
+    "actualReasoningTokens",
+    env.FACTORY_ACTUAL_REASONING_TOKENS,
+    { numeric: true }
+  );
+
+  return nextMetadata;
+}
+
 export function canonicalizeUpdatedMetadata(metadata) {
   return canonicalizePrMetadata(metadata, metadata?.issueNumber);
 }
@@ -378,6 +420,7 @@ export async function main(env = process.env) {
 
   nextMetadata = applyPendingReviewSha(nextMetadata, env.FACTORY_PENDING_REVIEW_SHA);
   nextMetadata = applyCostEstimateMetadata(nextMetadata, env);
+  nextMetadata = applyActualUsageMetadata(nextMetadata, env);
   nextMetadata = applyPaused(nextMetadata, env.FACTORY_PAUSED);
   nextMetadata = applyAutoAppliedSelfModifyLabel(
     nextMetadata,

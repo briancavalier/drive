@@ -428,6 +428,13 @@ jobs:
         if: steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'failure'
         run: exit 1
 
+      - name: Read actual stage telemetry for pull request
+        id: actual_cost
+        if: inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success'
+        run: node scripts/read-cost-summary-actuals.mjs
+        env:
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+
       - name: Record cost estimate on pull request
         if: inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success'
         run: node scripts/apply-pr-state.mjs
@@ -443,6 +450,12 @@ jobs:
           FACTORY_LAST_ESTIMATED_STAGE: ${{ steps.cost.outputs.last_estimated_stage }}
           FACTORY_LAST_ESTIMATED_MODEL: ${{ steps.cost.outputs.last_estimated_model }}
           FACTORY_LAST_STAGE_COST_ESTIMATE_USD: ${{ steps.cost.outputs.last_stage_cost_estimate_usd }}
+          FACTORY_ACTUAL_API_SURFACE: ${{ steps.actual_cost.outputs.actual_api_surface }}
+          FACTORY_ACTUAL_STAGE_COST_USD: ${{ steps.actual_cost.outputs.actual_stage_cost_usd }}
+          FACTORY_ACTUAL_INPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_input_tokens }}
+          FACTORY_ACTUAL_CACHED_INPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_cached_input_tokens }}
+          FACTORY_ACTUAL_OUTPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_output_tokens }}
+          FACTORY_ACTUAL_REASONING_TOKENS: ${{ steps.actual_cost.outputs.actual_reasoning_tokens }}
           FACTORY_ADD_LABELS: ${{ steps.cost.outputs.cost_label_to_add }}
           FACTORY_REMOVE_LABELS: ${{ steps.cost.outputs.cost_labels_to_remove }}
 

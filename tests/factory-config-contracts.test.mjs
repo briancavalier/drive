@@ -417,12 +417,14 @@ test("factory stage workflow records estimated cost only after a successful push
   const codexIndex = workflowText.indexOf("name: Run Codex");
   const prepareIndex = workflowText.indexOf("name: Prepare stage output for push");
   const pushIndex = workflowText.indexOf("name: Push stage output");
+  const actualIndex = workflowText.indexOf("name: Read actual stage telemetry for pull request");
   const recordIndex = workflowText.indexOf("name: Record cost estimate on pull request");
 
   assert.ok(estimateIndex >= 0);
   assert.ok(codexIndex > estimateIndex);
   assert.ok(prepareIndex > codexIndex);
   assert.ok(pushIndex > prepareIndex);
+  assert.ok(actualIndex > pushIndex);
   assert.ok(recordIndex > pushIndex);
 
   assert.match(
@@ -437,7 +439,15 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
+    /name:\s+Read actual stage telemetry for pull request[\s\S]*run:\s*node scripts\/read-cost-summary-actuals\.mjs[\s\S]*FACTORY_ARTIFACTS_PATH:\s*\$\{\{\s*inputs\.artifacts_path\s*\}\}/
+  );
+  assert.match(
+    workflowText,
     /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.detect_intervention\.outputs\.intervention_requested != 'true' && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Record cost estimate on pull request[\s\S]*FACTORY_ACTUAL_API_SURFACE:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_api_surface\s*\}\}[\s\S]*FACTORY_ACTUAL_STAGE_COST_USD:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_stage_cost_usd\s*\}\}[\s\S]*FACTORY_ACTUAL_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_CACHED_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_cached_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_OUTPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_output_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_REASONING_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_reasoning_tokens\s*\}\}/
   );
   assert.match(workflowText, /name:\s+Budget preflight hook[\s\S]*Budget enforcement hook not configured/);
 });
