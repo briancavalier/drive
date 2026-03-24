@@ -6,7 +6,10 @@ import { setOutputs } from "./lib/actions-output.mjs";
 import { buildCommitMessage } from "./lib/commit-message.mjs";
 import { classifyFailure } from "./lib/failure-classification.mjs";
 import {
-  COST_SUMMARY_FILE_NAME
+  COST_SUMMARY_FILE_NAME,
+  MODEL_PRICING,
+  FALLBACK_MODEL_PRICING,
+  deriveUsdFromUsage
 } from "./lib/cost-estimation.mjs";
 import { FACTORY_LABELS } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
@@ -53,6 +56,62 @@ function hasStagedChanges() {
 
 function hasWorktreeChanges() {
   return git(["status", "--porcelain"]).length > 0;
+}
+
+function maybeReadJson(filePath) {
+  if (!filePath) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export function readActualUsageTelemetry(filePath) {
+  const parsed = maybeReadJson(filePath);
+
+  if (!parsed) {
+    return {
+      actualUsage: {},
+      actualUsd: null,
+      apiSurface: ""
+    };
+  }
+
+  return {
+    actualUsage: parsed.actualUsage || {},
+    actualUsd:
+      parsed.actualUsd == null ? null : Number(parsed.actualUsd) || 0,
+    apiSurface: `${parsed.apiSurface || ""}`.trim()
+  };
+}
+
+function resolveActualUsd(stageSummary, actualUsage, explicitActualUsd) {
+  if (explicitActualUsd != null) {
+    return explicitActualUsd;
+  }
+
+  const usagePresent = Object.values(actualUsage || {}).some((value) => value != null);
+
+  if (!usagePresent) {
+    return null;
+  }
+
+  const model = `${stageSummary?.model || ""}`.trim();
+  const pricingSource = stageSummary?.derivedCost?.pricingSource;
+  const pricing =
+    pricingSource === "model" && MODEL_PRICING[model]
+      ? MODEL_PRICING[model]
+      : FALLBACK_MODEL_PRICING;
+
+  return deriveUsdFromUsage(actualUsage, pricing);
 }
 
 export function shouldPersistCostSummary(mode, worktreeHasChanges) {
@@ -107,6 +166,32 @@ export function persistCostSummaryForStage({
     }
 
     const recordedAt = telemetryContext.recordedAt || now.toISOString();
+    const resolvedApiSurface =
+      telemetryContext.apiSurface || stageSummary.apiSurface || summary.apiSurface;
+    const resolvedActualUsage = telemetryContext.actualUsage || {};
+    const resolvedActualUsd = resolveActualUsd(
+      stageSummary,
+      resolvedActualUsage,
+      telemetryContext.actualUsd
+    );
+
+    stageSummary.apiSurface = resolvedApiSurface;
+    stageSummary.actualUsage = resolvedActualUsage;
+    stageSummary.derivedCost = {
+      ...stageSummary.derivedCost,
+      actualUsd: resolvedActualUsd
+    };
+
+    if (summary.current?.stage === stageKey) {
+      summary.apiSurface = resolvedApiSurface;
+      summary.current.apiSurface = resolvedApiSurface;
+      summary.current.actualUsage = resolvedActualUsage;
+      summary.current.derivedCost = {
+        ...summary.current.derivedCost,
+        actualUsd: resolvedActualUsd
+      };
+    }
+
     const event = buildUsageEvent({
       category: "stage",
       stage: stageKey,
@@ -116,18 +201,18 @@ export function persistCostSummaryForStage({
       runId: telemetryContext.runId || "",
       runAttempt: telemetryContext.runAttempt,
       provider: stageSummary.provider || summary.provider,
-      apiSurface: stageSummary.apiSurface || summary.apiSurface,
+      apiSurface: resolvedApiSurface,
       model: telemetryContext.model || stageSummary.model,
       promptChars: stageSummary.promptChars,
       estimatedUsageBeforeCalibration:
         stageSummary.estimatedUsageBeforeCalibration,
       estimatedUsage: stageSummary.estimatedUsage,
-      actualUsage: telemetryContext.actualUsage || {},
+      actualUsage: resolvedActualUsage,
       derivedCost: {
         estimatedUsdBeforeCalibration:
           stageSummary.derivedCost?.stageUsdBeforeCalibration,
         estimatedUsd: stageSummary.derivedCost?.stageUsd,
-        actualUsd: telemetryContext.actualUsd,
+        actualUsd: resolvedActualUsd,
         pricingVersion: summary.pricing?.version,
         pricingSource: stageSummary.derivedCost?.pricingSource,
         currency: summary.pricing?.currency || "USD"
@@ -315,6 +400,7 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
   const issueTitle = env.FACTORY_ISSUE_TITLE || "";
   const artifactsPath = env.FACTORY_ARTIFACTS_PATH || "";
   const costSummaryPath = env.FACTORY_COST_SUMMARY_PATH || "";
+  const actualUsagePath = env.FACTORY_STAGE_ACTUAL_USAGE_PATH || "";
   const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
   const prNumberRaw = env.FACTORY_PR_NUMBER || "";
   const githubRunId = env.GITHUB_RUN_ID || "";
@@ -374,6 +460,8 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
     });
   }
 
+  const actualUsageTelemetry = readActualUsageTelemetry(actualUsagePath);
+
   persistCostSummaryForStage({
     mode,
     artifactsPath,
@@ -384,7 +472,10 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
       prNumber: Number(prNumberRaw) > 0 ? Number(prNumberRaw) : null,
       branch,
       runId: githubRunId,
-      runAttempt: githubRunAttempt
+      runAttempt: githubRunAttempt,
+      apiSurface: actualUsageTelemetry.apiSurface,
+      actualUsage: actualUsageTelemetry.actualUsage,
+      actualUsd: actualUsageTelemetry.actualUsd
     }
   });
   git(["add", "-A"]);

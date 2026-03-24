@@ -45,7 +45,13 @@ function prBodyInput() {
       costEstimateEmoji: "🟡",
       lastEstimatedStage: "plan",
       lastEstimatedModel: "gpt-5-codex",
-      lastStageCostEstimateUsd: 0.2234
+      lastStageCostEstimateUsd: 0.2234,
+      actualApiSurface: "codex-cli",
+      actualStageCostUsd: 2.6601,
+      actualInputTokens: 1840867,
+      actualCachedInputTokens: 1578496,
+      actualOutputTokens: 16172,
+      actualReasoningTokens: null
     }
   };
 }
@@ -106,7 +112,10 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
   assert.ok(lines.includes("## Factory Dashboard"));
   assert.equal(summaryLine, "**👀 Plan ready** · 🧑 Human action required");
   assert.equal(ciLine, "CI: ⏳ Pending · Repairs: `1 / 3`");
-  assert.equal(costLine, "Cost: 🟡 $0.223 total · Estimate: $0.223 via gpt-5-codex");
+  assert.equal(
+    costLine,
+    "Cost: 🟡 $0.223 total · Estimate: $0.223 via gpt-5-codex · Actual: $2.66 this stage (1.84M in / 1.58M cached / 16.2k out) via codex-cli"
+  );
   assert.equal(
     openLine,
     "**Open:** [Review summary](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/review.md) · [Review JSON](https://github.com/example/repo/blob/factory/7-sample/.factory/runs/7/review.json)"
@@ -180,7 +189,13 @@ test("renderPrBody renders blocked summary with stage from blockedAction", () =>
       costEstimateUsd: 12.5,
       costEstimateEmoji: "💡",
       lastStageCostEstimateUsd: 4.5,
-      lastEstimatedModel: "gpt-5-codex"
+      lastEstimatedModel: "gpt-5-codex",
+      actualApiSurface: null,
+      actualStageCostUsd: null,
+      actualInputTokens: null,
+      actualCachedInputTokens: null,
+      actualOutputTokens: null,
+      actualReasoningTokens: null
     }
   });
   const lines = body.split("\n");

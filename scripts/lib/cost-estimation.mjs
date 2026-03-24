@@ -599,6 +599,7 @@ export function summarizeIssueUsageEvents(events = [], { issueNumber, prNumber, 
         event.estimatedUsageBeforeCalibration
       ),
       estimatedUsage: normalizeUsageBuckets(event.estimatedUsage),
+      actualUsage: normalizeUsageBuckets(event.actualUsage),
       usageCalibration: {
         bucket: event.usageCalibration?.bucket || "",
         sampleSize: Number(event.usageCalibration?.sampleSize) || 0,
@@ -617,6 +618,10 @@ export function summarizeIssueUsageEvents(events = [], { issueNumber, prNumber, 
         stageUsdBeforeCalibration:
           Number(event.derivedCost?.estimatedUsdBeforeCalibration) || 0,
         stageUsd: Number(event.derivedCost?.estimatedUsd) || 0,
+        actualUsd:
+          event.derivedCost?.actualUsd == null
+            ? null
+            : Number(event.derivedCost.actualUsd) || 0,
         pricingSource: event.derivedCost?.pricingSource || "fallback"
       },
       sourceEventPath: event.sourceEventPath || ""
@@ -666,11 +671,13 @@ export function summarizeIssueUsageEvents(events = [], { issueNumber, prNumber, 
           estimatedUsageBeforeCalibration:
             currentStage.estimatedUsageBeforeCalibration,
           estimatedUsage: currentStage.estimatedUsage,
+          actualUsage: currentStage.actualUsage,
           usageCalibration: currentStage.usageCalibration,
           derivedCost: {
             stageUsdBeforeCalibration:
               currentStage.derivedCost.stageUsdBeforeCalibration,
             stageUsd: currentStage.derivedCost.stageUsd,
+            actualUsd: currentStage.derivedCost.actualUsd,
             totalEstimatedUsd,
             band,
             emoji: COST_BAND_EMOJI[band],

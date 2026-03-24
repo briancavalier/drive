@@ -260,6 +260,35 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
 });
 
+test("factory stage workflow gates the Codex CLI hybrid canary to plan mode", () => {
+  const workflowText = readWorkflowText("_factory-stage.yml");
+
+  assert.match(
+    workflowText,
+    /name:\s+Bootstrap Codex CLI canary[\s\S]*if:\s*inputs\.mode == 'plan' && vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'[\s\S]*uses:\s+openai\/codex-action@v1/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Verify Codex CLI bootstrap[\s\S]*which codex[\s\S]*codex --version/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Execute Codex CLI canary[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*--full-auto[\s\S]*--sandbox workspace-write[\s\S]*--json/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Parse Codex CLI telemetry[\s\S]*node scripts\/parse-codex-json-telemetry\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Upload Codex CLI canary artifacts[\s\S]*uses:\s+actions\/upload-artifact@v4[\s\S]*\.factory\/tmp\/prompt\.md/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Run Codex[\s\S]*if:\s*inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'/
+  );
+});
+
 test("factory stage workflow resolves per-stage models before running Codex", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
@@ -388,12 +417,14 @@ test("factory stage workflow records estimated cost only after a successful push
   const codexIndex = workflowText.indexOf("name: Run Codex");
   const prepareIndex = workflowText.indexOf("name: Prepare stage output for push");
   const pushIndex = workflowText.indexOf("name: Push stage output");
+  const actualIndex = workflowText.indexOf("name: Read actual stage telemetry for pull request");
   const recordIndex = workflowText.indexOf("name: Record cost estimate on pull request");
 
   assert.ok(estimateIndex >= 0);
   assert.ok(codexIndex > estimateIndex);
   assert.ok(prepareIndex > codexIndex);
   assert.ok(pushIndex > prepareIndex);
+  assert.ok(actualIndex > pushIndex);
   assert.ok(recordIndex > pushIndex);
 
   assert.match(
@@ -404,11 +435,19 @@ test("factory stage workflow records estimated cost only after a successful push
   assert.match(workflowText, /FACTORY_COST_HIGH_USD:\s*\$\{\{\s*vars\.FACTORY_COST_HIGH_USD \|\| ''\s*\}\}/);
   assert.match(
     workflowText,
-    /name:\s+Prepare stage output for push[\s\S]*FACTORY_ENABLE_SELF_MODIFY:\s*\$\{\{\s*vars\.FACTORY_ENABLE_SELF_MODIFY \|\| ''\s*\}\}[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}/
+    /name:\s+Prepare stage output for push[\s\S]*FACTORY_ENABLE_SELF_MODIFY:\s*\$\{\{\s*vars\.FACTORY_ENABLE_SELF_MODIFY \|\| ''\s*\}\}[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}[\s\S]*FACTORY_STAGE_ACTUAL_USAGE_PATH:\s*\$\{\{\s*steps\.codex_json_telemetry\.outputs\.actual_usage_path\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Read actual stage telemetry for pull request[\s\S]*run:\s*node scripts\/read-cost-summary-actuals\.mjs[\s\S]*FACTORY_ARTIFACTS_PATH:\s*\$\{\{\s*inputs\.artifacts_path\s*\}\}/
   );
   assert.match(
     workflowText,
     /name:\s+Record cost estimate on pull request[\s\S]*if:\s*inputs\.pr_number > 0 && steps\.detect_intervention\.outputs\.intervention_requested != 'true' && steps\.push\.outcome == 'success'[\s\S]*FACTORY_ADD_LABELS:\s*\$\{\{\s*steps\.cost\.outputs\.cost_label_to_add\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Record cost estimate on pull request[\s\S]*FACTORY_ACTUAL_API_SURFACE:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_api_surface\s*\}\}[\s\S]*FACTORY_ACTUAL_STAGE_COST_USD:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_stage_cost_usd\s*\}\}[\s\S]*FACTORY_ACTUAL_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_CACHED_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_cached_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_OUTPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_output_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_REASONING_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_reasoning_tokens\s*\}\}/
   );
   assert.match(workflowText, /name:\s+Budget preflight hook[\s\S]*Budget enforcement hook not configured/);
 });

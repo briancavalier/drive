@@ -289,8 +289,79 @@ jobs:
       - name: Budget preflight hook
         run: echo "Budget enforcement hook not configured."
 
+      - name: Bootstrap Codex CLI canary
+        id: codex_bootstrap
+        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          codex-version: 0.114.0
+
+      - name: Verify Codex CLI bootstrap
+        id: codex_verify
+        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_bootstrap.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          which codex
+          codex --version
+          test -d "${CODEX_HOME:-$HOME/.codex}"
+
+          canary_dir="${RUNNER_TEMP}/codex-cli-canary/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ inputs.mode }}"
+          mkdir -p "$canary_dir"
+
+          {
+            echo "canary_dir=$canary_dir"
+            echo "jsonl_path=$canary_dir/codex-events.jsonl"
+            echo "final_message_path=$canary_dir/final-message.md"
+            echo "actual_usage_path=$canary_dir/actual-usage.json"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Execute Codex CLI canary
+        id: codex_cli
+        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_verify.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          codex exec \
+            --skip-git-repo-check \
+            --cd "$GITHUB_WORKSPACE" \
+            --output-last-message "${{ steps.codex_verify.outputs.final_message_path }}" \
+            --model "${{ steps.model.outputs.model }}" \
+            --full-auto \
+            --sandbox workspace-write \
+            --json \
+            < .factory/tmp/prompt.md \
+            | tee "${{ steps.codex_verify.outputs.jsonl_path }}"
+
+      - name: Parse Codex CLI telemetry
+        id: codex_json_telemetry
+        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_cli.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/parse-codex-json-telemetry.mjs
+        env:
+          FACTORY_CODEX_JSONL_PATH: ${{ steps.codex_verify.outputs.jsonl_path }}
+          FACTORY_CODEX_USAGE_OUTPUT_PATH: ${{ steps.codex_verify.outputs.actual_usage_path }}
+
+      - name: Upload Codex CLI canary artifacts
+        if: always() && inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-cli-canary-${{ github.run_id }}-${{ github.job }}-${{ inputs.mode }}
+          if-no-files-found: ignore
+          path: |
+            .factory/tmp/prompt.md
+            ${{ steps.codex_verify.outputs.jsonl_path }}
+            ${{ steps.codex_verify.outputs.final_message_path }}
+            ${{ steps.codex_json_telemetry.outputs.actual_usage_path || steps.codex_verify.outputs.actual_usage_path }}
+
       - name: Run Codex
         id: codex
+        if: inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
@@ -303,7 +374,7 @@ jobs:
 
       - name: Stop on Codex failure
         id: codex_failure
-        if: steps.codex.outcome == 'failure'
+        if: steps.codex.outcome == 'failure' || (inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
         run: |
           echo "failure_type=stage_setup" >> "$GITHUB_OUTPUT"
           echo "failure_message=Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
@@ -338,6 +409,7 @@ jobs:
           FACTORY_PR_NUMBER: ${{ inputs.pr_number }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          FACTORY_STAGE_ACTUAL_USAGE_PATH: ${{ steps.codex_json_telemetry.outputs.actual_usage_path }}
 
       - name: Stop on stage output preparation failure
         if: steps.detect_intervention.outputs.intervention_requested != 'true' && steps.prepare.outcome == 'failure'
@@ -356,6 +428,13 @@ jobs:
         if: steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'failure'
         run: exit 1
 
+      - name: Read actual stage telemetry for pull request
+        id: actual_cost
+        if: inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success'
+        run: node scripts/read-cost-summary-actuals.mjs
+        env:
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+
       - name: Record cost estimate on pull request
         if: inputs.pr_number > 0 && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.push.outcome == 'success'
         run: node scripts/apply-pr-state.mjs
@@ -371,6 +450,12 @@ jobs:
           FACTORY_LAST_ESTIMATED_STAGE: ${{ steps.cost.outputs.last_estimated_stage }}
           FACTORY_LAST_ESTIMATED_MODEL: ${{ steps.cost.outputs.last_estimated_model }}
           FACTORY_LAST_STAGE_COST_ESTIMATE_USD: ${{ steps.cost.outputs.last_stage_cost_estimate_usd }}
+          FACTORY_ACTUAL_API_SURFACE: ${{ steps.actual_cost.outputs.actual_api_surface }}
+          FACTORY_ACTUAL_STAGE_COST_USD: ${{ steps.actual_cost.outputs.actual_stage_cost_usd }}
+          FACTORY_ACTUAL_INPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_input_tokens }}
+          FACTORY_ACTUAL_CACHED_INPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_cached_input_tokens }}
+          FACTORY_ACTUAL_OUTPUT_TOKENS: ${{ steps.actual_cost.outputs.actual_output_tokens }}
+          FACTORY_ACTUAL_REASONING_TOKENS: ${{ steps.actual_cost.outputs.actual_reasoning_tokens }}
           FACTORY_ADD_LABELS: ${{ steps.cost.outputs.cost_label_to_add }}
           FACTORY_REMOVE_LABELS: ${{ steps.cost.outputs.cost_labels_to_remove }}
 
