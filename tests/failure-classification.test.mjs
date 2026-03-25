@@ -16,6 +16,14 @@ test("classifyFailure detects transient infrastructure errors", () => {
     classifyFailure("GitHub API 503: service unavailable"),
     FAILURE_TYPES.transientInfra
   );
+  assert.equal(
+    classifyFailure("Rate limit reached for gpt-5-codex in organization org_123 on tokens per min: Limit 1000000, Used 964501, Requested 141756."),
+    FAILURE_TYPES.transientInfra
+  );
+  assert.equal(
+    classifyFailure("stream disconnected before completion: Too many requests from upstream provider"),
+    FAILURE_TYPES.transientInfra
+  );
 });
 
 test("classifyFailure detects stale branch conflicts", () => {
@@ -57,6 +65,10 @@ test("classifyFailure detects stage no-op runs", () => {
 test("classifyFailure detects stage setup failures", () => {
   assert.equal(
     classifyFailure("Stage setup prerequisites failed: Remote branch origin/factory/example is missing."),
+    FAILURE_TYPES.stageSetup
+  );
+  assert.equal(
+    classifyFailure("Stage setup prerequisites failed: Factory stage output modifies protected control-plane paths and usage limit guidance was emitted."),
     FAILURE_TYPES.stageSetup
   );
 });
