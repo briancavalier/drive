@@ -1,0 +1,89 @@
+{
+  "methodology": "default",
+  "decision": "request_changes",
+  "summary": "Implements artifactRef override, routing for merged PRs, workflow job to rewrite artifact links, and unit tests. CI unit tests passed. Missing run artifacts prevent full verification that post-merge links resolve on GitHub.",
+  "blocking_findings_count": 1,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Open PR dashboard keeps head-branch links",
+      "status": "satisfied",
+      "evidence": [
+        "tests/pr-metadata.test.mjs: 'renderPrBody embeds parseable metadata' asserts artifact links point to blob/factory/...",
+        "CI workflow run 23521213841: unit tests success (unit: success)"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Merged PR dashboard rewrites to base branch",
+      "status": "satisfied",
+      "evidence": [
+        "tests/event-router.test.mjs: 'routePullRequest emits rewrite action for merged managed PRs' asserts action 'rewrite_artifact_links' and artifactRef set to base ref",
+        "tests/pr-metadata.test.mjs: 'renderPrBody uses artifactRef override when provided' asserts links use the provided ref"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Non-merged closures do not rewrite",
+      "status": "satisfied",
+      "evidence": [
+        "tests/event-router.test.mjs: 'routePullRequest ignores non-merged closures' returns action 'noop'",
+        "tests/event-router.test.mjs: route-based unit tests covering closure handling"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Add artifact-ref override support in scripts/apply-pr-state.mjs",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/apply-pr-state.mjs: reads FACTORY_ARTIFACT_REF from env and passes an 'artifactRef' field to renderPrBody",
+        "tests/pr-metadata.test.mjs: unit test uses 'artifactRef' override when rendering PR body"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Extend routing to detect merged PRs and emit rewrite action",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/event-router.mjs: added 'routePullRequest' that returns action 'rewrite_artifact_links' with artifactRef set to pull_request.base.ref",
+        "tests/event-router.test.mjs: unit tests for merged and non-merged closures"
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Update workflow to trigger on pull_request closed and run rewrite job",
+      "status": "satisfied",
+      "evidence": [
+        ".github/workflows/factory-pr-loop.yml: new 'pull_request: types: [closed]' trigger and 'rewrite-artifact-links' job added",
+        "CI evidence: actionlint success"
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Links for repair log, review summary, and review JSON resolve successfully on GitHub after merge",
+      "status": "not_satisfied",
+      "evidence": [
+        ".factory/runs/126/ listing: only acceptance-tests.md, approved-issue.md, cost-summary.json, plan.md, spec.md are present; repair-log.md, review.md, and review.json are missing",
+        "No unit tests in this run assert presence of review artifacts post-merge (tests validate rewrite but not the existence of files on disk)"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "blocking",
+      "title": "Missing run artifacts required to validate post-merge link resolution",
+      "details": "The run directory .factory/runs/126/ does not contain 'repair-log.md', 'review.md', or 'review.json'. The acceptance criteria explicitly expect links for these artifacts to resolve successfully on GitHub after the rewrite; without these artifacts present for this run we cannot verify that requirement.",
+      "scope": ".factory/runs/126/",
+      "recommendation": "Add the missing artifacts to '.factory/runs/126/' (for example, add an empty 'repair-log.md', and the produced 'review.md' and 'review.json' artifacts), or update the acceptance criterion to state that the rewrite only needs to point at the base branch (not guarantee artifact existence).",
+      "id": "missing-review-artifacts"
+    },
+    {
+      "level": "non_blocking",
+      "title": "Consider an end-to-end smoke test for the rewrite job",
+      "details": "Unit tests cover the routing and rendering logic, but there is no integration test that simulates the workflow job invoking 'scripts/apply-pr-state.mjs' with 'FACTORY_ARTIFACT_REF'. An end-to-end smoke test would validate the full workflow behavior in a controlled fixture.",
+      "scope": "tests/ and .github/workflows/",
+      "recommendation": "Add an integration test or CI job that runs the rewrite path against a local repository fixture or a prepared artifacts directory to catch regressions.",
+      "id": "e2e-rewrite-smoke-test"
+    }
+  ]
+}
