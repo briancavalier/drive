@@ -44,10 +44,10 @@ jobs:
           {
             echo "## Usage Calibration"
             echo ""
-            echo "- Buckets updated: `${{ steps.calibrate.outputs.buckets_updated }}`"
-            echo "- Entries evaluated: `${{ steps.calibrate.outputs.entries_evaluated }}`"
-            echo "- Entries skipped: `${{ steps.calibrate.outputs.entries_skipped }}`"
-            echo "- Calibration file changed: `${{ steps.diff.outputs.changed }}`"
+            echo "- Buckets updated: ${{ steps.calibrate.outputs.buckets_updated }}"
+            echo "- Entries evaluated: ${{ steps.calibrate.outputs.entries_evaluated }}"
+            echo "- Entries skipped: ${{ steps.calibrate.outputs.entries_skipped }}"
+            echo "- Calibration file changed: ${{ steps.diff.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop when calibration is unchanged
@@ -102,6 +102,6 @@ jobs:
           {
             echo ""
             echo "- Calibration PR: ${{ steps.pr.outputs.pr_url }}"
-            echo "- Replaced prior PRs: `${{ steps.pr.outputs.replaced_pr_count }}`"
-            echo "- Deleted prior branches: `${{ steps.pr.outputs.deleted_branch_count }}`"
+            echo "- Replaced prior PRs: ${{ steps.pr.outputs.replaced_pr_count }}"
+            echo "- Deleted prior branches: ${{ steps.pr.outputs.deleted_branch_count }}"
           } >> "$GITHUB_STEP_SUMMARY"
