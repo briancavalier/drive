@@ -89,7 +89,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           FACTORY_CALIBRATION_BRANCH: ${{ steps.branch.outputs.branch }}
           FACTORY_CALIBRATION_BASE_BRANCH: main
-          FACTORY_CALIBRATION_PR_TITLE: Factory: Update usage calibration
+          FACTORY_CALIBRATION_PR_TITLE: "Factory: Update usage calibration"
           FACTORY_CALIBRATION_BRANCH_PREFIX: automation/usage-calibration-
           FACTORY_CALIBRATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           FACTORY_CALIBRATION_BUCKETS_UPDATED: ${{ steps.calibrate.outputs.buckets_updated }}
