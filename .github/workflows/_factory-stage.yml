@@ -419,45 +419,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ steps.codex.outcome }}" = "failure" ]; then
-            failure_message="$(node --input-type=module <<'NODE'
-            import fs from "node:fs";
-
-            const logPath = ".factory/tmp/codex-run.log";
-            const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
-            const lines = log
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter(Boolean);
-
-            let selected = "";
-
-            for (let index = lines.length - 1; index >= 0; index -= 1) {
-              const line = lines[index];
-
-              if (/ERROR:/i.test(line)) {
-                selected = line.replace(/^.*ERROR:\s*/i, "").trim();
-                break;
-              }
-            }
-
-            if (!selected) {
-              for (let index = lines.length - 1; index >= 0; index -= 1) {
-                const line = lines[index];
-
-                if (/stream disconnected before completion|rate limit reached|quota exceeded|usage limit|codex exited with code/i.test(line)) {
-                  selected = line;
-                  break;
-                }
-              }
-            }
-
-            if (!selected) {
-              selected = lines.slice(-20).join("\n").trim();
-            }
-
-            process.stdout.write(selected || "Codex execution failed before branch output could be prepared.");
-            NODE
-            )"
+            failure_message="$(node --input-type=module -e 'import fs from "node:fs"; const logPath = process.argv[1]; const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : ""; const lines = log.split(/\r?\n/).map((line) => line.trim()).filter(Boolean); let selected = ""; for (let index = lines.length - 1; index >= 0; index -= 1) { const line = lines[index]; if (/ERROR:/i.test(line)) { selected = line.replace(/^.*ERROR:\s*/i, "").trim(); break; } } if (!selected) { for (let index = lines.length - 1; index >= 0; index -= 1) { const line = lines[index]; if (/stream disconnected before completion|rate limit reached|quota exceeded|usage limit|codex exited with code/i.test(line)) { selected = line; break; } } } if (!selected) { selected = lines.slice(-20).join("\n").trim(); } process.stdout.write(selected || "Codex execution failed before branch output could be prepared.");' ".factory/tmp/codex-run.log")"
 
             failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
           else
