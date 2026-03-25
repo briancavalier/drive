@@ -140,6 +140,101 @@ test("persistCostSummaryForStage skips implement artifact-only output", () => {
   assert.equal(fs.existsSync(path.join(artifactsPath, "cost-summary.json")), false);
 });
 
+test("persistCostSummaryForStage keeps implement no-op telemetry from becoming success output", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
+  const summaryPath = path.join(tempDir, "estimate.json");
+  const artifactsPath = path.join(tempDir, "artifacts");
+
+  fs.writeFileSync(
+    summaryPath,
+    JSON.stringify(
+      {
+        issueNumber: 55,
+        branch: "factory/55-telemetry",
+        provider: "openai",
+        apiSurface: "codex-action",
+        pricing: {
+          version: "openai-2026-03-19",
+          model: "gpt-5-codex",
+          currency: "USD"
+        },
+        current: {
+          stage: "implement",
+          model: "gpt-5-codex",
+          derivedCost: {
+            stageUsdBeforeCalibration: 0.2,
+            stageUsd: 0.2,
+            pricingSource: "model"
+          }
+        },
+        stages: {
+          implement: {
+            mode: "implement",
+            provider: "openai",
+            apiSurface: "codex-action",
+            model: "gpt-5-codex",
+            promptChars: 4000,
+            estimatedUsageBeforeCalibration: {
+              inputTokens: 1000,
+              cachedInputTokens: 0,
+              outputTokens: 1250,
+              reasoningTokens: null
+            },
+            estimatedUsage: {
+              inputTokens: 1000,
+              cachedInputTokens: 0,
+              outputTokens: 1250,
+              reasoningTokens: null
+            },
+            usageCalibration: {
+              bucket: "openai:stage:implement:gpt-5-codex",
+              sampleSize: 0,
+              generatedAt: "",
+              source: "default",
+              multipliers: {
+                inputTokens: 1,
+                cachedInputTokens: 1,
+                outputTokens: 1
+              }
+            },
+            derivedCost: {
+              stageUsdBeforeCalibration: 0.2,
+              stageUsd: 0.2,
+              pricingSource: "model"
+            }
+          }
+        },
+        thresholds: { warnUsd: 0.25, highUsd: 1 }
+      },
+      null,
+      2
+    )
+  );
+
+  const persistedPath = persistCostSummaryForStage({
+    mode: "implement",
+    artifactsPath,
+    costSummaryPath: summaryPath,
+    worktreeHasChanges: false,
+    telemetryContext: {
+      issueNumber: 55,
+      branch: "factory/55-telemetry",
+      runId: "123456789",
+      runAttempt: "1",
+      apiSurface: "codex-cli",
+      actualUsage: {
+        inputTokens: 321,
+        cachedInputTokens: 111,
+        outputTokens: 77,
+        reasoningTokens: 40
+      }
+    }
+  });
+
+  assert.equal(persistedPath, "");
+  assert.equal(fs.existsSync(path.join(artifactsPath, "cost-summary.json")), false);
+});
+
 test("persistCostSummaryForStage writes a usage event and derived summary when allowed", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-cost-summary-"));
   const originalCwd = process.cwd();
