@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { USAGE_CALIBRATION_FILE_NAME, USAGE_EVENTS_DIR } from "./lib/cost-estimation.mjs";
 import { loadUsageEvents } from "./lib/cost-telemetry.mjs";
+import { setOutputs } from "./lib/actions-output.mjs";
 
 const OUTPUT_PATH = path.join(".factory", USAGE_CALIBRATION_FILE_NAME);
 
@@ -163,7 +164,14 @@ export function main() {
   const { calibration, bucketsUpdated, entriesEvaluated, entriesSkipped } =
     buildCalibrationPayload(events);
 
-  writeCalibrationFile(calibration, OUTPUT_PATH);
+  const outputPath = writeCalibrationFile(calibration, OUTPUT_PATH);
+
+  setOutputs({
+    output_path: outputPath,
+    buckets_updated: String(bucketsUpdated),
+    entries_evaluated: String(entriesEvaluated),
+    entries_skipped: String(entriesSkipped)
+  });
 
   if (bucketsUpdated === 0) {
     console.log(
@@ -178,6 +186,13 @@ export function main() {
   if (entriesSkipped > 0) {
     console.log(`Skipped ${entriesSkipped} usage events without actual usage data.`);
   }
+
+  return {
+    outputPath,
+    bucketsUpdated,
+    entriesEvaluated,
+    entriesSkipped
+  };
 }
 
 const isDirectExecution =
