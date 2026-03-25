@@ -188,3 +188,27 @@ test("stage_setup failure comment highlights prerequisite guidance", () => {
   assert.match(comment, /Factory stage output modifies protected control-plane paths/);
   assert.match(comment, /Fix the setup issue/);
 });
+
+test("transient infrastructure failure comment preserves provider throttle details", () => {
+  const failureMessage = [
+    "Rate limit reached for gpt-5-codex in organization org_123 on tokens per min: Limit 1000000, Used 964501, Requested 141756.",
+    "Error: codex exited with code 1"
+  ].join("\n");
+  const comment = buildFailureComment({
+    action: "implement",
+    failureType: FAILURE_TYPES.transientInfra,
+    retryAttempts: 2,
+    failureMessage,
+    runUrl: "https://github.com/example/repo/actions/runs/888",
+    branch: "factory/79-transient",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/79"
+  });
+
+  assert.match(comment, /Factory exhausted 2 transient retry attempt\(s\) and is now blocked\./);
+  assert.match(comment, /Rate limit reached for gpt-5-codex/);
+  assert.match(comment, /tokens per min/);
+  assert.match(comment, /Inspect the failing Factory PR Loop run for the infrastructure error details\./);
+  assert.match(comment, /reset or retry the PR after the infrastructure issue clears\./);
+  assert.doesNotMatch(comment, /Fix the setup issue/);
+});
