@@ -368,11 +368,11 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
 
   assert.match(
     workflowText,
-    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\|/
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\|/
   );
   assert.match(
     workflowText,
-    /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\|/
+    /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\| steps\.refresh\.outputs\.failure_message \|\| steps\.codex_bootstrap_failure\.outputs\.failure_message \|\| steps\.codex_failure\.outputs\.failure_message \|\|/
   );
 });
 
@@ -393,7 +393,7 @@ test("factory stage workflow detects implement-stage intervention requests befor
   );
   assert.match(
     workflowText,
-    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\| steps\.detect_intervention\.outputs\.failure_type \|\| steps\.prepare\.outputs\.failure_type \|\| steps\.push\.outputs\.failure_type\s*\}\}/
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\| steps\.detect_intervention\.outputs\.failure_type \|\| steps\.prepare\.outputs\.failure_type \|\| steps\.push\.outputs\.failure_type\s*\}\}/
   );
   assert.match(
     workflowText,
@@ -455,7 +455,7 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
-    /name:\s+Stop on Codex failure[\s\S]*import \{ classifyFailure \} from "\.\/scripts\/lib\/failure-classification\.mjs"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)/
+    /name:\s+Stop on Codex failure[\s\S]*node scripts\/extract-codex-failure\.mjs ".factory\/tmp\/codex-run\.log"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)/
   );
   assert.match(
     workflowText,
