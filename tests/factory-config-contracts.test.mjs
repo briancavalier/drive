@@ -601,6 +601,10 @@ test("usage calibration workflow supports manual and weekly triggers and opens r
   assert.match(workflowText, /schedule:\s*\n\s*-\s+cron:\s*"0 15 \* \* 1"/);
   assert.match(
     workflowText,
+    /concurrency:\s*\n\s+group:\s+factory-update-usage-calibration\s*\n\s+cancel-in-progress:\s+false/
+  );
+  assert.match(
+    workflowText,
     /permissions:\s*\n\s+contents:\s+write\n\s+pull-requests:\s+write/
   );
   assert.match(

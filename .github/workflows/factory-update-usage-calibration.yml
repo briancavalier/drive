@@ -9,6 +9,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: factory-update-usage-calibration
+  cancel-in-progress: false
+
 jobs:
   update-calibration:
     runs-on: ubuntu-latest
