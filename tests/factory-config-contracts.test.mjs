@@ -285,7 +285,15 @@ test("factory stage workflow gates the Codex CLI hybrid path by stage-specific f
   );
   assert.match(
     workflowText,
-    /name:\s+Run Codex[\s\S]*if:\s*\(inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'\) && \(inputs\.mode != 'implement' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true'\)/
+    /name:\s+Bootstrap standard Codex execution[\s\S]*if:\s*\(inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'\) && \(inputs\.mode != 'implement' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true'\)[\s\S]*uses:\s+openai\/codex-action@v1/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on standard Codex bootstrap failure[\s\S]*steps\.codex_bootstrap_standard\.outcome == 'failure'/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Run Codex[\s\S]*if:\s*\(inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'\) && \(inputs\.mode != 'implement' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true'\)[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*\.factory\/tmp\/prompt\.md[\s\S]*tee "\$codex_log"/
   );
 });
 
@@ -443,7 +451,11 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
-    /name:\s+Stop on Codex failure[\s\S]*inputs\.mode == 'implement' && vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true'/
+    /name:\s+Stop on Codex failure[\s\S]*steps\.codex\.outcome == 'failure'[\s\S]*inputs\.mode == 'implement' && vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true'/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on Codex failure[\s\S]*import \{ classifyFailure \} from "\.\/scripts\/lib\/failure-classification\.mjs"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)/
   );
   assert.match(
     workflowText,

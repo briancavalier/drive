@@ -6,6 +6,10 @@ const TRANSIENT_PATTERNS = [
   /fetch failed/i,
   /socket hang up/i,
   /timed out/i,
+  /rate limit reached/i,
+  /tokens per min/i,
+  /too many requests/i,
+  /stream disconnected before completion/i,
   /github api (429|5\d\d)/i,
   /http 5\d\d/i,
   /service unavailable/i,
@@ -32,8 +36,6 @@ const CONFIGURATION_PATTERNS = [
   /factory_[a-z0-9_]+\s+is required/i,
   /openai_api_key/i,
   /model_not_found/i,
-  /quota exceeded/i,
-  /usage limit/i,
   /unable to resolve review methodology/i,
   /review\.json/i,
   /environment variable .* is required/i,
@@ -76,16 +78,16 @@ export function classifyFailure(message) {
     return FAILURE_TYPES.staleStagePush;
   }
 
+  if (STAGE_SETUP_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return FAILURE_TYPES.stageSetup;
+  }
+
   if (TRANSIENT_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return FAILURE_TYPES.transientInfra;
   }
 
   if (STAGE_NOOP_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return FAILURE_TYPES.stageNoop;
-  }
-
-  if (STAGE_SETUP_PATTERNS.some((pattern) => pattern.test(normalized))) {
-    return FAILURE_TYPES.stageSetup;
   }
 
   if (CONFIGURATION_PATTERNS.some((pattern) => pattern.test(normalized))) {

@@ -359,25 +359,118 @@ jobs:
             ${{ steps.codex_verify.outputs.final_message_path }}
             ${{ steps.codex_json_telemetry.outputs.actual_usage_path || steps.codex_verify.outputs.actual_usage_path }}
 
-      - name: Run Codex
-        id: codex
+      - name: Bootstrap standard Codex execution
+        id: codex_bootstrap_standard
         if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true')
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: .factory/tmp/prompt.md
           sandbox: workspace-write
           model: ${{ steps.model.outputs.model }}
           codex-version: 0.114.0
           codex-args: --full-auto
 
+      - name: Stop on standard Codex bootstrap failure
+        id: codex_bootstrap_failure
+        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true') && steps.codex_bootstrap_standard.outcome == 'failure'
+        run: |
+          echo "failure_type=stage_setup" >> "$GITHUB_OUTPUT"
+          echo "failure_message=Stage setup prerequisites failed: Codex runtime bootstrap failed before execution could start." >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Run Codex
+        id: codex
+        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true') && steps.codex_bootstrap_standard.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          FACTORY_STAGE_MODEL: ${{ steps.model.outputs.model }}
+        run: |
+          set -o pipefail
+
+          codex_log=".factory/tmp/codex-run.log"
+          codex_output=".factory/tmp/codex-final-message.md"
+
+          mkdir -p .factory/tmp
+
+          codex exec \
+            --skip-git-repo-check \
+            --cd "$PWD" \
+            --output-last-message "$codex_output" \
+            --model "$FACTORY_STAGE_MODEL" \
+            --full-auto \
+            --sandbox workspace-write \
+            < .factory/tmp/prompt.md \
+            2>&1 | tee "$codex_log"
+
+          status=${PIPESTATUS[0]}
+
+          {
+            echo "log_path=$codex_log"
+            echo "output_file=$codex_output"
+          } >> "$GITHUB_OUTPUT"
+
+          exit "$status"
+
       - name: Stop on Codex failure
         id: codex_failure
         if: steps.codex.outcome == 'failure' || (((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
+        shell: bash
         run: |
-          echo "failure_type=stage_setup" >> "$GITHUB_OUTPUT"
-          echo "failure_message=Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.codex.outcome }}" = "failure" ]; then
+            failure_message="$(node --input-type=module <<'NODE'
+            import fs from "node:fs";
+
+            const logPath = ".factory/tmp/codex-run.log";
+            const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
+            const lines = log
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter(Boolean);
+
+            let selected = "";
+
+            for (let index = lines.length - 1; index >= 0; index -= 1) {
+              const line = lines[index];
+
+              if (/ERROR:/i.test(line)) {
+                selected = line.replace(/^.*ERROR:\s*/i, "").trim();
+                break;
+              }
+            }
+
+            if (!selected) {
+              for (let index = lines.length - 1; index >= 0; index -= 1) {
+                const line = lines[index];
+
+                if (/stream disconnected before completion|rate limit reached|quota exceeded|usage limit|codex exited with code/i.test(line)) {
+                  selected = line;
+                  break;
+                }
+              }
+            }
+
+            if (!selected) {
+              selected = lines.slice(-20).join("\n").trim();
+            }
+
+            process.stdout.write(selected || "Codex execution failed before branch output could be prepared.");
+            NODE
+            )"
+
+            failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
+          else
+            failure_type="stage_setup"
+            failure_message="Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared."
+          fi
+
+          echo "failure_type=$failure_type" >> "$GITHUB_OUTPUT"
+          {
+            echo "failure_message<<EOF"
+            echo "$failure_message"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
           exit 1
 
       - name: Detect stage intervention request
