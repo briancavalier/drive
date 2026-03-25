@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "implement",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-cli",
+  "model": "gpt-5-codex",
+  "issueNumber": 126,
+  "prNumber": 127,
+  "branch": "factory/126-preserve-dashboard-artifact-links-after-merge-by",
+  "runId": "23520967641",
+  "runAttempt": 1,
+  "promptChars": 3994,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 999,
+    "cachedInputTokens": 0,
+    "outputTokens": 1249,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 999,
+    "cachedInputTokens": 0,
+    "outputTokens": 1249,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": 7788878,
+    "cachedInputTokens": 6889856,
+    "outputTokens": 34302,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:implement:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0137,
+    "estimatedUsd": 0.0137,
+    "actualUsd": 10.9403,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-25T01:57:16.506Z"
+}

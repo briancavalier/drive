@@ -1,11 +1,13 @@
 import { FAILURE_TYPES } from "./failure-classification.mjs";
 
-function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
-  if (!repositoryUrl || !branch || !artifactsPath) {
+function buildArtifactLinks({ repositoryUrl, branch, artifactsPath, artifactRef }) {
+  const ref = artifactRef || branch;
+
+  if (!repositoryUrl || !ref || !artifactsPath) {
     return [];
   }
 
-  const baseUrl = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
+  const baseUrl = `${repositoryUrl}/blob/${ref}/${artifactsPath}`;
 
   return [
     { label: "spec.md", url: `${baseUrl}/spec.md` },
@@ -175,11 +177,17 @@ export function buildFailureComment({
   branch,
   repositoryUrl,
   artifactsPath,
+  artifactRef,
   ciRunId,
   advisory
 }) {
   const lines = [`⚠️ ${buildFailureHeadline({ action, phase, failureType, retryAttempts })}`, ""];
-  const artifacts = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
+  const artifacts = buildArtifactLinks({
+    repositoryUrl,
+    branch,
+    artifactsPath,
+    artifactRef
+  });
   const ciRunUrl = repositoryUrl && ciRunId ? `${repositoryUrl}/actions/runs/${ciRunId}` : "";
   const recoverySteps = buildDeterministicRecoverySteps({ action, phase, failureType });
   const { detail, diagnostics } = extractFailureDiagnosticsSections(failureMessage);

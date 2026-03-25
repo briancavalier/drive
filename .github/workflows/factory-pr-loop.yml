@@ -33,6 +33,9 @@ on:
   pull_request_review:
     types:
       - submitted
+  pull_request:
+    types:
+      - closed
   workflow_run:
     workflows:
       - CI
@@ -62,6 +65,7 @@ jobs:
       issue_number: ${{ steps.route.outputs.issue_number }}
       branch: ${{ steps.route.outputs.branch }}
       artifacts_path: ${{ steps.route.outputs.artifacts_path }}
+      artifact_ref: ${{ steps.route.outputs.artifact_ref }}
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
       failure_intervention: ${{ steps.route.outputs.failure_intervention }}
@@ -95,6 +99,36 @@ jobs:
         run: node scripts/route-pr-loop.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  rewrite-artifact-links:
+    if: needs.route.outputs.action == 'rewrite_artifact_links'
+    needs: route
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rewrite dashboard artifact links
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_ARTIFACT_REF: ${{ needs.route.outputs.artifact_ref }}
 
   answer-intervention:
     if: needs.route.outputs.action == 'answer_intervention'

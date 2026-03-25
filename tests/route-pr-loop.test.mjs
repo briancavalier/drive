@@ -133,6 +133,32 @@ test("routeEvent uses live pull request state and collaborator permission for re
   assert.equal(route.reviewId, 55);
 });
 
+test("routeEvent returns rewrite action for merged pull_request events", async () => {
+  const payload = {
+    action: "closed",
+    repository: { full_name: "example/repo" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: sameRepoHead(),
+      base: {
+        ref: "main",
+        repo: {
+          full_name: "example/repo"
+        }
+      },
+      merged: true
+    }
+  };
+
+  const route = await routeEvent({ eventName: "pull_request", payload });
+
+  assert.equal(route.action, "rewrite_artifact_links");
+  assert.equal(route.artifactRef, "main");
+  assert.equal(route.branch, "factory/12-sample");
+});
+
 test("routeEvent ignores untrusted review triggers", async () => {
   const payload = {
     action: "submitted",

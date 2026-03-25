@@ -132,7 +132,7 @@ export async function routeIssueComment(payload, githubClient = {}) {
   }
 
   const metadata = trustedContext.metadata;
-  const managed = isManaged(pullRequest.labels, pullRequest.head.ref, metadata, {
+  const managed = isManaged(pullRequest.labels || [], pullRequest.head?.ref, metadata, {
     allowPaused: true,
     allowBlocked: true
   });
@@ -254,6 +254,49 @@ export async function routeIssueComment(payload, githubClient = {}) {
   };
 
   return { action: "noop" };
+}
+
+export function routePullRequest(payload) {
+  if (payload.action !== "closed") {
+    return { action: "noop" };
+  }
+
+  const pullRequest = payload.pull_request;
+  const trustedContext = validateTrustedFactoryContext({ payload, pullRequest });
+
+  if (!trustedContext.trusted) {
+    logRepoTrustNoop("factory pull_request trigger", trustedContext.reason);
+    return { action: "noop" };
+  }
+
+  const metadata = trustedContext.metadata;
+  const managed = isManaged(pullRequest.labels || [], pullRequest.head?.ref, metadata, {
+    allowPaused: true,
+    allowBlocked: true
+  });
+
+  if (!managed) {
+    return { action: "noop" };
+  }
+
+  if (payload.pull_request?.merged !== true) {
+    return { action: "noop" };
+  }
+
+  const artifactRef = `${pullRequest.base?.ref || ""}`.trim();
+
+  if (!artifactRef) {
+    return { action: "noop" };
+  }
+
+  return {
+    action: "rewrite_artifact_links",
+    prNumber: pullRequest.number,
+    issueNumber: trustedContext.issueNumber,
+    branch: trustedContext.branch,
+    artifactsPath: trustedContext.artifactsPath,
+    artifactRef
+  };
 }
 
 export function routePullRequestReview(payload) {

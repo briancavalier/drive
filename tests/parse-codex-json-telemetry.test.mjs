@@ -5,6 +5,32 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { main as parseCodexJsonTelemetry } from "../scripts/parse-codex-json-telemetry.mjs";
 
+const previousGithubOutput = process.env.GITHUB_OUTPUT;
+const tempGithubOutput = path.join(
+  os.tmpdir(),
+  `parse-codex-json-telemetry-${process.pid}.output`
+);
+
+process.env.GITHUB_OUTPUT = tempGithubOutput;
+
+test.beforeEach(() => {
+  fs.writeFileSync(tempGithubOutput, "");
+});
+
+test.after(() => {
+  if (previousGithubOutput === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = previousGithubOutput;
+  }
+
+  try {
+    fs.unlinkSync(tempGithubOutput);
+  } catch {
+    // ignore cleanup errors
+  }
+});
+
 test("parse-codex-json-telemetry extracts actual usage from turn.completed events", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-json-telemetry-"));
   const inputPath = path.join(tempDir, "events.jsonl");

@@ -37,8 +37,14 @@ export function extractPrMetadata(body) {
   }
 }
 
-export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
-  const base = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
+export function buildArtifactLinks({
+  repositoryUrl,
+  branch,
+  artifactsPath,
+  artifactRef
+}) {
+  const ref = artifactRef || branch;
+  const base = `${repositoryUrl}/blob/${ref}/${artifactsPath}`;
 
   return {
     approvedIssue: `${base}/${APPROVED_ISSUE_FILE_NAME}`,
@@ -93,6 +99,7 @@ export function renderPrBody({
   branch,
   repositoryUrl,
   artifactsPath,
+  artifactRef,
   metadata,
   ciStatus = "pending",
   labels = []
@@ -109,6 +116,7 @@ export function renderPrBody({
     branch,
     repositoryUrl,
     artifactsPath: resolvedArtifactsPath,
+    artifactRef,
     metadata: nextMetadata,
     ciStatus,
     labels

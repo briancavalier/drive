@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   routeIssueComment,
+  routePullRequest,
   routePullRequestReview,
   routeWorkflowRun
 } from "./lib/event-router.mjs";
@@ -24,7 +25,11 @@ export async function routeEvent({
   }
 }) {
   if (eventName === "pull_request") {
-    return { action: "noop" };
+    return routePullRequest({
+      ...payload,
+      repositoryFullName:
+        payload.repository?.full_name || process.env.GITHUB_REPOSITORY || ""
+    });
   }
 
   if (eventName === "issue_comment") {
@@ -99,6 +104,7 @@ export async function main(env = process.env) {
     issue_number: route.issueNumber || "",
     branch: route.branch || "",
     artifacts_path: route.artifactsPath || "",
+    artifact_ref: route.artifactRef || "",
     ci_run_id: route.ciRunId || "",
     review_id: route.reviewId || "",
     review_body: route.reviewBody || "",

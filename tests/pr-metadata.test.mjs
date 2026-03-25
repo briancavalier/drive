@@ -38,9 +38,18 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.costEstimateUsd, 0);
   assert.equal(metadata.costEstimateBand, "");
   assert.match(body, /Closes #7/);
-  assert.match(body, /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\//);
-  assert.match(body, /\[Cost summary\]\(https:\/\/github\.com\/example\/repo\/blob\//);
-  assert.match(body, /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\//);
+  assert.match(
+    body,
+    /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/7-sample\/\.factory\/runs\/7\/spec\.md\)/
+  );
+  assert.match(
+    body,
+    /\[Cost summary\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/7-sample\/\.factory\/runs\/7\/cost-summary\.json\)/
+  );
+  assert.match(
+    body,
+    /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/7-sample\/\.factory\/runs\/7\/review\.md\)/
+  );
 });
 
 test("buildPlanReadyPrMetadata uses prepared max repair attempts when metadata is absent", () => {
@@ -100,6 +109,30 @@ test("renderPrBody rewrites metadata and links to the canonical artifacts path",
 
   assert.equal(metadata.artifactsPath, ".factory/runs/7");
   assert.match(body, /\.factory\/runs\/7\/spec\.md/);
+});
+
+test("renderPrBody uses artifactRef override when provided", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    artifactRef: "main",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "plan_ready"
+    })
+  });
+
+  assert.match(
+    body,
+    /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/spec\.md\)/
+  );
+  assert.match(
+    body,
+    /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/review\.md\)/
+  );
 });
 
 test("canonicalizePrMetadata preserves unrelated metadata fields while fixing artifacts path", () => {

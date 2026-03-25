@@ -463,6 +463,7 @@ export async function main(env = process.env) {
     branch: pullRequest.head.ref,
     repositoryUrl,
     artifactsPath: nextMetadata.artifactsPath,
+    artifactRef: `${env.FACTORY_ARTIFACT_REF || ""}`.trim() || undefined,
     metadata: nextMetadata,
     ciStatus: env.FACTORY_CI_STATUS || "pending",
     labels: pullRequest.labels || []

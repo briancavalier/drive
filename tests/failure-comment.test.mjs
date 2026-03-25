@@ -42,6 +42,27 @@ test("review-mode fallback comment includes review artifacts", () => {
   assert.match(comment, /\[review\.json\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/34-sample\/\.factory\/runs\/34\/review\.json\)/);
 });
 
+test("failure comment links use artifact ref override when provided", () => {
+  const comment = buildFailureComment({
+    action: "review",
+    failureType: FAILURE_TYPES.contentOrLogic,
+    failureMessage: "review.md missing Traceability section",
+    branch: "factory/34-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/34",
+    artifactRef: "main"
+  });
+
+  assert.match(
+    comment,
+    /\[review\.md\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/34\/review\.md\)/
+  );
+  assert.match(
+    comment,
+    /\[review\.json\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/34\/review\.json\)/
+  );
+});
+
 test("review artifact contract failures surface targeted recovery guidance", () => {
   const comment = buildFailureComment({
     action: "review",

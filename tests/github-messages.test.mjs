@@ -169,6 +169,24 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
   assert.ok(lines.includes("Closes #7"));
 });
 
+test("renderPrBody renders artifact links from override ref", () => {
+  const body = renderPrBody({
+    ...prBodyInput(),
+    artifactRef: "main"
+  });
+  const lines = body.split("\n");
+  const openLine = lines.find((line) => line.startsWith("**Open:**"));
+
+  assert.match(
+    openLine,
+    /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/review\.md\)/
+  );
+  assert.match(
+    body,
+    /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/spec\.md\)/
+  );
+});
+
 test("renderPrBody renders blocked summary with stage from blockedAction", () => {
   const body = renderPrBody({
     ...prBodyInput(),

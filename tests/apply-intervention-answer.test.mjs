@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { main as applyInterventionAnswer } from "../scripts/apply-intervention-answer.mjs";
@@ -5,6 +8,32 @@ import {
   defaultApprovalIntervention,
   renderPrBody
 } from "../scripts/lib/pr-metadata.mjs";
+
+const previousGithubOutput = process.env.GITHUB_OUTPUT;
+const tempGithubOutput = path.join(
+  os.tmpdir(),
+  `apply-intervention-answer-${process.pid}.output`
+);
+
+process.env.GITHUB_OUTPUT = tempGithubOutput;
+
+test.beforeEach(() => {
+  fs.writeFileSync(tempGithubOutput, "");
+});
+
+test.after(() => {
+  if (previousGithubOutput === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = previousGithubOutput;
+  }
+
+  try {
+    fs.unlinkSync(tempGithubOutput);
+  } catch {
+    // ignore cleanup errors
+  }
+});
 
 function buildPullRequestBody(metadata = {}) {
   return renderPrBody({

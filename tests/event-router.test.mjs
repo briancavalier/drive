@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   isTrustedReviewTrigger,
   routeIssueComment,
+  routePullRequest,
   routePullRequestReview,
   routeWorkflowRun,
   validateFactoryRepoTrust,
@@ -225,6 +226,44 @@ test("validateTrustedFactoryContext rejects non-canonical artifacts paths", () =
 
   assert.equal(result.trusted, false);
   assert.match(result.reason, /does not match canonical path \.factory\/runs\/12/);
+});
+
+test("routePullRequest emits rewrite action for merged managed PRs", () => {
+  const result = routePullRequest({
+    action: "closed",
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      merged: true,
+      base: {
+        ref: "main",
+        repo: {
+          full_name: "example/repo"
+        }
+      }
+    })
+  });
+
+  assert.equal(result.action, "rewrite_artifact_links");
+  assert.equal(result.artifactRef, "main");
+  assert.equal(result.branch, "factory/12-sample");
+});
+
+test("routePullRequest ignores non-merged closures", () => {
+  const result = routePullRequest({
+    action: "closed",
+    repository: { full_name: "example/repo" },
+    pull_request: basePullRequest({
+      merged: false,
+      base: {
+        ref: "main",
+        repo: {
+          full_name: "example/repo"
+        }
+      }
+    })
+  });
+
+  assert.equal(result.action, "noop");
 });
 
 test("routeIssueComment starts implementation for trusted plan-ready PR commands", async () => {
