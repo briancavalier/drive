@@ -260,32 +260,32 @@ test("factory stage workflow pins the Codex CLI to the last known good version",
   assert.match(workflowText, /codex-version:\s*0\.114\.0/);
 });
 
-test("factory stage workflow gates the Codex CLI hybrid canary to plan mode", () => {
+test("factory stage workflow gates the Codex CLI hybrid path by stage-specific flags", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
 
   assert.match(
     workflowText,
-    /name:\s+Bootstrap Codex CLI canary[\s\S]*if:\s*inputs\.mode == 'plan' && vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'[\s\S]*uses:\s+openai\/codex-action@v1/
+    /name:\s+Bootstrap Codex CLI hybrid[\s\S]*if:\s*\(inputs\.mode == 'plan' && vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'\) \|\| \(inputs\.mode == 'implement' && vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true'\)[\s\S]*uses:\s+openai\/codex-action@v1/
   );
   assert.match(
     workflowText,
-    /name:\s+Verify Codex CLI bootstrap[\s\S]*which codex[\s\S]*codex --version/
+    /name:\s+Verify Codex CLI hybrid bootstrap[\s\S]*which codex[\s\S]*codex --version/
   );
   assert.match(
     workflowText,
-    /name:\s+Execute Codex CLI canary[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*--full-auto[\s\S]*--sandbox workspace-write[\s\S]*--json/
+    /name:\s+Execute Codex CLI hybrid[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*--full-auto[\s\S]*--sandbox workspace-write[\s\S]*--json/
   );
   assert.match(
     workflowText,
-    /name:\s+Parse Codex CLI telemetry[\s\S]*node scripts\/parse-codex-json-telemetry\.mjs/
+    /name:\s+Parse Codex CLI hybrid telemetry[\s\S]*node scripts\/parse-codex-json-telemetry\.mjs/
   );
   assert.match(
     workflowText,
-    /name:\s+Upload Codex CLI canary artifacts[\s\S]*uses:\s+actions\/upload-artifact@v4[\s\S]*\.factory\/tmp\/prompt\.md/
+    /name:\s+Upload Codex CLI hybrid artifacts[\s\S]*uses:\s+actions\/upload-artifact@v4[\s\S]*name:\s*codex-cli-telemetry-\$\{\{\s*github\.run_id\s*\}\}-\$\{\{\s*github\.job\s*\}\}-\$\{\{\s*inputs\.mode\s*\}\}[\s\S]*\.factory\/tmp\/prompt\.md/
   );
   assert.match(
     workflowText,
-    /name:\s+Run Codex[\s\S]*if:\s*inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'/
+    /name:\s+Run Codex[\s\S]*if:\s*\(inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'\) && \(inputs\.mode != 'implement' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true'\)/
   );
 });
 
@@ -414,6 +414,8 @@ test("factory PR loop blocks implement PRs on stage intervention requests", () =
 test("factory stage workflow records estimated cost only after a successful push", () => {
   const workflowText = readWorkflowText("_factory-stage.yml");
   const estimateIndex = workflowText.indexOf("name: Estimate stage cost");
+  const hybridBootstrapIndex = workflowText.indexOf("name: Bootstrap Codex CLI hybrid");
+  const hybridExecuteIndex = workflowText.indexOf("name: Execute Codex CLI hybrid");
   const codexIndex = workflowText.indexOf("name: Run Codex");
   const prepareIndex = workflowText.indexOf("name: Prepare stage output for push");
   const pushIndex = workflowText.indexOf("name: Push stage output");
@@ -421,6 +423,8 @@ test("factory stage workflow records estimated cost only after a successful push
   const recordIndex = workflowText.indexOf("name: Record cost estimate on pull request");
 
   assert.ok(estimateIndex >= 0);
+  assert.ok(hybridBootstrapIndex > estimateIndex);
+  assert.ok(hybridExecuteIndex > hybridBootstrapIndex);
   assert.ok(codexIndex > estimateIndex);
   assert.ok(prepareIndex > codexIndex);
   assert.ok(pushIndex > prepareIndex);
@@ -436,6 +440,10 @@ test("factory stage workflow records estimated cost only after a successful push
   assert.match(
     workflowText,
     /name:\s+Prepare stage output for push[\s\S]*FACTORY_ENABLE_SELF_MODIFY:\s*\$\{\{\s*vars\.FACTORY_ENABLE_SELF_MODIFY \|\| ''\s*\}\}[\s\S]*FACTORY_COST_SUMMARY_PATH:\s*\$\{\{\s*steps\.cost\.outputs\.cost_summary_path\s*\}\}[\s\S]*FACTORY_STAGE_ACTUAL_USAGE_PATH:\s*\$\{\{\s*steps\.codex_json_telemetry\.outputs\.actual_usage_path\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on Codex failure[\s\S]*inputs\.mode == 'implement' && vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true'/
   );
   assert.match(
     workflowText,

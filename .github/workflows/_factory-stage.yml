@@ -289,9 +289,9 @@ jobs:
       - name: Budget preflight hook
         run: echo "Budget enforcement hook not configured."
 
-      - name: Bootstrap Codex CLI canary
+      - name: Bootstrap Codex CLI hybrid
         id: codex_bootstrap
-        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'
+        if: (inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
@@ -299,9 +299,9 @@ jobs:
           sandbox: workspace-write
           codex-version: 0.114.0
 
-      - name: Verify Codex CLI bootstrap
+      - name: Verify Codex CLI hybrid bootstrap
         id: codex_verify
-        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_bootstrap.outcome == 'success'
+        if: ((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && steps.codex_bootstrap.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -310,19 +310,19 @@ jobs:
           codex --version
           test -d "${CODEX_HOME:-$HOME/.codex}"
 
-          canary_dir="${RUNNER_TEMP}/codex-cli-canary/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ inputs.mode }}"
-          mkdir -p "$canary_dir"
+          telemetry_dir="${RUNNER_TEMP}/codex-cli-telemetry/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ inputs.mode }}"
+          mkdir -p "$telemetry_dir"
 
           {
-            echo "canary_dir=$canary_dir"
-            echo "jsonl_path=$canary_dir/codex-events.jsonl"
-            echo "final_message_path=$canary_dir/final-message.md"
-            echo "actual_usage_path=$canary_dir/actual-usage.json"
+            echo "telemetry_dir=$telemetry_dir"
+            echo "jsonl_path=$telemetry_dir/codex-events.jsonl"
+            echo "final_message_path=$telemetry_dir/final-message.md"
+            echo "actual_usage_path=$telemetry_dir/actual-usage.json"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Execute Codex CLI canary
+      - name: Execute Codex CLI hybrid
         id: codex_cli
-        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_verify.outcome == 'success'
+        if: ((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && steps.codex_verify.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -338,20 +338,20 @@ jobs:
             < .factory/tmp/prompt.md \
             | tee "${{ steps.codex_verify.outputs.jsonl_path }}"
 
-      - name: Parse Codex CLI telemetry
+      - name: Parse Codex CLI hybrid telemetry
         id: codex_json_telemetry
-        if: inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && steps.codex_cli.outcome == 'success'
+        if: ((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && steps.codex_cli.outcome == 'success'
         continue-on-error: true
         run: node scripts/parse-codex-json-telemetry.mjs
         env:
           FACTORY_CODEX_JSONL_PATH: ${{ steps.codex_verify.outputs.jsonl_path }}
           FACTORY_CODEX_USAGE_OUTPUT_PATH: ${{ steps.codex_verify.outputs.actual_usage_path }}
 
-      - name: Upload Codex CLI canary artifacts
-        if: always() && inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true'
+      - name: Upload Codex CLI hybrid artifacts
+        if: always() && ((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true'))
         uses: actions/upload-artifact@v4
         with:
-          name: codex-cli-canary-${{ github.run_id }}-${{ github.job }}-${{ inputs.mode }}
+          name: codex-cli-telemetry-${{ github.run_id }}-${{ github.job }}-${{ inputs.mode }}
           if-no-files-found: ignore
           path: |
             .factory/tmp/prompt.md
@@ -361,7 +361,7 @@ jobs:
 
       - name: Run Codex
         id: codex
-        if: inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'
+        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true')
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
@@ -374,7 +374,7 @@ jobs:
 
       - name: Stop on Codex failure
         id: codex_failure
-        if: steps.codex.outcome == 'failure' || (inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true' && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
+        if: steps.codex.outcome == 'failure' || (((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
         run: |
           echo "failure_type=stage_setup" >> "$GITHUB_OUTPUT"
           echo "failure_message=Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared." >> "$GITHUB_OUTPUT"
