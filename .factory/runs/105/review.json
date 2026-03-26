@@ -1,7 +1,7 @@
 {
   "methodology": "default",
   "decision": "request_changes",
-  "summary": "Branch contains run artifacts but does not include the required template and code updates; acceptance criteria are not met.",
+  "summary": "Templates and traceability rendering do not match the approved spec; authoring guidance still requests methodology in review.md. Requesting changes to update templates, flatten traceability, and update prompts/tests.",
   "blocking_findings_count": 3,
   "requirement_checks": [
     {
@@ -9,8 +9,8 @@
       "requirement": "PASS review renders new Factory Review header without legacy clutter",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/runs/105/acceptance-tests.md",
-        "git diff origin/main..HEAD: no changes to scripts/templates/github-messages/review-pass-comment.md or related template files"
+        "scripts/templates/github-messages/review-pass-comment.md contains legacy banner: \"✅ Autonomous review completed with decision **PASS**\"",
+        "tests/process-review.test.mjs expects the review body to contain '## 🧭 Traceability' but no test asserts the new '## Factory Review' header; templates were not updated to the new summary block."
       ]
     },
     {
@@ -18,8 +18,8 @@
       "requirement": "REQUEST_CHANGES review shares layout and preserves detailed findings",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/runs/105/acceptance-tests.md",
-        "git diff origin/main..HEAD: no changes to scripts/templates/github-messages/review-request-changes.md or helper code"
+        "scripts/templates/github-messages/review-request-changes.md shows legacy layout and tokens (includes '{{FULL_REVIEW_DETAILS}}' and a trailing 'Artifacts:' section).",
+        "No template matching the target '## Factory Review' summary block was found in 'scripts/templates/github-messages/'."
       ]
     },
     {
@@ -27,57 +27,41 @@
       "requirement": "Traceability appears as a single collapsible block in both comment and review.md",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/runs/105/acceptance-tests.md",
-        "review.md in this run was generated as an artifact but source rendering helpers (scripts/lib/review-output.mjs) were not updated in the branch"
+        "scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown currently emits one <details> per requirement group (nested details), not a single flattened <details> wrapper.",
+        "tests/review-artifacts.test.mjs and tests/process-review.test.mjs continue to exercise the existing multi-<details> rendering behavior."
       ]
     },
     {
-      "type": "plan_deliverable",
-      "requirement": "Refactor buildReviewConversationBody and update templates per plan.md",
+      "type": "acceptance_criterion",
+      "requirement": "Review authoring guidance omits manual methodology instruction",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/runs/105/plan.md",
-        "git diff origin/main..HEAD: no edits to scripts/lib/github-messages.mjs or scripts/templates/github-messages/*.md"
-      ]
-    },
-    {
-      "type": "spec_commitment",
-      "requirement": "Update review authoring prompt to omit manual methodology instruction",
-      "status": "not_satisfied",
-      "evidence": [
-        ".factory/runs/105/spec.md",
-        "git diff origin/main..HEAD: .factory/prompts/review.md not modified in this branch"
+        ".factory/prompts/review.md still instructs reviewers to include the methodology line inside review.md (the prompt contains: 'Include the methodology used ({{METHODOLOGY_NAME}})').",
+        "No change to .factory/prompts/review.md observed in the working tree to remove the manual methodology instruction."
       ]
     }
   ],
   "findings": [
     {
       "level": "blocking",
-      "title": "Implementation files for templates and helpers are missing",
-      "details": "The branch contains only `.factory/runs/105/` artifacts and usage-event logs. The source files named in the spec/plan (e.g., `scripts/templates/github-messages/review-pass-comment.md`, `scripts/lib/github-messages.mjs`, `scripts/lib/review-output.mjs`) were not changed or added in this branch, so the implementation is absent.",
-      "scope": "Repository-level: templates and helper code",
-      "recommendation": "Commit the template and helper changes described in .factory/runs/105/spec.md and .factory/runs/105/plan.md, then update tests and re-run CI."
+      "title": "Templates not updated to Factory Review summary",
+      "details": "Both PASS and REQUEST_CHANGES templates in 'scripts/templates/github-messages/' retain legacy layout and tokens instead of the new '## Factory Review' header and compact Summary/Findings/Artifacts block.",
+      "scope": "scripts/templates/github-messages/review-pass-comment.md, scripts/templates/github-messages/review-request-changes.md",
+      "recommendation": "Update both templates to the shared dashboard-first layout specified in the run spec. Replace legacy banners and footers with the compact summary block and ensure tokens for artifact links and counts are present."
     },
     {
       "level": "blocking",
-      "title": "Acceptance tests cannot be validated against missing implementation",
-      "details": "Acceptance tests in .factory/runs/105/acceptance-tests.md require changes to rendering and tests. Without the source changes, those acceptance tests cannot be executed or validated.",
-      "scope": "Testing and CI",
-      "recommendation": "Implement code changes, update tests and snapshots in `tests/`, and attach CI run evidence that exercises the new formatting."
+      "title": "Traceability rendering not flattened",
+      "details": "The canonical traceability renderer emits a separate <details> block per requirement group rather than a single <details> wrapper with flat subsections, which does not match the target experience.",
+      "scope": "scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown",
+      "recommendation": "Modify the traceability renderer to output a single '<details>' element with a '🧭 Traceability' summary and inside it render plain Markdown subsections for each requirement group. Update or remove helpers that previously created nested details."
     },
     {
       "level": "blocking",
-      "title": "Insufficient CI evidence for claimed behavior",
-      "details": "CI metadata (workflow id 23614136486) shows unit and actionlint jobs passed, but there is no evidence that the new comment formatting was produced because the implementation files are absent. The run artifacts show only generated review artifacts, not the generator code.",
-      "scope": "Continuous Integration / Evidence",
-      "recommendation": "Provide CI run logs showing the updated templates producing the target comment body, or include a link to the PR that contains the implementation with passing tests."
-    },
-    {
-      "level": "non_blocking",
-      "title": "Consider including cross-PR linkage",
-      "details": "If the implementation will land in a separate PR, add a note in this run or in the approved issue indicating the relationship so reviewers understand the dependency.",
-      "scope": "Process / Documentation",
-      "recommendation": "Add a short note to `.factory/runs/105/approved-issue.md` and the PR description linking the implementation PR."
+      "title": "Authoring prompt still asks to duplicate methodology",
+      "details": "The review authoring prompt instructs reviewers to include the methodology line inside 'review.md', which will be duplicated after the summary block is injected by the new comment assembly logic.",
+      "scope": ".factory/prompts/review.md",
+      "recommendation": "Remove or reword the instruction to stop asking reviewers to manually add the methodology line to 'review.md' and document that methodology is rendered automatically in the summary block."
     }
   ]
 }

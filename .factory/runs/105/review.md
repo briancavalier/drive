@@ -1,51 +1,34 @@
-decision: REQUEST_CHANGES · Method: `default`
+request_changes · Method: `default`
 
-📝 Summary
-- Implementation is incomplete: the repository branch contains only the run artifacts in `.factory/runs/105/` and related usage events; there are no edits to the templates or helper code named in the spec (`scripts/templates/github-messages/*`, `scripts/lib/github-messages.mjs`, `scripts/lib/review-output.mjs`, or `.factory/prompts/review.md`).
-- Because the code and template updates required by the spec and plan are not present, the acceptance tests cannot be satisfied by this branch as-is.
+**📝 Summary**
+- The branch implements a spec to rework the Factory Review comment templates and traceability rendering to a dashboard-first layout. I evaluated the code, templates, review-output helpers, authoring prompt, and test/CI evidence against the approved spec and acceptance tests.
+- Outcome: Request changes — multiple acceptance criteria are not satisfied. See blocking findings below for concrete fixes.
 
-🚨 blocking findings
-- Missing implementation: No code or template changes implementing the new `Factory Review` header and flattened traceability were found. See evidence: `git diff origin/main..HEAD` shows only `.factory/runs/105/*` artifact files were added and no `scripts/templates` or `scripts/lib` changes were committed.
-- Acceptance tests cannot pass: The acceptance-tests.md describes changes to templates, message builders, and test snapshots; those source files and updated tests are not present in this branch, so acceptance criteria are unmet.
-- Missing test updates / CI evidence for template behavior: While CI status (workflow id 23614136486) reports `unit: success` and other checks passed, there is no CI evidence demonstrating the new comment body format because the implementation files are absent.
+**🚨 Blocking Findings**
+- PASS and REQUEST_CHANGES GitHub message templates remain in the legacy layout and still include the old summary/footer tokens; they were not updated to the new `## Factory Review` header and compact summary block. See `scripts/templates/github-messages/review-pass-comment.md` and `scripts/templates/github-messages/review-request-changes.md`.
+- Traceability rendering still emits multiple `<details>` blocks (one per requirement type) rather than a single `<details>` wrapper with flat subsections. See `scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown`.
+- Review authoring prompt still instructs reviewers to include the methodology line inside `review.md`, which would duplicate the methodology once the new summary block renders it; see `.factory/prompts/review.md`.
 
-⚠️ non-blocking notes
-- If the implementation is intended to be delivered in a follow-up PR, please link it from this run and include a short note in `.factory/runs/105/approved-issue.md` indicating cross-PR dependencies.
-- Suggested next steps: implement the templating changes in `scripts/templates/github-messages/review-pass-comment.md` and `review-request-changes.md`, update `scripts/lib/github-messages.mjs` and `scripts/lib/review-output.mjs` per the plan, and rebaseline tests in `tests/github-messages.test.mjs` and related snapshot files.
-
-Methodology: `default`
+**⚠️ Non-Blocking Notes**
+- Unit tests and CI passed (workflow run id: `23614227503`, unit: success, actionlint: success), which indicates existing behavior is stable but does not demonstrate the new template/layout changes required by the acceptance criteria.
+- Tests and rendering helpers (e.g., `tests/process-review.test.mjs` and `scripts/lib/review-output.mjs`) will need coordinated updates to adopt the single-details traceability model and the new summary tokens. Update the tests after applying code/template changes to avoid snapshot drift.
 
 ## 🧭 Traceability
 
 <details>
-<summary>🧭 Traceability: Acceptance Criteria (❌ 3)</summary>
+<summary>🧭 Traceability: Acceptance Criteria (❌ 4)</summary>
 
 - ❌ **Not satisfied**: PASS review renders new Factory Review header without legacy clutter
-  - **Evidence:** .factory/runs/105/acceptance-tests.md
-  - **Evidence:** git diff origin/main..HEAD: no changes to scripts/templates/github-messages/review-pass-comment.md or related template files
+  - **Evidence:** scripts/templates/github-messages/review-pass-comment.md contains legacy banner: "✅ Autonomous review completed with decision **PASS**"
+  - **Evidence:** tests/process-review.test.mjs expects the review body to contain '## 🧭 Traceability' but no test asserts the new '## Factory Review' header; templates were not updated to the new summary block.
 - ❌ **Not satisfied**: REQUEST_CHANGES review shares layout and preserves detailed findings
-  - **Evidence:** .factory/runs/105/acceptance-tests.md
-  - **Evidence:** git diff origin/main..HEAD: no changes to scripts/templates/github-messages/review-request-changes.md or helper code
+  - **Evidence:** scripts/templates/github-messages/review-request-changes.md shows legacy layout and tokens (includes '{{FULL_REVIEW_DETAILS}}' and a trailing 'Artifacts:' section).
+  - **Evidence:** No template matching the target '## Factory Review' summary block was found in 'scripts/templates/github-messages/'.
 - ❌ **Not satisfied**: Traceability appears as a single collapsible block in both comment and review.md
-  - **Evidence:** .factory/runs/105/acceptance-tests.md
-  - **Evidence:** review.md in this run was generated as an artifact but source rendering helpers (scripts/lib/review-output.mjs) were not updated in the branch
-
-</details>
-
-<details>
-<summary>🧭 Traceability: Spec Commitments (❌ 1)</summary>
-
-- ❌ **Not satisfied**: Update review authoring prompt to omit manual methodology instruction
-  - **Evidence:** .factory/runs/105/spec.md
-  - **Evidence:** git diff origin/main..HEAD: .factory/prompts/review.md not modified in this branch
-
-</details>
-
-<details>
-<summary>🧭 Traceability: Plan Deliverables (❌ 1)</summary>
-
-- ❌ **Not satisfied**: Refactor buildReviewConversationBody and update templates per plan.md
-  - **Evidence:** .factory/runs/105/plan.md
-  - **Evidence:** git diff origin/main..HEAD: no edits to scripts/lib/github-messages.mjs or scripts/templates/github-messages/*.md
+  - **Evidence:** scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown currently emits one <details> per requirement group (nested details), not a single flattened <details> wrapper.
+  - **Evidence:** tests/review-artifacts.test.mjs and tests/process-review.test.mjs continue to exercise the existing multi-<details> rendering behavior.
+- ❌ **Not satisfied**: Review authoring guidance omits manual methodology instruction
+  - **Evidence:** .factory/prompts/review.md still instructs reviewers to include the methodology line inside review.md (the prompt contains: 'Include the methodology used ({{METHODOLOGY_NAME}})').
+  - **Evidence:** No change to .factory/prompts/review.md observed in the working tree to remove the manual methodology instruction.
 
 </details>
