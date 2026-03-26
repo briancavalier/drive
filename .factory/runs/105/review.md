@@ -48,7 +48,7 @@ Methodology
 <summary>🧭 Traceability: Plan Deliverables (❌ 1)</summary>
 
 - ❌ **Not satisfied**: Refactor buildReviewConversationBody to accept normalized review payload and render new Factory Review summary block
-  - **Evidence:** scripts/lib/github-messages.mjs:860-1020 (current function signature: { reviewMarkdown, artifactsPath, maxBodyChars } without review payload),
+  - **Evidence:** scripts/lib/github-messages.mjs:860-1020 (current function signature: { reviewMarkdown, artifactsPath, maxBodyChars } without review payload)
   - **Evidence:** scripts/templates/github-messages/review-pass-comment.md:1-4 (templates still expect legacy assembled footer)
 
 </details>
