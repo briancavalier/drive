@@ -1,45 +1,59 @@
-REQUEST_CHANGES
+REQUEST_CHANGES · Methodology: `default`
 
 📝 Summary
-- The branch does not implement the changes described in `.factory/runs/105/spec.md` and the implementation plan. The GitHub message templates (`scripts/templates/github-messages/review-pass-comment.md` and `scripts/templates/github-messages/review-request-changes.md`), the review-output helpers, and the review authoring prompt were expected to be updated to render a new `## Factory Review` dashboard-first header, but they remain in their legacy form. The `buildReviewConversationBody` helper still appends the old artifacts footer and lacks the new rendering behavior.
+- The change submits spec/plan/acceptance artifacts describing the intended template and helper refactors but does not implement them. The repository still contains the legacy review templates and helper implementations that produce the old banner/footer and nested traceability `<details>` blocks. Tests and template files required by the acceptance criteria were not updated.
 
 🚨 blocking findings
-- Templates not updated: `scripts/templates/github-messages/review-pass-comment.md` and `scripts/templates/github-messages/review-request-changes.md` still contain the legacy banner/footer and do not implement the target `## Factory Review` header and bold summary block required by the spec.
-- Conversation body helper unchanged: `scripts/lib/github-messages.mjs` still uses the legacy artifacts footer and truncation anchoring logic (`Artifacts: \`<artifactsPath>/review.md\``) instead of rendering the new dashboard-style summary block from parsed `review.json`.
-- Authoring prompt not revised: `.factory/prompts/review.md` still instructs reviewers to "include the methodology inside `review.md`", which conflicts with the spec's requirement that the methodology be rendered automatically in the new summary block.
+- Legacy templates remain unchanged: `scripts/templates/github-messages/review-pass-comment.md` and `scripts/templates/github-messages/review-request-changes.md` still contain the legacy banner/footer and token layout rather than the new `## Factory Review` summary block. See file heads (lines shown in repo). 
+
+- Core helpers not updated: `scripts/lib/review-output.mjs` still renders per-group `<details>` blocks in `renderCanonicalTraceabilityMarkdown` (nested details) instead of a single `<details>` wrapper containing flattened subsections. This violates the Traceability acceptance test.
+
+- Conversation builder still appends legacy artifact footer: `scripts/lib/github-messages.mjs` `buildReviewConversationBody` still constructs a trailing `Artifacts: \`.../review.md\`` footer instead of rendering the new Factory Review header and artifact links in the top summary.
+
+- Authoring prompt not updated: `.factory/prompts/review.md` continues to instruct reviewers to include the methodology line in `review.md`, which will duplicate the methodology once the new summary block injects it automatically.
 
 ⚠️ non-blocking notes
-- Tests and snapshots were not updated to assert the new layout; please update `tests/github-messages.test.mjs` and related snapshots to validate the new PASS and REQUEST_CHANGES bodies and truncation behavior.
-- CI passing (unit tests) is useful, but it does not substitute for the acceptance-test changes requested in the run; add focused tests that assert the presence of `## Factory Review`, the bold `Summary`, `Findings`, and `Artifacts` lines, and the single `<details>` `🧭 Traceability` block.
-- Consider adding a small integration test that renders the new template with a sample `review.json` payload to catch formatting regressions early.
+- CI/unit tests (workflow run id: 23614012071) report success; however, tests do not currently assert the new layout. Update test expectations (`tests/github-messages.test.mjs`, `tests/process-review.test.mjs`, and related snapshots) as planned so CI verifies the new summary block, artifact links, and flattened traceability.
+- Consider validating truncation behavior after template/footer removal to ensure comment body limits are still honored and that the new anchor/truncation point is correct.
 
-Methodology: default
+Methodology: `default`
 
 ## 🧭 Traceability
 
 <details>
 <summary>🧭 Traceability: Acceptance Criteria (❌ 3)</summary>
 
-- ❌ **Not satisfied**: The default factory review templates are updated to the target structure with bold labels in the summary block.
-  - **Evidence:** scripts/templates/github-messages/review-pass-comment.md: line 1 contains '✅ Autonomous review completed with decision **PASS**', indicating the legacy banner is still present.
-  - **Evidence:** scripts/templates/github-messages/review-request-changes.md: file contains legacy 'Autonomous review decision: REQUEST_CHANGES (methodology: {{REVIEW_METHOD}})' and trailing artifact/footer tokens, not the target '## Factory Review' header.
-- ❌ **Not satisfied**: Both PASS and REQUEST_CHANGES templates use the same visible section headings and ordering.
-  - **Evidence:** scripts/templates/github-messages/review-pass-comment.md: uses a single-line PASS banner and 'Artifacts: `...`' inline path rather than the shared dashboard block.
-  - **Evidence:** scripts/templates/github-messages/review-request-changes.md: contains multiple sections (Blocking findings, Unmet requirement checks, Full review details) and differs in visible ordering from PASS template.
-- ❌ **Not satisfied**: Review authoring guidance omits manual methodology instruction and clarifies traceability is embedded automatically as a single block.
-  - **Evidence:** .factory/prompts/review.md: still instructs reviewers to 'include the methodology inside review.md' (line referencing methodology instruction).
-  - **Evidence:** Acceptance tests in .factory/runs/105/acceptance-tests.md expect the prompt to be revised, but the prompt file is unchanged.
+- ❌ **Not satisfied**: PASS review renders new Factory Review header without legacy clutter
+  - **Evidence:** scripts/templates/github-messages/review-pass-comment.md:1 contains legacy banner 'Autonomous review completed with decision **PASS**' (file shows old format)
+  - **Evidence:** git diff origin/main...HEAD shows only .factory artifacts were added; templates were not changed: A .factory/runs/105/* (no changes to scripts/templates).
+- ❌ **Not satisfied**: REQUEST_CHANGES review shares layout and preserves detailed findings
+  - **Evidence:** scripts/templates/github-messages/review-request-changes.md:1-8 contains legacy layout (listing 'Summary', 'Blocking findings:', 'Artifacts:')
+  - **Evidence:** rg '## Factory Review' found no matches in templates or tests; new header not present in templates.
+- ❌ **Not satisfied**: Traceability appears as a single collapsible block in both comment and review.md
+  - **Evidence:** scripts/lib/review-output.mjs: export function renderCanonicalTraceabilityMarkdown produces multiple '<details>' blocks (per-group) rather than a single '<details>' wrapper.
+  - **Evidence:** scripts/lib/review-artifacts.mjs and scripts/lib/review-output.mjs still call renderCanonicalTraceabilityMarkdown (no flattening change present).
+
+</details>
+
+<details>
+<summary>🧭 Traceability: Spec Commitments (❌ 2)</summary>
+
+- ❌ **Not satisfied**: buildReviewConversationBody renders new Factory Review header and removes legacy artifacts footer
+  - **Evidence:** scripts/lib/github-messages.mjs: buildReviewConversationBody constructs a footer '
+
+—
+Artifacts: `.../review.md`' and appends it to review.md; it does not render the new Factory Review header or inject artifacts as links in the top block.
+  - **Evidence:** git diff origin/main...HEAD shows no modifications to scripts/lib/github-messages.mjs in this branch.
+- ❌ **Not satisfied**: Review authoring guidance omits manual methodology instruction
+  - **Evidence:** .factory/prompts/review.md: the prompt still instructs 'Apply the active methodology `{{METHODOLOGY_NAME}}`' and 'Include the methodology used ({{METHODOLOGY_NAME}})' in the review.md, which will duplicate methodology when summary block is injected.
 
 </details>
 
 <details>
 <summary>🧭 Traceability: Plan Deliverables (❌ 1)</summary>
 
-- ❌ **Not satisfied**: Refactor buildReviewConversationBody to accept parsed review.json and render the new Factory Review summary, and remove the legacy artifacts footer.
-  - **Evidence:** scripts/lib/github-messages.mjs: function 'buildReviewConversationBody' (lines ~897) builds a footer string '
-
-—
-Artifacts: `review.md`' and appends it to the review body, showing the old behavior.
-  - **Evidence:** rg output / git show for the current commit c00f9134b01c27ad3e08fbd96a6822140d2a0174: only '.factory/runs/105/cost-summary.json' and usage-event files were modified in the last commit, indicating the implementation files were not changed in this branch.
+- ❌ **Not satisfied**: Tests updated to assert new comment layout and flattened traceability
+  - **Evidence:** git diff origin/main...HEAD shows no updates to test files (tests/github-messages.test.mjs and snapshots remain unchanged).
+  - **Evidence:** Repository search for 'Factory Review' returned no matches in tests or templates.
 
 </details>
