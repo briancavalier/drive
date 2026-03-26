@@ -10,7 +10,7 @@
       "status": "not_satisfied",
       "evidence": [
         "scripts/templates/github-messages/review-pass-comment.md contains legacy banner: \"✅ Autonomous review completed with decision **PASS**\"",
-        "tests/process-review.test.mjs expects the review body to contain '## 🧭 Traceability' but no test asserts the new '## Factory Review' header; templates were not updated to the new summary block."
+        "tests/process-review.test.mjs contains expectations for the old traceability layout and no assertion for a top-level '## Factory Review' header."
       ]
     },
     {
@@ -18,8 +18,8 @@
       "requirement": "REQUEST_CHANGES review shares layout and preserves detailed findings",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/templates/github-messages/review-request-changes.md shows legacy layout and tokens (includes '{{FULL_REVIEW_DETAILS}}' and a trailing 'Artifacts:' section).",
-        "No template matching the target '## Factory Review' summary block was found in 'scripts/templates/github-messages/'."
+        "scripts/templates/github-messages/review-request-changes.md retains legacy tokens such as '{{FULL_REVIEW_DETAILS}}' and a trailing 'Artifacts:' section.",
+        "No template in scripts/templates/github-messages/ matches the target '## Factory Review' summary block."
       ]
     },
     {
@@ -27,8 +27,8 @@
       "requirement": "Traceability appears as a single collapsible block in both comment and review.md",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown currently emits one <details> per requirement group (nested details), not a single flattened <details> wrapper.",
-        "tests/review-artifacts.test.mjs and tests/process-review.test.mjs continue to exercise the existing multi-<details> rendering behavior."
+        "scripts/lib/review-output.mjs currently emits nested <details> blocks per requirement group rather than a single flattened <details> wrapper.",
+        "tests/review-artifacts.test.mjs and tests/process-review.test.mjs continue to exercise multi-<details> rendering behavior."
       ]
     },
     {
@@ -36,8 +36,8 @@
       "requirement": "Review authoring guidance omits manual methodology instruction",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/prompts/review.md still instructs reviewers to include the methodology line inside review.md (the prompt contains: 'Include the methodology used ({{METHODOLOGY_NAME}})').",
-        "No change to .factory/prompts/review.md observed in the working tree to remove the manual methodology instruction."
+        ".factory/prompts/review.md still instructs reviewers to include the methodology line inside review.md.",
+        "No change to .factory/prompts/review.md was observed in the branch."
       ]
     }
   ],
@@ -53,8 +53,8 @@
       "level": "blocking",
       "title": "Traceability rendering not flattened",
       "details": "The canonical traceability renderer emits a separate <details> block per requirement group rather than a single <details> wrapper with flat subsections, which does not match the target experience.",
-      "scope": "scripts/lib/review-output.mjs:renderCanonicalTraceabilityMarkdown",
-      "recommendation": "Modify the traceability renderer to output a single '<details>' element with a '🧭 Traceability' summary and inside it render plain Markdown subsections for each requirement group. Update or remove helpers that previously created nested details."
+      "scope": "scripts/lib/review-output.mjs",
+      "recommendation": "Modify the traceability renderer to output a single '<details>' element with summary '🧭 Traceability' and inside it render plain Markdown subsections for each requirement group. Update or remove helpers that previously created nested details."
     },
     {
       "level": "blocking",
