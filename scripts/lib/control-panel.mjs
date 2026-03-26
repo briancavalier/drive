@@ -339,6 +339,10 @@ function buildBlockedReason({ metadata }) {
       : "Run hit transient infrastructure issues.";
   }
 
+  if (failureType === "budget_guardrail") {
+    return "Budget guardrails blocked a costly or runaway stage.";
+  }
+
   if (failureType === "stale_branch_conflict") {
     return "Branch drift detected; merge conflict prevented the stage from completing.";
   }
@@ -436,6 +440,10 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
 
     if (failureType === "transient_infra") {
       return "Retry the stage once infrastructure issues are cleared.";
+    }
+
+    if (failureType === "budget_guardrail") {
+      return "Reduce the planned change surface or split the work, then reset and rerun the stage.";
     }
 
     if (failureType === "stale_branch_conflict") {
@@ -591,6 +599,13 @@ function buildActions({
       if (canResumeBlockedRun(metadata)) {
         pushAction(buildCommandAction(ACTION_DEFINITIONS.resume, context));
       }
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
+      pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
+      return actions;
+    }
+
+    if (failureType === "budget_guardrail") {
+      pushAction(buildCommandAction(ACTION_DEFINITIONS.reset, context));
       pushAction(buildCommandAction(ACTION_DEFINITIONS.pause, context));
       pushAction(buildLinkAction(ACTION_DEFINITIONS.openLatestRun, latestRunUrl));
       return actions;

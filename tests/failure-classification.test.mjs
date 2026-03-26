@@ -26,6 +26,17 @@ test("classifyFailure detects transient infrastructure errors", () => {
   );
 });
 
+test("classifyFailure detects budget guardrail failures", () => {
+  assert.equal(
+    classifyFailure("Budget guardrail blocked the implement stage before Codex execution."),
+    FAILURE_TYPES.budgetGuardrail
+  );
+  assert.equal(
+    classifyFailure("Runtime guardrail terminated the hybrid implement Codex session after 20 minute(s)."),
+    FAILURE_TYPES.budgetGuardrail
+  );
+});
+
 test("classifyFailure detects stale branch conflicts", () => {
   assert.equal(
     classifyFailure("Automatic merge failed; fix conflicts and then commit the result."),
