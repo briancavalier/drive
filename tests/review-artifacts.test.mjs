@@ -195,10 +195,8 @@ test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonica
   });
 
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.match(
     reviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
@@ -250,10 +248,8 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
   assert.equal(reviewMarkdown, normalizedOnDisk);
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.match(
     reviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
@@ -379,7 +375,7 @@ test("normalizeReviewArtifacts replaces prose and subheading traceability conten
   assert.match(reviewMarkdown, /## Methodology/);
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.doesNotMatch(reviewMarkdown, /This prose summary is drifted\./);
-  assert.doesNotMatch(reviewMarkdown, /### Acceptance Criteria/);
+  assert.doesNotMatch(reviewMarkdown, /(^|\n)###(?!#) Acceptance Criteria/);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
   assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
   assert.doesNotMatch(reviewMarkdown, /- Status:/);
@@ -446,10 +442,8 @@ test("loadValidatedReviewArtifacts appends canonical traceability when missing",
 
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
   assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
@@ -488,10 +482,8 @@ test("renderCanonicalTraceabilityMarkdown lists status counts in severity order"
     }
   ]);
 
-  assert.match(
-    markdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(❌ 1, ⚠️ 1, ✅ 2, ⬜ 1\)<\/summary>/
-  );
+  assert.match(markdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(markdown, /#### Acceptance Criteria \(❌ 1, ⚠️ 1, ✅ 2, ⬜ 1\)/);
   assert.match(markdown, /- ❌ \*\*Not satisfied\*\*: CI covers the negative path\./);
   assert.match(markdown, /- ⚠️ \*\*Partially satisfied\*\*: Manual QA verified positive path\./);
   assert.match(markdown, /- ✅ \*\*Satisfied\*\*: Automated regression coverage is in place\./);

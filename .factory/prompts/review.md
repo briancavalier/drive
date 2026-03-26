@@ -17,8 +17,8 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
 1. `review.md`
    - Write sections in this order: decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes.
    - Keep blocking findings and unmet requirements outside collapsible sections.
-   - Include the methodology used (`{{METHODOLOGY_NAME}}`).
-   - The control plane renders the final `🧭` Traceability section from `review.json`; focus `review.md` on the human-readable review narrative.
+   - Omit a manual methodology line; the control plane adds it to the published summary automatically.
+   - Do not add extra traceability blocks. The control plane injects a single `🧭 Traceability` `<details>` section from `review.json`.
 2. `review.json`
    - Include `methodology`, `decision`, `summary`, `blocking_findings_count`, `requirement_checks`, and `findings`.
    - `requirement_checks` entries must include `type`, `requirement`, `status`, and `evidence`.

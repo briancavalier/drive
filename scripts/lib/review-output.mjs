@@ -97,27 +97,35 @@ function renderRequirementChecksWithHeading(requirementChecks = [], headingLevel
 }
 
 export function renderCanonicalTraceabilityMarkdown(requirementChecks = []) {
-  const groups = groupRequirementChecks(requirementChecks).map((group) => {
-    const summaryCounts = formatStatusCounts(group.checks);
+  const groups = groupRequirementChecks(requirementChecks);
+  const sections = groups
+    .map((group) => {
+      const summaryCounts = formatStatusCounts(group.checks);
+      const heading = `#### ${group.label}${summaryCounts}`;
+      const items = group.checks.map(renderRequirementCheckItem).join("\n");
 
-    return [
-      "<details>",
-      `<summary>🧭 Traceability: ${group.label}${summaryCounts}</summary>`,
-      "",
-      group.checks.map(renderRequirementCheckItem).join("\n"),
-      "",
-      "</details>"
-    ].join("\n");
-  });
+      return [heading, "", items].join("\n");
+    })
+    .join("\n\n");
+  const content = sections || "_No requirement checks recorded._";
 
-  return ["## 🧭 Traceability", "", groups.join("\n\n")].join("\n");
+  return [
+    "## 🧭 Traceability",
+    "",
+    "<details>",
+    "<summary>🧭 Traceability</summary>",
+    "",
+    content,
+    "",
+    "</details>"
+  ].join("\n");
 }
 
 export function renderBlockingFindingsSummary(findings = []) {
   const blockingFindings = findings.filter((finding) => finding.level === "blocking");
 
   if (!blockingFindings.length) {
-    return "- None recorded in review.json.";
+    return "- None.";
   }
 
   return blockingFindings
@@ -134,7 +142,7 @@ export function renderUnmetRequirementChecksSummary(requirementChecks = []) {
   );
 
   if (!unmetChecks.length) {
-    return "- None recorded in review.json.";
+    return "- None.";
   }
 
   return unmetChecks
@@ -162,13 +170,6 @@ export function renderDetailsBlock(summary, body) {
   ].join("\n");
 }
 
-export function renderTraceabilityDetails(requirementChecks = []) {
-  return renderDetailsBlock(
-    "Traceability",
-    renderRequirementChecksWithHeading(requirementChecks)
-  );
-}
-
 export function renderFullBlockingFindingsDetails(findings = []) {
   const blockingFindings = findings.filter((finding) => finding.level === "blocking");
 
@@ -190,8 +191,4 @@ export function renderFullBlockingFindingsDetails(findings = []) {
       )
       .join("\n\n")
   );
-}
-
-export function renderFullReviewDetails(reviewMarkdown = "") {
-  return renderDetailsBlock("Full review.md", reviewMarkdown);
 }

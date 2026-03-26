@@ -70,6 +70,8 @@ async function handlePass({
   artifactsPath,
   reviewMarkdown,
   prNumber,
+  branch,
+  repositoryUrl,
   env,
   execFileAsync,
   githubClient
@@ -108,9 +110,11 @@ async function handlePass({
   });
 
   const comment = buildReviewConversationBody({
+    review,
     reviewMarkdown,
     artifactsPath,
-    decision: review.decision,
+    repositoryUrl,
+    branch,
     maxBodyChars: MAX_REVIEW_BODY_CHARS
   });
   await githubClient.commentOnIssue(prNumber, comment);
@@ -121,12 +125,16 @@ async function handleRequestChanges({
   reviewMarkdown,
   artifactsPath,
   prNumber,
+  branch,
+  repositoryUrl,
   githubClient
 }) {
   const body = buildReviewConversationBody({
+    review,
     reviewMarkdown,
     artifactsPath,
-    decision: review.decision,
+    repositoryUrl,
+    branch,
     maxBodyChars: MAX_REVIEW_BODY_CHARS
   });
 
@@ -188,6 +196,11 @@ export async function processReview({
   const artifactsPath = requiredEnv(env, "FACTORY_ARTIFACTS_PATH");
   const branch = requiredEnv(env, "FACTORY_BRANCH");
   const requestedMethod = env.FACTORY_REVIEW_METHOD || "";
+  const repositoryUrl =
+    env.FACTORY_REPOSITORY_URL ||
+    (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`
+      : "");
 
   if (!Number.isInteger(prNumber) || prNumber <= 0) {
     throw new Error("FACTORY_PR_NUMBER must be a positive integer");
@@ -222,6 +235,8 @@ export async function processReview({
         artifactsPath,
         reviewMarkdown,
         prNumber,
+        branch,
+        repositoryUrl,
         env,
         execFileAsync,
         githubClient
@@ -235,6 +250,8 @@ export async function processReview({
       reviewMarkdown,
       artifactsPath,
       prNumber,
+      branch,
+      repositoryUrl,
       githubClient
     });
     await clearPendingReviewSha({

@@ -1,0 +1,1 @@
+- Updated review comment rendering and tests to provide the new Factory Review summary block, flattened traceability, and refreshed prompt guidance.

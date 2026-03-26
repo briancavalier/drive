@@ -5,6 +5,10 @@ import {
   defaultApprovalIntervention,
   renderPrBody
 } from "../scripts/lib/pr-metadata.mjs";
+import os from "node:os";
+import path from "node:path";
+
+process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "apply-intervention-output.txt");
 
 function buildPullRequestBody(metadata = {}) {
   return renderPrBody({
