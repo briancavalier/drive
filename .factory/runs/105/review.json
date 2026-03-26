@@ -9,8 +9,8 @@
       "requirement": "The default factory review templates are updated to the target structure with bold labels in the summary block (PASS and REQUEST_CHANGES), and the top block clearly shows decision, method, summary, findings counts, and artifacts.",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/templates/github-messages/review-pass-comment.md contains legacy banner '✅ Autonomous review completed with decision **PASS**' and 'Summary: {{REVIEW_SUMMARY}}'.",
-        "scripts/templates/github-messages/review-request-changes.md contains legacy layout with 'Autonomous review decision: REQUEST_CHANGES' and separate artifacts/footer blocks."
+        "scripts/templates/github-messages/review-pass-comment.md contains legacy banner 'Autonomous review completed' and a plain 'Summary:' token.",
+        "scripts/templates/github-messages/review-request-changes.md contains legacy layout and trailing artifacts/footer tokens."
       ]
     },
     {
@@ -18,7 +18,7 @@
       "requirement": "Both PASS and REQUEST_CHANGES review templates use the same visible section headings and ordering.",
       "status": "not_satisfied",
       "evidence": [
-        "Content mismatch between scripts/templates/github-messages/review-pass-comment.md and scripts/templates/github-messages/review-request-changes.md (different headings and ordering)."
+        "File content mismatch between scripts/templates/github-messages/review-pass-comment.md and scripts/templates/github-messages/review-request-changes.md (different headings and ordering)."
       ]
     },
     {
@@ -26,7 +26,7 @@
       "requirement": "The top traceability block renders as a single <details> wrapper with flat subsections (no nested <details> blocks).",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/lib/review-output.mjs::renderCanonicalTraceabilityMarkdown currently emits a separate '<details>' element per requirement group (nested details)."
+        "scripts/lib/review-output.mjs::renderCanonicalTraceabilityMarkdown currently emits multiple '<details>' elements (one per requirement group)."
       ]
     },
     {
@@ -34,7 +34,7 @@
       "requirement": "Review authoring guidance (.factory/prompts/review.md) omits manual methodology instruction and clarifies traceability is injected automatically.",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/prompts/review.md currently includes the line 'Include the methodology used ({{METHODOLOGY_NAME}}).' indicating the reviewer is asked to add methodology in review.md."
+        ".factory/prompts/review.md contains the instruction 'Include the methodology used ({{METHODOLOGY_NAME}}).' which asks reviewers to add methodology into review.md."
       ]
     },
     {
@@ -42,8 +42,8 @@
       "requirement": "All acceptance-test-related tests updated to assert the new summary block, flattened traceability, and template layout.",
       "status": "not_satisfied",
       "evidence": [
-        "Search for 'Factory Review' in tests returns no matches; templates still show legacy format so tests were not updated to assert the new summary block.",
-        "CI evidence: workflow run id 23614523539: actionlint: success, factory-artifact-guard: success, unit: success — passing CI does not show tests for the new layout updated in this branch."
+        "Repository tests do not include assertions for '## Factory Review' or the flattened traceability; tests/search returned no matches for 'Factory Review'.",
+        "CI evidence: workflow run id 23614632266 shows 'unit: success', 'factory-artifact-guard: success', 'actionlint: success' but does not indicate tests for the new layout were added."
       ]
     },
     {
@@ -51,7 +51,7 @@
       "requirement": "A repair-log (.factory/runs/105/repair-log.md) is provided as an artifact for this run.",
       "status": "not_satisfied",
       "evidence": [
-        "Directory listing for .factory/runs/105 does not include repair-log.md."
+        "Directory listing for .factory/runs/105 does not include repair-log.md (ls output shows review.md and review.json but no repair-log.md)."
       ]
     }
   ],
