@@ -10,7 +10,7 @@ request_changes · Method: `default`
 - The review authoring prompt still instructs reviewers to add a methodology line inside `review.md`, which would duplicate methodology once the new summary block is injected. See `.factory/prompts/review.md`.
 
 **⚠️ Non-Blocking Notes**
-- CI passed for unit tests (workflow run id: `23614334463`, unit: success, actionlint: success), indicating existing behavior remains stable but the CI run does not exercise the new template/layout changes required by the acceptance tests.
+- CI passed for unit tests (workflow run id: `23614423969`, unit: success, actionlint: success), indicating existing behavior remains stable but the CI run does not exercise the new template/layout changes required by the acceptance tests.
 - Tests and rendering helpers (e.g., `tests/process-review.test.mjs` and `scripts/lib/review-output.mjs`) will require coordinated updates to adopt the single-`<details>` traceability model and the new summary tokens; update tests after applying code/template changes to avoid snapshot drift.
 
 ## 🧭 Traceability
