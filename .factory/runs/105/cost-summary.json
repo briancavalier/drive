@@ -28,17 +28,17 @@
     "provider": "openai",
     "apiSurface": "codex-action",
     "model": "gpt-5-mini",
-    "promptChars": 6947,
+    "promptChars": 6784,
     "estimatedUsageBeforeCalibration": {
-      "inputTokens": 1737,
+      "inputTokens": 1696,
       "cachedInputTokens": 0,
-      "outputTokens": 608,
+      "outputTokens": 594,
       "reasoningTokens": null
     },
     "estimatedUsage": {
-      "inputTokens": 1737,
+      "inputTokens": 1696,
       "cachedInputTokens": 0,
-      "outputTokens": 608,
+      "outputTokens": 594,
       "reasoningTokens": null
     },
     "usageCalibration": {
@@ -53,16 +53,16 @@
       }
     },
     "derivedCost": {
-      "stageUsdBeforeCalibration": 0.0017,
-      "stageUsd": 0.0017,
-      "totalEstimatedUsd": 0.0072,
+      "stageUsdBeforeCalibration": 0.0016,
+      "stageUsd": 0.0016,
+      "totalEstimatedUsd": 0.0071,
       "band": "low",
       "emoji": "🟢",
       "pricingSource": "model",
       "actualUsd": null
     },
     "actualUsage": {},
-    "sourceEventPath": ".factory/usage-events/2026-03-26/23614749177-1-stage-review.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-26/23616850133-1-stage-review.json"
   },
   "stages": {
     "plan": {
@@ -113,17 +113,17 @@
       "provider": "openai",
       "apiSurface": "codex-action",
       "model": "gpt-5-mini",
-      "promptChars": 6947,
+      "promptChars": 6784,
       "estimatedUsageBeforeCalibration": {
-        "inputTokens": 1737,
+        "inputTokens": 1696,
         "cachedInputTokens": 0,
-        "outputTokens": 608,
+        "outputTokens": 594,
         "reasoningTokens": null
       },
       "estimatedUsage": {
-        "inputTokens": 1737,
+        "inputTokens": 1696,
         "cachedInputTokens": 0,
-        "outputTokens": 608,
+        "outputTokens": 594,
         "reasoningTokens": null
       },
       "usageCalibration": {
@@ -138,13 +138,13 @@
         }
       },
       "derivedCost": {
-        "stageUsdBeforeCalibration": 0.0017,
-        "stageUsd": 0.0017,
+        "stageUsdBeforeCalibration": 0.0016,
+        "stageUsd": 0.0016,
         "pricingSource": "model",
         "actualUsd": null
       },
       "actualUsage": {},
-      "sourceEventPath": ".factory/usage-events/2026-03-26/23614749177-1-stage-review.json"
+      "sourceEventPath": ".factory/usage-events/2026-03-26/23616850133-1-stage-review.json"
     }
   }
 }
