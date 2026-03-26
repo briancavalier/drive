@@ -1,67 +1,102 @@
 {
   "methodology": "default",
   "decision": "request_changes",
-  "summary": "Templates and traceability rendering do not match the approved spec; authoring guidance still requests methodology in review.md. Requesting changes to update templates, flatten traceability, and update prompts/tests.",
-  "blocking_findings_count": 3,
+  "summary": "Branch does not implement the template & traceability changes required by spec; missing repair-log and tests not updated.",
+  "blocking_findings_count": 5,
   "requirement_checks": [
     {
       "type": "acceptance_criterion",
-      "requirement": "PASS review renders new Factory Review header without legacy clutter",
+      "requirement": "The default factory review templates are updated to the target structure with bold labels in the summary block (PASS and REQUEST_CHANGES), and the top block clearly shows decision, method, summary, findings counts, and artifacts.",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/templates/github-messages/review-pass-comment.md contains legacy banner: \"✅ Autonomous review completed with decision **PASS**\"",
-        "tests/process-review.test.mjs contains expectations for the old traceability layout and no assertion for a top-level '## Factory Review' header."
+        "scripts/templates/github-messages/review-pass-comment.md contains legacy banner '✅ Autonomous review completed with decision **PASS**' and 'Summary: {{REVIEW_SUMMARY}}'.",
+        "scripts/templates/github-messages/review-request-changes.md contains legacy layout with 'Autonomous review decision: REQUEST_CHANGES' and separate artifacts/footer blocks."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "REQUEST_CHANGES review shares layout and preserves detailed findings",
+      "requirement": "Both PASS and REQUEST_CHANGES review templates use the same visible section headings and ordering.",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/templates/github-messages/review-request-changes.md retains legacy tokens such as '{{FULL_REVIEW_DETAILS}}' and a trailing 'Artifacts:' section.",
-        "No template in scripts/templates/github-messages/ matches the target '## Factory Review' summary block."
+        "Content mismatch between scripts/templates/github-messages/review-pass-comment.md and scripts/templates/github-messages/review-request-changes.md (different headings and ordering)."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Traceability appears as a single collapsible block in both comment and review.md",
+      "requirement": "The top traceability block renders as a single <details> wrapper with flat subsections (no nested <details> blocks).",
       "status": "not_satisfied",
       "evidence": [
-        "scripts/lib/review-output.mjs currently emits nested <details> blocks per requirement group rather than a single flattened <details> wrapper.",
-        "tests/review-artifacts.test.mjs and tests/process-review.test.mjs continue to exercise multi-<details> rendering behavior."
+        "scripts/lib/review-output.mjs::renderCanonicalTraceabilityMarkdown currently emits a separate '<details>' element per requirement group (nested details)."
       ]
     },
     {
-      "type": "acceptance_criterion",
-      "requirement": "Review authoring guidance omits manual methodology instruction",
+      "type": "spec_commitment",
+      "requirement": "Review authoring guidance (.factory/prompts/review.md) omits manual methodology instruction and clarifies traceability is injected automatically.",
       "status": "not_satisfied",
       "evidence": [
-        ".factory/prompts/review.md still instructs reviewers to include the methodology line inside review.md.",
-        "No change to .factory/prompts/review.md was observed in the branch."
+        ".factory/prompts/review.md currently includes the line 'Include the methodology used ({{METHODOLOGY_NAME}}).' indicating the reviewer is asked to add methodology in review.md."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "All acceptance-test-related tests updated to assert the new summary block, flattened traceability, and template layout.",
+      "status": "not_satisfied",
+      "evidence": [
+        "Search for 'Factory Review' in tests returns no matches; templates still show legacy format so tests were not updated to assert the new summary block.",
+        "CI evidence: workflow run id 23614523539: actionlint: success, factory-artifact-guard: success, unit: success — passing CI does not show tests for the new layout updated in this branch."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "A repair-log (.factory/runs/105/repair-log.md) is provided as an artifact for this run.",
+      "status": "not_satisfied",
+      "evidence": [
+        "Directory listing for .factory/runs/105 does not include repair-log.md."
       ]
     }
   ],
   "findings": [
     {
       "level": "blocking",
-      "title": "Templates not updated to Factory Review summary",
-      "details": "Both PASS and REQUEST_CHANGES templates in 'scripts/templates/github-messages/' retain legacy layout and tokens instead of the new '## Factory Review' header and compact Summary/Findings/Artifacts block.",
-      "scope": "scripts/templates/github-messages/review-pass-comment.md, scripts/templates/github-messages/review-request-changes.md",
-      "recommendation": "Update both templates to the shared dashboard-first layout specified in the run spec. Replace legacy banners and footers with the compact summary block and ensure tokens for artifact links and counts are present."
+      "title": "Templates unchanged — PASS and REQUEST_CHANGES still use legacy layout",
+      "details": "Both GitHub message templates remain in the previous format (legacy banner, duplicated summary/footer) instead of the new '## Factory Review' summary block with bold 'Summary', 'Findings', and 'Artifacts' lines.",
+      "scope": "scripts/templates/github-messages/review-pass-comment.md; scripts/templates/github-messages/review-request-changes.md",
+      "recommendation": "Update both templates to the target shared layout, ensure the decision/method line is alone on its own line, add bold 'Summary', 'Findings', and 'Artifacts' summary lines with artifact links, and remove the legacy banner and trailing artifacts footer."
     },
     {
       "level": "blocking",
-      "title": "Traceability rendering not flattened",
-      "details": "The canonical traceability renderer emits a separate <details> block per requirement group rather than a single <details> wrapper with flat subsections, which does not match the target experience.",
+      "title": "Traceability rendering uses nested <details> per group",
+      "details": "renderCanonicalTraceabilityMarkdown in scripts/lib/review-output.mjs emits a separate '<details>' element for each requirement group rather than a single '<details>' wrapper as required by the spec.",
       "scope": "scripts/lib/review-output.mjs",
-      "recommendation": "Modify the traceability renderer to output a single '<details>' element with summary '🧭 Traceability' and inside it render plain Markdown subsections for each requirement group. Update or remove helpers that previously created nested details."
+      "recommendation": "Refactor traceability generation to emit a single '<details>' wrapper with a summary '🧭 Traceability' and flat Markdown subsections for requirement groups. Update any helpers that produce nested '<details>' to follow the flattened structure."
     },
     {
       "level": "blocking",
-      "title": "Authoring prompt still asks to duplicate methodology",
-      "details": "The review authoring prompt instructs reviewers to include the methodology line inside 'review.md', which will be duplicated after the summary block is injected by the new comment assembly logic.",
+      "title": "Review prompt still asks authors to include methodology in review.md",
+      "details": ".factory/prompts/review.md contains instructions to include the methodology in the authored review.md, which will duplicate the method once the new top-level summary block injects it automatically.",
       "scope": ".factory/prompts/review.md",
-      "recommendation": "Remove or reword the instruction to stop asking reviewers to manually add the methodology line to 'review.md' and document that methodology is rendered automatically in the summary block."
+      "recommendation": "Remove the instruction asking reviewers to include the methodology in review.md and update the authoring guidance to state that methodology is injected automatically into the top block."
+    },
+    {
+      "level": "blocking",
+      "title": "Missing repair-log artifact for run 105",
+      "details": "The run artifacts in .factory/runs/105 do not include repair-log.md though the plan and templates expect it to be present.",
+      "scope": ".factory/runs/105",
+      "recommendation": "Add .factory/runs/105/repair-log.md (can be empty if no repairs were required) or document why it is intentionally omitted."
+    },
+    {
+      "level": "blocking",
+      "title": "Tests not updated to assert new layout",
+      "details": "Repository tests do not appear to assert the new 'Factory Review' top summary block and flattened traceability; the plan required rebaselining tests (e.g., tests/github-messages.test.mjs, tests/process-review.test.mjs).",
+      "scope": "tests/, scripts/templates/, scripts/lib/",
+      "recommendation": "Update and rebaseline the relevant unit tests and snapshots to assert the new summary block, artifact links, and single-details traceability wrapper. Re-run unit tests and ensure CI verifies the new layout."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Truncation and message length should be validated",
+      "details": "Removing the legacy artifacts footer and adding a summary block changes body length and truncation anchors. The implementation should verify truncation behavior across branch sizes and ensure the summary remains visible.",
+      "scope": "scripts/lib/github-messages.mjs",
+      "recommendation": "Add or update tests that simulate long review bodies and ensure the truncation anchor leaves the new top summary visible and that artifact links remain present."
     }
   ]
 }
