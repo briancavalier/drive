@@ -28,17 +28,17 @@
     "provider": "openai",
     "apiSurface": "codex-action",
     "model": "gpt-5-mini",
-    "promptChars": 6784,
+    "promptChars": 6926,
     "estimatedUsageBeforeCalibration": {
-      "inputTokens": 1696,
+      "inputTokens": 1732,
       "cachedInputTokens": 0,
-      "outputTokens": 594,
+      "outputTokens": 606,
       "reasoningTokens": null
     },
     "estimatedUsage": {
-      "inputTokens": 1696,
+      "inputTokens": 1732,
       "cachedInputTokens": 0,
-      "outputTokens": 594,
+      "outputTokens": 606,
       "reasoningTokens": null
     },
     "usageCalibration": {
@@ -62,7 +62,7 @@
       "actualUsd": null
     },
     "actualUsage": {},
-    "sourceEventPath": ".factory/usage-events/2026-03-26/23616850133-1-stage-review.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-26/23616937153-1-stage-review.json"
   },
   "stages": {
     "plan": {
@@ -113,17 +113,17 @@
       "provider": "openai",
       "apiSurface": "codex-action",
       "model": "gpt-5-mini",
-      "promptChars": 6784,
+      "promptChars": 6926,
       "estimatedUsageBeforeCalibration": {
-        "inputTokens": 1696,
+        "inputTokens": 1732,
         "cachedInputTokens": 0,
-        "outputTokens": 594,
+        "outputTokens": 606,
         "reasoningTokens": null
       },
       "estimatedUsage": {
-        "inputTokens": 1696,
+        "inputTokens": 1732,
         "cachedInputTokens": 0,
-        "outputTokens": 594,
+        "outputTokens": 606,
         "reasoningTokens": null
       },
       "usageCalibration": {
@@ -144,7 +144,7 @@
         "actualUsd": null
       },
       "actualUsage": {},
-      "sourceEventPath": ".factory/usage-events/2026-03-26/23616850133-1-stage-review.json"
+      "sourceEventPath": ".factory/usage-events/2026-03-26/23616937153-1-stage-review.json"
     }
   }
 }
