@@ -71,6 +71,33 @@ async function clearPendingReviewSha({
   }
 }
 
+async function cleanupStaleReviewState({
+  execFileAsync,
+  env,
+  ciStatus,
+  liveMetadata,
+  ownedHeadSha
+}) {
+  const livePendingReviewSha = `${liveMetadata?.pendingReviewSha || ""}`.trim();
+  const staleWorkerOwnsPendingSha =
+    livePendingReviewSha &&
+    ownedHeadSha &&
+    livePendingReviewSha === ownedHeadSha;
+
+  try {
+    await runApplyPrState(execFileAsync, env, {
+      FACTORY_PENDING_REVIEW_SHA: staleWorkerOwnsPendingSha ? "" : "__UNCHANGED__",
+      FACTORY_PENDING_STAGE_DECISION: "__CLEAR__",
+      FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
+      FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false",
+      FACTORY_CI_STATUS: `${ciStatus || env.FACTORY_CI_STATUS || ""}`.trim() || "pending",
+      FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: "__UNCHANGED__"
+    });
+  } catch (error) {
+    console.warn(`Failed to clean up stale review state: ${error.message}`);
+  }
+}
+
 async function handlePass({
   review,
   artifactsPath,
@@ -211,6 +238,7 @@ export async function processReview({
   const branch = requiredEnv(env, "FACTORY_BRANCH");
   const requestedMethod = env.FACTORY_REVIEW_METHOD || "";
   const expectedCiRunId = `${env.FACTORY_CI_RUN_ID || ""}`.trim();
+  const currentHead = gitRevParse("HEAD");
   const repositoryUrl =
     env.FACTORY_REPOSITORY_URL ||
     (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
@@ -239,9 +267,11 @@ export async function processReview({
 
     if (!trustedContext.trusted) {
       const message = buildStaleReviewMessage(trustedContext.reason);
-      await clearPendingReviewSha({
+      await cleanupStaleReviewState({
         execFileAsync,
-        env
+        env,
+        liveMetadata: trustedContext.metadata,
+        ownedHeadSha: currentHead
       });
       console.log(message);
       return;
@@ -252,9 +282,11 @@ export async function processReview({
       const message = buildStaleReviewMessage(
         `PR status is ${metadata.status || "unknown"} instead of ${FACTORY_PR_STATUSES.reviewing}`
       );
-      await clearPendingReviewSha({
+      await cleanupStaleReviewState({
         execFileAsync,
-        env
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
       });
       console.log(message);
       return;
@@ -268,22 +300,25 @@ export async function processReview({
       const message = buildStaleReviewMessage(
         `last processed workflow run ${metadata.lastProcessedWorkflowRunId} no longer matches ${expectedCiRunId}`
       );
-      await clearPendingReviewSha({
+      await cleanupStaleReviewState({
         execFileAsync,
-        env
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
       });
       console.log(message);
       return;
     }
 
-    const currentHead = gitRevParse("HEAD");
     if (`${livePullRequest.head?.sha || ""}`.trim() !== currentHead) {
       const message = buildStaleReviewMessage(
         `PR head ${livePullRequest.head?.sha || "unknown"} no longer matches local review head ${currentHead}`
       );
-      await clearPendingReviewSha({
+      await cleanupStaleReviewState({
         execFileAsync,
-        env
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
       });
       console.log(message);
       return;

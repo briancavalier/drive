@@ -638,8 +638,7 @@ test("processReview clears pending review SHA when validation fails early", asyn
 });
 
 test("processReview no-ops when the live PR is no longer reviewing", async () => {
-  const { dir } = makeArtifacts();
-  const env = baseEnv({ artifactsPath: dir });
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
   const execCalls = [];
   let commentCalls = 0;
   let reviewCalls = 0;
@@ -666,13 +665,16 @@ test("processReview no-ops when the live PR is no longer reviewing", async () =>
   assert.equal(commentCalls, 0);
   assert.equal(reviewCalls, 0);
   assert.equal(execCalls.length, 1);
-  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
 });
 
 test("processReview no-ops when the live PR workflow run no longer matches", async () => {
-  const { dir } = makeArtifacts();
   const env = baseEnv({
-    artifactsPath: dir,
+    artifactsPath: ".factory/runs/1",
     env: {
       FACTORY_CI_RUN_ID: "200"
     }
@@ -703,7 +705,66 @@ test("processReview no-ops when the live PR workflow run no longer matches", asy
   assert.equal(commentCalls, 0);
   assert.equal(reviewCalls, 0);
   assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup clears pending review sha only when the worker owns it", async () => {
+  const headSha = currentHeadSha();
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: headSha
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup preserves pending review sha when owned by a newer worker", async () => {
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: "newer-pending-sha"
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
 });
 
 test("processReview main writes failure message output for workflow follow-up", async () => {
