@@ -15,7 +15,11 @@ import { setOutputs } from "./lib/actions-output.mjs";
 import { isTrustedReviewTrigger } from "./lib/event-router.mjs";
 
 export function resolveConcurrencyKey({ route = {}, eventName = "", payload = {}, env = process.env } = {}) {
-  const prNumber = route.prNumber || payload.pull_request?.number || "";
+  const prNumber =
+    route.prNumber ||
+    payload.pull_request?.number ||
+    payload.workflow_run?.pull_requests?.[0]?.number ||
+    "";
   if (`${prNumber}`.trim()) {
     return `pr-${prNumber}`;
   }

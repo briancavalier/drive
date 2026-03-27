@@ -131,22 +131,29 @@ test("factory PR loop concurrency uses only event-safe identifiers", () => {
 test("factory PR loop serializes mutating jobs behind the routed concurrency key", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
-  assert.match(workflowText, /concurrency_key:\s*\$\{\{\s*steps\.route\.outputs\.concurrency_key\s*\}\}/);
   assert.match(
     workflowText,
-    /answer-intervention:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+    /reroute:\n[\s\S]*?needs:\s+route[\s\S]*?group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
   );
   assert.match(
     workflowText,
-    /stage:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+    /reroute:[\s\S]*concurrency_key:\s*\$\{\{\s*steps\.route\.outputs\.concurrency_key\s*\}\}/
   );
   assert.match(
     workflowText,
-    /process-review:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+    /answer-intervention:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
   );
   assert.match(
     workflowText,
-    /review-artifact-repair:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+    /stage:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /process-review:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /review-artifact-repair:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
   );
 });
 
@@ -220,28 +227,28 @@ test("factory PR loop normalizes effective stage dispatch across direct and answ
   const processReviewBlock = extractJobBlock(workflowText, "process-review");
   const reviewFailedBlock = extractJobBlock(workflowText, "review-processing-failed");
 
-  assert.match(resolveBlock, /needs:\s*\n\s+- route\n\s+- answer-intervention/);
+  assert.match(resolveBlock, /needs:\s*\n\s+- reroute\n\s+- answer-intervention/);
   assert.match(resolveBlock, /outputs:\s*\n\s+effective_action:\s*\$\{\{\s*steps\.resolve\.outputs\.effective_action\s*\}\}/);
   assert.match(resolveBlock, /effective_action="\$\{RESUME_ACTION:-\$\{ROUTE_ACTION:-\}\}"/);
 
-  assert.match(stageBlock, /needs:\s*\n\s+- route\n\s+- mark-in-progress\n\s+- resolve-stage-dispatch/);
+  assert.match(stageBlock, /needs:\s*\n\s+- reroute\n\s+- mark-in-progress\n\s+- resolve-stage-dispatch/);
   assert.doesNotMatch(stageBlock, /needs:\s*[\s\S]*answer-intervention/);
   assert.match(stageBlock, /mode:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action\s*\}\}/);
 
-  assert.match(stageSucceededBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.match(stageSucceededBlock, /needs:\s*\n\s+- reroute\n\s+- stage\n\s+- resolve-stage-dispatch/);
   assert.doesNotMatch(stageSucceededBlock, /needs:\s*[\s\S]*answer-intervention/);
   assert.match(stageSucceededBlock, /FACTORY_LAST_COMPLETED_STAGE:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action == 'implement' && 'implement' \|\| 'repair'\s*\}\}/);
 
-  assert.match(stageFailedBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.match(stageFailedBlock, /needs:\s*\n\s+- reroute\n\s+- stage\n\s+- resolve-stage-dispatch/);
   assert.doesNotMatch(stageFailedBlock, /needs:\s*[\s\S]*answer-intervention/);
   assert.match(stageFailedBlock, /FACTORY_FAILED_ACTION:\s*\$\{\{\s*needs\.resolve-stage-dispatch\.outputs\.effective_action\s*\}\}/);
 
-  assert.match(processReviewBlock, /needs:\s*\n\s+- route\n\s+- stage\n\s+- resolve-stage-dispatch/);
+  assert.match(processReviewBlock, /needs:\s*\n\s+- reroute\n\s+- stage\n\s+- resolve-stage-dispatch/);
   assert.doesNotMatch(processReviewBlock, /needs:\s*[\s\S]*mark-in-progress/);
   assert.doesNotMatch(processReviewBlock, /needs:\s*[\s\S]*answer-intervention/);
   assert.match(processReviewBlock, /needs\.resolve-stage-dispatch\.outputs\.effective_action == 'review'/);
 
-  assert.match(reviewFailedBlock, /needs:\s*\n\s+- route\n\s+- process-review\n\s+- resolve-stage-dispatch/);
+  assert.match(reviewFailedBlock, /needs:\s*\n\s+- reroute\n\s+- process-review\n\s+- resolve-stage-dispatch/);
   assert.doesNotMatch(reviewFailedBlock, /needs:\s*[\s\S]*answer-intervention/);
   assert.match(reviewFailedBlock, /needs\.resolve-stage-dispatch\.outputs\.effective_action == 'review'/);
 });
@@ -522,7 +529,7 @@ test("factory PR loop failure jobs build diagnosis prompts and gate Codex adviso
   );
   assert.match(
     workflowText,
-    /name:\s+Handle classified stage failure[\s\S]*FACTORY_REVIEW_ID:\s*\$\{\{\s*needs\.route\.outputs\.review_id\s*\}\}/
+    /name:\s+Handle classified stage failure[\s\S]*FACTORY_REVIEW_ID:\s*\$\{\{\s*needs\.reroute\.outputs\.review_id\s*\}\}/
   );
 });
 
@@ -552,15 +559,15 @@ test("factory PR loop failure jobs check out the failing branch before diagnosis
   assert.doesNotMatch(routeJob, /needs\.route\.outputs\.branch/);
   assert.match(
     stageFailedJob,
-    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.reroute\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
   );
   assert.match(
     reviewProcessingFailedJob,
-    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.reroute\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
   );
   assert.match(
     reviewArtifactRepairFailedJob,
-    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.route\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
+    /name:\s+Checkout repository[\s\S]*?uses:\s+actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*needs\.reroute\.outputs\.branch\s*\}\}[\s\S]*?fetch-depth:\s*0/
   );
 });
 

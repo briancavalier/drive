@@ -483,3 +483,17 @@ test("resolveConcurrencyKey falls back to the branch when only branch context is
 
   assert.equal(key, "branch-factory/12-sample");
 });
+
+test("resolveConcurrencyKey keeps the PR key for stale workflow_run payloads", () => {
+  const key = resolveConcurrencyKey({
+    route: { action: "noop" },
+    payload: {
+      workflow_run: {
+        head_branch: "factory/12-sample",
+        pull_requests: [{ number: 33 }]
+      }
+    }
+  });
+
+  assert.equal(key, "pr-33");
+});
