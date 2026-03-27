@@ -671,7 +671,10 @@ test("review prompt embeds methodology instructions and metadata", () => {
   assert.match(result.prompt, /Review against these dimensions:/);
   assert.match(result.prompt, /review\.json/);
   assert.match(result.prompt, /Traceability/);
-  assert.match(result.prompt, /The control plane renders the final `🧭` Traceability section from `review\.json`/);
+  assert.match(
+    result.prompt,
+    /Do not add extra traceability blocks\. The control plane injects a single `🧭 Traceability` `<details>` section from `review\.json`\./
+  );
   assert.match(result.prompt, /The control plane renders canonical traceability in `review\.md` from `review\.json` after the run/);
   assert.match(result.prompt, /decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes/);
   assert.match(result.prompt, /requirement_checks/);

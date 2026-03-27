@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "plan",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-cli",
+  "model": "gpt-5-codex",
+  "issueNumber": 105,
+  "prNumber": 0,
+  "branch": "factory/105-update-factory-pr-review-templates-to-dashboard-",
+  "runId": "23467697643",
+  "runAttempt": 1,
+  "promptChars": 8013,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 2004,
+    "cachedInputTokens": 0,
+    "outputTokens": 301,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 2004,
+    "cachedInputTokens": 0,
+    "outputTokens": 301,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": 1596969,
+    "cachedInputTokens": 1401216,
+    "outputTokens": 12706,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:plan:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0055,
+    "estimatedUsd": 0.0055,
+    "actualUsd": 2.2984,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-24T00:55:26.229Z"
+}
