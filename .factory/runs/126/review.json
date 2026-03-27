@@ -1,84 +1,80 @@
 {
-  "methodology": "workflow-safety",
+  "methodology": "default",
   "decision": "pass",
-  "summary": "Workflow changes add a finalize-merge job and durable artifactRef metadata so dashboard links continue working after merge; permissions and transitions were reviewed against the workflow-safety checklist and supporting tests cover the new path.",
+  "summary": "Durable artifact ref added; merged PRs are finalized by routing a finalize_merge action and running a finalize job that sets FACTORY_ARTIFACT_REF to the base branch. Rendering prefers artifactRef so dashboard links resolve post-merge. Unit tests updated and CI passed (run 23666925807).",
   "blocking_findings_count": 0,
   "requirement_checks": [
     {
       "type": "acceptance_criterion",
-      "requirement": "Open PR retains head-branch dashboard links",
+      "requirement": "When a factory-managed pull request is merged, the PR body is updated so dashboard artifact links point to the base branch instead of the deleted head branch.",
       "status": "satisfied",
       "evidence": [
-        "tests/github-messages.test.mjs: renderPrBody retains head-branch blob links when artifactRef is null",
-        "scripts/lib/github-messages.mjs: buildArtifactLinks falls back to branch when artifactRef is absent"
+        "Router emits finalize_merge with final_artifact_ref == base branch (scripts/route-pr-loop.mjs: lines ~60-80).",
+        "Workflow runs finalize job that invokes apply-pr-state with FACTORY_ARTIFACT_REF set ( .github/workflows/factory-pr-loop.yml: finalize-merged-pr job ).",
+        "apply-pr-state applies FACTORY_ARTIFACT_REF and updates serialized metadata (scripts/apply-pr-state.mjs: applyArtifactRef and usage at line ~482)."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Merged PR rewrites artifact links to the base branch",
+      "requirement": "After merge, links for approved issue, spec, plan, acceptance tests, repair log, cost summary, review summary, and review JSON resolve successfully from the merged PR conversation.",
       "status": "satisfied",
       "evidence": [
-        "scripts/route-pr-loop.mjs: finalize_merge action emits finalArtifactRef=baseBranch",
-        ".github/workflows/factory-pr-loop.yml: finalize-merged-pr job forwards FACTORY_ARTIFACT_REF to apply-pr-state",
-        "scripts/apply-pr-state.mjs: applyArtifactRef persists the base branch ref in metadata",
-        "tests/route-pr-loop.test.mjs: merged PR events produce finalize_merge with base branch",
-        "tests/apply-pr-state-metadata.test.mjs: applyArtifactRef handles __UNCHANGED__ and __CLEAR__ safeguards"
+        "Rendering code builds artifact URLs from artifactRef when present (scripts/lib/github-messages.mjs: buildArtifactLinks and renderPrBody).",
+        "Unit tests assert renderPrBody uses artifactRef override for dashboard links (tests/github-messages.test.mjs: test 'renderPrBody uses artifactRef override for dashboard links').",
+        "CI run 23666925807: unit tests passed (unit: success)."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Durable artifact ref persists across subsequent metadata updates",
+      "requirement": "Before merge, artifact links still point to the active factory branch and continue to work during normal execution.",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/pr-metadata-shape.mjs: artifactRef included in defaultPrMetadata and canonicalization",
-        "tests/pr-metadata.test.mjs: canonicalizePrMetadata normalizes artifactRef and preserves value"
+        "Default rendering falls back to head branch when artifactRef is null/absent (scripts/lib/pr-metadata.mjs and scripts/lib/github-messages.mjs buildArtifactLinks fallback).",
+        "Unit tests validate default behavior includes head branch in URLs (tests/github-messages.test.mjs: test 'renderPrBody renders plan_ready dashboard layout')."
       ]
     },
     {
       "type": "acceptance_criterion",
-      "requirement": "Factory PR Loop finalizes merged PRs automatically",
+      "requirement": "Automated test coverage verifies the rendered artifact URLs for both open and merged PR states.",
       "status": "satisfied",
       "evidence": [
-        ".github/workflows/factory-pr-loop.yml: finalize-merged-pr job gated on route action finalize_merge",
-        "tests/route-pr-loop.test.mjs: finalize_merge routed for merged PRs with factory metadata"
+        "Tests added/updated: tests/pr-metadata.test.mjs, tests/github-messages.test.mjs, tests/apply-pr-state-metadata.test.mjs, tests/route-pr-loop.test.mjs include artifactRef and finalize_merge coverage.",
+        "CI run 23666925807: unit tests passed (unit: success)."
       ]
     },
     {
       "type": "spec_commitment",
-      "requirement": "Extend PR metadata shape with artifactRef and canonicalize it",
+      "requirement": "Route merged pull request events through the factory loop and emit finalize_merge including base branch and final_artifact_ref.",
       "status": "satisfied",
       "evidence": [
-        "scripts/lib/pr-metadata-shape.mjs: normalizeArtifactRef trims and nulls empty values",
-        "scripts/lib/pr-metadata.mjs: renderPrBody threads artifactRef into rendered metadata"
+        "routeEvent checks pull_request.closed & merged and returns action 'finalize_merge' with baseBranch/finalArtifactRef (scripts/route-pr-loop.mjs: routeEvent).",
+        "setOutputs includes final_artifact_ref and base_branch for downstream jobs (scripts/route-pr-loop.mjs: setOutputs usage in main)."
       ]
     },
     {
       "type": "plan_deliverable",
-      "requirement": "apply-pr-state supports FACTORY_ARTIFACT_REF and applyArtifactRef helper",
+      "requirement": "Add a finalize-merged-pr job to the factory workflow that calls apply-pr-state.mjs with FACTORY_ARTIFACT_REF set to the base branch.",
       "status": "satisfied",
       "evidence": [
-        "scripts/apply-pr-state.mjs: applyArtifactRef helper updates metadata and canonicalization",
-        "tests/apply-pr-state-metadata.test.mjs: unit tests cover applyArtifactRef semantics"
-      ]
-    },
-    {
-      "type": "plan_deliverable",
-      "requirement": "Update rendering to prefer artifactRef when present",
-      "status": "satisfied",
-      "evidence": [
-        "scripts/lib/github-messages.mjs: buildArtifactLinks uses artifactRef when provided",
-        "tests/github-messages.test.mjs: renderPrBody uses artifactRef override for dashboard links"
+        "Workflow contains finalize-merged-pr job gated on needs.reroute.outputs.action == 'finalize_merge' and invokes apply-pr-state.mjs with FACTORY_ARTIFACT_REF ( .github/workflows/factory-pr-loop.yml ).",
+        "Finalize job has required write permissions for contents and pull-requests ( .github/workflows/factory-pr-loop.yml: finalize-merged-pr permissions )."
       ]
     }
   ],
-  "findings": [],
-  "checklist": {
-    "state_changed": true,
-    "writers_reviewed": true,
-    "readers_reviewed": true,
-    "workflow_paths_checked": true,
-    "cleanup_paths_checked": true,
-    "tests_evidence_checked": true,
-    "residual_risks": "No additional residual workflow risks identified."
-  }
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Add integration-level smoke test for merged PR end-to-end path",
+      "details": "Unit tests cover routing, rendering, and apply-pr-state behavior, but there is no integration-level smoke test that runs the routed finalize path through a workflow-like execution to validate end-to-end link rewriting against a live checkout.",
+      "scope": "testing",
+      "recommendation": "Introduce a minimal integration test (local or CI stage) that simulates a merged pull_request event and verifies the PR body links after the finalize job runs."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Assumption about artifact availability on base branch",
+      "details": "The implementation assumes the base branch contains the merged artifacts immediately after merge (spec assumption). Repositories with non-standard merge/CI ordering could experience transient 404s after rewrite.",
+      "scope": "operational",
+      "recommendation": "Optionally add existence checks or a short retry/backoff before performing the final PR body rewrite, or document the assumption in the spec/README."
+    }
+  ]
 }
