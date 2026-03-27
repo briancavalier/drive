@@ -35,6 +35,10 @@ export function buildFailureHeadline({ action, phase, failureType, retryAttempts
     return `Factory exhausted ${retryAttempts} transient retry attempt(s) and is now blocked.`;
   }
 
+  if (failureType === FAILURE_TYPES.budgetGuardrail) {
+    return "Factory budget guardrails blocked a costly or runaway stage.";
+  }
+
   if (failureType === FAILURE_TYPES.configuration) {
     return "Factory encountered a configuration error and is now blocked.";
   }
@@ -87,6 +91,14 @@ function buildDeterministicRecoverySteps({ action, phase, failureType }) {
     return [
       "Inspect the failing Factory PR Loop run for the infrastructure error details.",
       "If the branch state is otherwise good, reset or retry the PR after the infrastructure issue clears."
+    ];
+  }
+
+  if (failureType === FAILURE_TYPES.budgetGuardrail) {
+    return [
+      "Inspect the failing Factory PR Loop run and the budget guardrail details to see whether cost, prompt truncation, or runtime timeout triggered the block.",
+      "Reduce the planned change surface or split the work into smaller slices before rerunning implementation.",
+      "Comment `/factory reset` after narrowing the scope, then start implementation again."
     ];
   }
 

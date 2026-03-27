@@ -212,3 +212,26 @@ test("transient infrastructure failure comment preserves provider throttle detai
   assert.match(comment, /reset or retry the PR after the infrastructure issue clears\./);
   assert.doesNotMatch(comment, /Fix the setup issue/);
 });
+
+test("budget guardrail failure comment explains scope-reduction recovery", () => {
+  const failureMessage = [
+    "Budget guardrail blocked the implement stage before Codex execution.",
+    "Estimated stage USD: 1.40",
+    "Estimated total USD: 1.40",
+    "Estimated cost band: high"
+  ].join("\n");
+  const comment = buildFailureComment({
+    action: "implement",
+    failureType: FAILURE_TYPES.budgetGuardrail,
+    failureMessage,
+    runUrl: "https://github.com/example/repo/actions/runs/999",
+    branch: "factory/80-budget",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/80"
+  });
+
+  assert.match(comment, /Factory budget guardrails blocked a costly or runaway stage\./);
+  assert.match(comment, /Budget guardrail blocked the implement stage before Codex execution/);
+  assert.match(comment, /Reduce the planned change surface or split the work into smaller slices/);
+  assert.match(comment, /Comment `\/factory reset` after narrowing the scope/);
+});

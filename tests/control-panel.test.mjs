@@ -191,6 +191,21 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       reason: /transient infrastructure/i
     },
     {
+      name: "budget_guardrail",
+      metadata: metadata({
+        status: FACTORY_PR_STATUSES.blocked,
+        blockedAction: "implement",
+        lastRunUrl: `${repositoryUrl}/actions/runs/444`,
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureType: "budget_guardrail"
+          }
+        })
+      }),
+      expectedActionIds: ["reset", "pause", "open_latest_run"],
+      reason: /budget guardrails/i
+    },
+    {
       name: "stale_branch_conflict",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,

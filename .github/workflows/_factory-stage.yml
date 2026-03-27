@@ -139,8 +139,8 @@ jobs:
       review_methodology: ${{ steps.build.outputs.review_methodology }}
       review_methodology_fallback: ${{ steps.build.outputs.review_methodology_fallback }}
       review_methodology_requested: ${{ steps.build.outputs.review_methodology_requested }}
-      failure_type: ${{ steps.validate_context.outputs.failure_type || steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.codex_bootstrap_failure.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.detect_intervention.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
-      failure_message: ${{ steps.validate_context.outputs.failure_message || steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.codex_bootstrap_failure.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.detect_intervention.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
+      failure_type: ${{ steps.validate_context.outputs.failure_type || steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.budget_preflight.outputs.failure_type || steps.codex_bootstrap_failure.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.detect_intervention.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
+      failure_message: ${{ steps.validate_context.outputs.failure_message || steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.budget_preflight.outputs.failure_message || steps.codex_bootstrap_failure.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.detect_intervention.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
       transient_retry_attempts: ${{ steps.model_preflight.outputs.transient_retry_attempts || steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
       refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
       refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}
@@ -287,7 +287,19 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Budget preflight hook
-        run: echo "Budget enforcement hook not configured."
+        id: budget_preflight
+        continue-on-error: true
+        run: node scripts/enforce-stage-budget.mjs
+        env:
+          FACTORY_MODE: ${{ inputs.mode }}
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+          FACTORY_COST_SUMMARY_PATH: ${{ steps.cost.outputs.cost_summary_path }}
+          FACTORY_PROMPT_META_PATH: .factory/tmp/prompt-meta.json
+          FACTORY_PLAN_PATH: ${{ inputs.artifacts_path }}/plan.md
+
+      - name: Stop on budget preflight failure
+        if: steps.budget_preflight.outcome == 'failure'
+        run: exit 1
 
       - name: Bootstrap Codex CLI hybrid
         id: codex_bootstrap
@@ -318,6 +330,7 @@ jobs:
             echo "jsonl_path=$telemetry_dir/codex-events.jsonl"
             echo "final_message_path=$telemetry_dir/final-message.md"
             echo "actual_usage_path=$telemetry_dir/actual-usage.json"
+            echo "log_path=$telemetry_dir/codex-cli.log"
           } >> "$GITHUB_OUTPUT"
 
       - name: Execute Codex CLI hybrid
@@ -325,18 +338,40 @@ jobs:
         if: ((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && steps.codex_verify.outcome == 'success'
         continue-on-error: true
         shell: bash
+        env:
+          FACTORY_IMPLEMENT_TIMEOUT_MINUTES: ${{ vars.FACTORY_IMPLEMENT_TIMEOUT_MINUTES || '20' }}
         run: |
           set -euo pipefail
-          codex exec \
-            --skip-git-repo-check \
-            --cd "$GITHUB_WORKSPACE" \
-            --output-last-message "${{ steps.codex_verify.outputs.final_message_path }}" \
-            --model "${{ steps.model.outputs.model }}" \
-            --full-auto \
-            --sandbox workspace-write \
-            --json \
-            < .factory/tmp/prompt.md \
-            | tee "${{ steps.codex_verify.outputs.jsonl_path }}"
+          codex_command=(
+            codex exec
+            --skip-git-repo-check
+            --cd "$GITHUB_WORKSPACE"
+            --output-last-message "${{ steps.codex_verify.outputs.final_message_path }}"
+            --model "${{ steps.model.outputs.model }}"
+            --full-auto
+            --sandbox workspace-write
+            --json
+          )
+
+          set +e
+          if [ "${{ inputs.mode }}" = "implement" ]; then
+            timeout --signal=TERM --kill-after=30s "${FACTORY_IMPLEMENT_TIMEOUT_MINUTES}m" \
+              "${codex_command[@]}" \
+              < .factory/tmp/prompt.md \
+              > >(tee "${{ steps.codex_verify.outputs.jsonl_path }}") \
+              2> >(tee "${{ steps.codex_verify.outputs.log_path }}" >&2)
+            status=$?
+          else
+            "${codex_command[@]}" \
+              < .factory/tmp/prompt.md \
+              > >(tee "${{ steps.codex_verify.outputs.jsonl_path }}") \
+              2> >(tee "${{ steps.codex_verify.outputs.log_path }}" >&2)
+            status=$?
+          fi
+          set -e
+
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Parse Codex CLI hybrid telemetry
         id: codex_json_telemetry
@@ -356,6 +391,7 @@ jobs:
           path: |
             .factory/tmp/prompt.md
             ${{ steps.codex_verify.outputs.jsonl_path }}
+            ${{ steps.codex_verify.outputs.log_path }}
             ${{ steps.codex_verify.outputs.final_message_path }}
             ${{ steps.codex_json_telemetry.outputs.actual_usage_path || steps.codex_verify.outputs.actual_usage_path }}
 
@@ -417,11 +453,16 @@ jobs:
         id: codex_failure
         if: steps.codex.outcome == 'failure' || (((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
         shell: bash
+        env:
+          FACTORY_IMPLEMENT_TIMEOUT_MINUTES: ${{ vars.FACTORY_IMPLEMENT_TIMEOUT_MINUTES || '20' }}
         run: |
           if [ "${{ steps.codex.outcome }}" = "failure" ]; then
             failure_message="$(node scripts/extract-codex-failure.mjs ".factory/tmp/codex-run.log")"
 
             failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
+          elif [ "${{ inputs.mode }}" = "implement" ] && [ "${{ steps.codex_cli.outputs.exit_code }}" = "124" ]; then
+            failure_type="budget_guardrail"
+            failure_message="Budget guardrail terminated the hybrid implement Codex session after ${FACTORY_IMPLEMENT_TIMEOUT_MINUTES} minute(s). Reduce the planned change surface or split the work before retrying."
           else
             failure_type="stage_setup"
             failure_message="Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared."

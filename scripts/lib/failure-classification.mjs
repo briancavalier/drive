@@ -31,6 +31,11 @@ const STALE_STAGE_PUSH_PATTERNS = [
   /updates were rejected because the remote contains work that you do not have locally/i
 ];
 
+const BUDGET_GUARDRAIL_PATTERNS = [
+  /budget guardrail/i,
+  /runtime guardrail/i
+];
+
 const CONFIGURATION_PATTERNS = [
   /factory_github_token/i,
   /factory_[a-z0-9_]+\s+is required/i,
@@ -54,6 +59,7 @@ export const FAILURE_TYPES = {
   transientInfra: "transient_infra",
   staleBranchConflict: "stale_branch_conflict",
   staleStagePush: "stale_stage_push",
+  budgetGuardrail: "budget_guardrail",
   configuration: "configuration",
   reviewArtifactContract: "review_artifact_contract",
   stageNoop: "stage_noop",
@@ -80,6 +86,10 @@ export function classifyFailure(message) {
 
   if (STAGE_SETUP_PATTERNS.some((pattern) => pattern.test(normalized))) {
     return FAILURE_TYPES.stageSetup;
+  }
+
+  if (BUDGET_GUARDRAIL_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return FAILURE_TYPES.budgetGuardrail;
   }
 
   if (TRANSIENT_PATTERNS.some((pattern) => pattern.test(normalized))) {
