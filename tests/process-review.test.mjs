@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   classifyReviewArtifactsFailure,
   classifyProcessReviewFailure,
@@ -10,6 +11,7 @@ import {
   processReview
 } from "../scripts/process-review.mjs";
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
+import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "process-review-output.txt");
@@ -109,9 +111,61 @@ function baseEnv(overrides = {}) {
     FACTORY_PR_NUMBER: "33",
     FACTORY_ISSUE_NUMBER: "1",
     FACTORY_BRANCH: "factory/1-sample",
+    GITHUB_REPOSITORY: "example/repo",
+    GITHUB_SERVER_URL: "https://github.com",
     FACTORY_ARTIFACTS_PATH: overrides.artifactsPath || "",
     FACTORY_REVIEW_METHOD: overrides.reviewMethod || "default",
     ...overrides.env
+  };
+}
+
+function currentHeadSha() {
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8"
+  }).trim();
+}
+
+function livePrBody(metadataOverrides = {}) {
+  return renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/1",
+    metadata: {
+      issueNumber: 1,
+      artifactsPath: ".factory/runs/1",
+      status: "reviewing",
+      repairAttempts: 0,
+      maxRepairAttempts: 3,
+      lastProcessedWorkflowRunId: null,
+      ...metadataOverrides
+    }
+  });
+}
+
+function createGithubClient(overrides = {}, metadataOverrides = {}, prOverrides = {}) {
+  return {
+    getPullRequest: async () => ({
+      number: 33,
+      body: livePrBody(metadataOverrides),
+      head: {
+        ref: "factory/1-sample",
+        sha: currentHeadSha(),
+        repo: {
+          full_name: "example/repo",
+          fork: false
+        }
+      },
+      base: {
+        repo: {
+          full_name: "example/repo"
+        }
+      },
+      ...prOverrides
+    }),
+    commentOnIssue: async () => {},
+    submitPullRequestReview: async () => {},
+    ...overrides
   };
 }
 
@@ -581,6 +635,136 @@ test("processReview clears pending review SHA when validation fails early", asyn
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+});
+
+test("processReview no-ops when the live PR is no longer reviewing", async () => {
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+  let commentCalls = 0;
+  let reviewCalls = 0;
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {
+        commentOnIssue: async () => {
+          commentCalls += 1;
+        },
+        submitPullRequestReview: async () => {
+          reviewCalls += 1;
+        }
+      },
+      { status: "repairing" }
+    )
+  });
+
+  assert.equal(commentCalls, 0);
+  assert.equal(reviewCalls, 0);
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview no-ops when the live PR workflow run no longer matches", async () => {
+  const env = baseEnv({
+    artifactsPath: ".factory/runs/1",
+    env: {
+      FACTORY_CI_RUN_ID: "200"
+    }
+  });
+  const execCalls = [];
+  let commentCalls = 0;
+  let reviewCalls = 0;
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {
+        commentOnIssue: async () => {
+          commentCalls += 1;
+        },
+        submitPullRequestReview: async () => {
+          reviewCalls += 1;
+        }
+      },
+      { lastProcessedWorkflowRunId: "201" }
+    )
+  });
+
+  assert.equal(commentCalls, 0);
+  assert.equal(reviewCalls, 0);
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup clears pending review sha only when the worker owns it", async () => {
+  const headSha = currentHeadSha();
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: headSha
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup preserves pending review sha when owned by a newer worker", async () => {
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: "newer-pending-sha"
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
 });
 
 test("processReview main writes failure message output for workflow follow-up", async () => {
