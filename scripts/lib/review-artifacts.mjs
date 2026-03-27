@@ -13,6 +13,11 @@ import {
 export const REVIEW_JSON_NAME = "review.json";
 export const REVIEW_MD_NAME = "review.md";
 const TRACEABILITY_HEADING_TOKENS = ["## \ud83e\udded Traceability", "## Traceability"];
+const TRACEABILITY_SUMMARY_TOKENS = [
+  "<summary>🧭 Traceability</summary>",
+  "<summary>Traceability</summary>"
+];
+const TRACEABILITY_SUMMARY_PATTERN = /<summary>.*Traceability.*<\/summary>/u;
 
 function parseJsonFile(filePath) {
   try {
@@ -271,6 +276,39 @@ function findTraceabilityHeadingIndex(lines) {
   );
 }
 
+function findTraceabilitySummaryIndex(lines) {
+  return lines.findIndex((line) =>
+    TRACEABILITY_SUMMARY_TOKENS.some((token) => line.trim() === token) ||
+    TRACEABILITY_SUMMARY_PATTERN.test(line.trim())
+  );
+}
+
+function findTraceabilityStartIndex(lines) {
+  const headingIndex = findTraceabilityHeadingIndex(lines);
+
+  if (headingIndex !== -1) {
+    return headingIndex;
+  }
+
+  const summaryIndex = findTraceabilitySummaryIndex(lines);
+
+  if (summaryIndex === -1) {
+    return -1;
+  }
+
+  for (let index = summaryIndex - 1; index >= 0; index -= 1) {
+    const trimmed = lines[index].trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    return trimmed === "<details>" ? index : summaryIndex;
+  }
+
+  return lines[summaryIndex].trim().startsWith("<details><summary>") ? summaryIndex : summaryIndex;
+}
+
 function findNextTopLevelSectionIndex(lines, startIndex) {
   for (let index = startIndex; index < lines.length; index += 1) {
     if (/^##(?!#)\s/u.test(lines[index].trim())) {
@@ -287,7 +325,7 @@ export function normalizeReviewMarkdownTraceability(reviewMarkdown, requirementC
     renderCanonicalTraceabilityMarkdown(requirementChecks)
   );
   const lines = normalizedReviewMarkdown.split("\n");
-  const traceabilityIndex = findTraceabilityHeadingIndex(lines);
+  const traceabilityIndex = findTraceabilityStartIndex(lines);
 
   if (traceabilityIndex === -1) {
     return normalizedReviewMarkdown

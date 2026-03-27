@@ -310,8 +310,6 @@ test("processReview accepts legacy string evidence by normalizing to arrays", as
       "",
       "No blocking findings.",
       "",
-      "## 🧭 Traceability",
-      "",
       "<details>",
       "<summary>🧭 Traceability</summary>",
       "",
@@ -543,13 +541,13 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
   assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
   assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /## 🧭 Traceability/);
   assert.match(reviewPayload.body, /<details>/);
   assert.match(
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
   assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
+  assert.doesNotMatch(reviewPayload.body, /## 🧭 Traceability/);
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
@@ -840,7 +838,8 @@ test("processReview accepts review markdown missing traceability by normalizing 
   );
 
   const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
-  assert.match(normalizedReviewMarkdown, /## 🧭 Traceability/);
+  assert.match(normalizedReviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(normalizedReviewMarkdown, /## 🧭 Traceability/);
   assert.match(
     normalizedReviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: A factory-managed PR that reaches green CI enters review\./

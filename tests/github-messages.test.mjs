@@ -676,7 +676,8 @@ test("buildReviewConversationBody returns summary header plus full review when w
   assert.match(body, /### Blocking Findings\n- None\./);
   assert.match(body, /### Requirement Gaps\n- None\./);
   assert.ok(body.includes("decision: pass"));
-  assert.ok(body.includes("## 🧭 Traceability"));
+  assert.ok(body.includes("<summary>🧭 Traceability</summary>"));
+  assert.ok(!body.includes("## 🧭 Traceability"));
 });
 
 test("buildReviewConversationBody retains traceability anchor when truncated", () => {

@@ -110,8 +110,6 @@ export function renderCanonicalTraceabilityMarkdown(requirementChecks = []) {
   const content = sections || "_No requirement checks recorded._";
 
   return [
-    "## 🧭 Traceability",
-    "",
     "<details>",
     "<summary>🧭 Traceability</summary>",
     "",
