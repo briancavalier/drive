@@ -40,8 +40,9 @@ on:
       - completed
 
 concurrency:
-  # Keep this expression limited to properties that are always available for the
-  # triggering event. Invalid dereferences here fail the entire workflow at startup.
+  # Keep this startup guard limited to event-safe properties that are always present.
+  # Per-PR serialization across mixed event types happens in job-level concurrency
+  # using the routed concurrency key emitted by the route job.
   group: factory-pr-loop-${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
@@ -58,6 +59,7 @@ jobs:
       pull-requests: read
     outputs:
       action: ${{ steps.route.outputs.action }}
+      concurrency_key: ${{ steps.route.outputs.concurrency_key }}
       pr_number: ${{ steps.route.outputs.pr_number }}
       issue_number: ${{ steps.route.outputs.issue_number }}
       branch: ${{ steps.route.outputs.branch }}
@@ -96,10 +98,64 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-  answer-intervention:
-    if: needs.route.outputs.action == 'answer_intervention'
+  reroute:
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      action: ${{ steps.route.outputs.action }}
+      concurrency_key: ${{ steps.route.outputs.concurrency_key }}
+      pr_number: ${{ steps.route.outputs.pr_number }}
+      issue_number: ${{ steps.route.outputs.issue_number }}
+      branch: ${{ steps.route.outputs.branch }}
+      artifacts_path: ${{ steps.route.outputs.artifacts_path }}
+      ci_run_id: ${{ steps.route.outputs.ci_run_id }}
+      review_id: ${{ steps.route.outputs.review_id }}
+      failure_intervention: ${{ steps.route.outputs.failure_intervention }}
+      intervention_id: ${{ steps.route.outputs.intervention_id }}
+      intervention_option_id: ${{ steps.route.outputs.intervention_option_id }}
+      intervention_answer_note: ${{ steps.route.outputs.intervention_answer_note }}
+      resume_action: ${{ steps.route.outputs.resume_action }}
+      repair_attempts: ${{ steps.route.outputs.repair_attempts }}
+      intervention_repeated_failure_count: ${{ steps.route.outputs.intervention_repeated_failure_count }}
+      intervention_failure_signature: ${{ steps.route.outputs.intervention_failure_signature }}
+      stage_noop_attempts: ${{ steps.route.outputs.stage_noop_attempts }}
+      stage_setup_attempts: ${{ steps.route.outputs.stage_setup_attempts }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Re-route PR loop event after acquiring the per-target lock
+        id: route
+        run: node scripts/route-pr-loop.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  answer-intervention:
+    if: needs.reroute.outputs.action == 'answer_intervention'
+    needs: reroute
+    runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -121,20 +177,23 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_INTERVENTION_ID: ${{ needs.route.outputs.intervention_id }}
-          FACTORY_OPTION_ID: ${{ needs.route.outputs.intervention_option_id }}
-          FACTORY_ANSWER_NOTE: ${{ needs.route.outputs.intervention_answer_note }}
-          FACTORY_RESUME_ACTION: ${{ needs.route.outputs.resume_action }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_INTERVENTION_ID: ${{ needs.reroute.outputs.intervention_id }}
+          FACTORY_OPTION_ID: ${{ needs.reroute.outputs.intervention_option_id }}
+          FACTORY_ANSWER_NOTE: ${{ needs.reroute.outputs.intervention_answer_note }}
+          FACTORY_RESUME_ACTION: ${{ needs.reroute.outputs.resume_action }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
   mark-in-progress:
-    if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
-    needs: route
+    if: needs.reroute.outputs.action == 'implement' || needs.reroute.outputs.action == 'repair' || needs.reroute.outputs.action == 'review'
+    needs: reroute
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -158,12 +217,12 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_STATUS: ${{ needs.route.outputs.action == 'implement' && 'implementing' || needs.route.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
-          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
-          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.intervention_repeated_failure_count }}
-          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.route.outputs.intervention_failure_signature }}
-          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_STATUS: ${{ needs.reroute.outputs.action == 'implement' && 'implementing' || needs.reroute.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.repair_attempts }}
+          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.reroute.outputs.intervention_repeated_failure_count }}
+          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.reroute.outputs.intervention_failure_signature }}
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
           FACTORY_PAUSED: "false"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
           FACTORY_LAST_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
@@ -171,9 +230,9 @@ jobs:
   resolve-stage-dispatch:
     if: |
       always() && (
-        needs.route.outputs.action == 'implement' ||
-        needs.route.outputs.action == 'repair' ||
-        needs.route.outputs.action == 'review' ||
+        needs.reroute.outputs.action == 'implement' ||
+        needs.reroute.outputs.action == 'repair' ||
+        needs.reroute.outputs.action == 'review' ||
         needs.answer-intervention.outputs.resume_action == 'implement' ||
         needs.answer-intervention.outputs.resume_action == 'repair' ||
         needs.answer-intervention.outputs.resume_action == 'review'
@@ -182,7 +241,7 @@ jobs:
         needs.answer-intervention.result == 'skipped'
       )
     needs:
-      - route
+      - reroute
       - answer-intervention
     runs-on: ubuntu-latest
     outputs:
@@ -194,13 +253,16 @@ jobs:
           effective_action="${RESUME_ACTION:-${ROUTE_ACTION:-}}"
           echo "effective_action=${effective_action}" >> "$GITHUB_OUTPUT"
         env:
-          ROUTE_ACTION: ${{ needs.route.outputs.action }}
+          ROUTE_ACTION: ${{ needs.reroute.outputs.action }}
           RESUME_ACTION: ${{ needs.answer-intervention.outputs.resume_action }}
 
   pause-pr:
-    if: needs.route.outputs.action == 'pause'
-    needs: route
+    if: needs.reroute.outputs.action == 'pause'
+    needs: reroute
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -219,7 +281,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_PAUSED: "true"
           FACTORY_PAUSE_REASON: "Paused via /factory pause"
           FACTORY_LAST_RUN_ID: ${{ github.run_id }}
@@ -227,9 +289,12 @@ jobs:
           FACTORY_COMMENT: Factory paused via `/factory pause`.
 
   reset-pr:
-    if: needs.route.outputs.action == 'reset'
-    needs: route
+    if: needs.reroute.outputs.action == 'reset'
+    needs: reroute
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -248,7 +313,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STATUS: plan_ready
           FACTORY_REPAIR_ATTEMPTS: "0"
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ""
@@ -281,9 +346,12 @@ jobs:
       ) &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - mark-in-progress
       - resolve-stage-dispatch
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -291,13 +359,13 @@ jobs:
     uses: ./.github/workflows/_factory-stage.yml
     with:
       mode: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
-      issue_number: ${{ fromJSON(needs.route.outputs.issue_number) }}
-      pr_number: ${{ fromJSON(needs.route.outputs.pr_number) }}
-      branch: ${{ needs.route.outputs.branch }}
-      artifacts_path: ${{ needs.route.outputs.artifacts_path }}
+      issue_number: ${{ fromJSON(needs.reroute.outputs.issue_number) }}
+      pr_number: ${{ fromJSON(needs.reroute.outputs.pr_number) }}
+      branch: ${{ needs.reroute.outputs.branch }}
+      artifacts_path: ${{ needs.reroute.outputs.artifacts_path }}
       max_repair_attempts: 3
-      ci_run_id: ${{ needs.route.outputs.ci_run_id }}
-      review_id: ${{ needs.route.outputs.review_id }}
+      ci_run_id: ${{ needs.reroute.outputs.ci_run_id }}
+      review_id: ${{ needs.reroute.outputs.review_id }}
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -313,10 +381,13 @@ jobs:
       needs.stage.result == 'success' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -334,7 +405,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
@@ -353,10 +424,13 @@ jobs:
       needs.stage.outputs.intervention_requested == 'true' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -375,7 +449,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STAGE_ACTION: implement
           FACTORY_INTERVENTION_REQUEST: ${{ needs.stage.outputs.intervention_payload }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -391,10 +465,13 @@ jobs:
       ) && needs.stage.result == 'failure' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -403,7 +480,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.branch }}
+          ref: ${{ needs.reroute.outputs.branch }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -425,12 +502,12 @@ jobs:
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
-          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
-          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.reroute.outputs.review_id }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.reroute.outputs.stage_noop_attempts }}
+          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.reroute.outputs.stage_setup_attempts }}
 
       - name: Decide whether to run failure diagnosis
         id: diagnosis_gate
@@ -473,9 +550,9 @@ jobs:
           FACTORY_USAGE_CATEGORY: stage
           FACTORY_USAGE_OUTCOME: failed
           FACTORY_MODE: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_STAGE_MODEL: ${{ needs.stage.outputs.stage_model }}
           FACTORY_PROMPT_CHARS: ${{ needs.stage.outputs.prompt_chars }}
           FACTORY_ESTIMATED_INPUT_TOKENS: ${{ needs.stage.outputs.estimated_input_tokens }}
@@ -504,9 +581,9 @@ jobs:
           FACTORY_USAGE_CATEGORY: failure_diagnosis
           FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
           FACTORY_FAILURE_KIND: stage_failure
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -527,7 +604,7 @@ jobs:
         continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Handle classified stage failure
@@ -535,27 +612,30 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_FAILURE_PHASE: stage
           FACTORY_FAILED_ACTION: ${{ needs.resolve-stage-dispatch.outputs.effective_action }}
-          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
-          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.route.outputs.intervention_repeated_failure_count }}
-          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.route.outputs.intervention_failure_signature }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.repair_attempts }}
+          FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.reroute.outputs.intervention_repeated_failure_count }}
+          FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.reroute.outputs.intervention_failure_signature }}
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.stage.outputs.transient_retry_attempts || '0' }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_REVIEW_ID: ${{ needs.route.outputs.review_id }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
+          FACTORY_REVIEW_ID: ${{ needs.reroute.outputs.review_id }}
 
   block:
-    if: needs.route.outputs.action == 'blocked'
-    needs: route
+    if: needs.reroute.outputs.action == 'blocked'
+    needs: reroute
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -579,11 +659,11 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STATUS: blocked
-          FACTORY_REPAIR_ATTEMPTS: ${{ needs.route.outputs.repair_attempts }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.repair_attempts }}
           FACTORY_BLOCKED_ACTION: repair
-          FACTORY_INTERVENTION: ${{ needs.route.outputs.failure_intervention }}
+          FACTORY_INTERVENTION: ${{ needs.reroute.outputs.failure_intervention }}
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
@@ -595,10 +675,13 @@ jobs:
       needs.stage.result == 'success' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -611,7 +694,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.branch }}
+          ref: ${{ needs.reroute.outputs.branch }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -626,11 +709,11 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_REVIEW_METHOD: ${{ needs.stage.outputs.review_methodology || vars.FACTORY_REVIEW_METHOD || '' }}
           FACTORY_REVIEW_METHOD_REQUESTED: ${{ needs.stage.outputs.review_methodology_requested }}
@@ -647,10 +730,13 @@ jobs:
       needs['process-review'].result == 'failure' &&
       needs.resolve-stage-dispatch.result == 'success'
     needs:
-      - route
+      - reroute
       - process-review
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -665,7 +751,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.branch }}
+          ref: ${{ needs.reroute.outputs.branch }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -687,9 +773,9 @@ jobs:
           FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
 
       - name: Decide whether to run failure diagnosis
         id: diagnosis_gate
@@ -733,9 +819,9 @@ jobs:
           FACTORY_USAGE_CATEGORY: failure_diagnosis
           FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
           FACTORY_FAILURE_KIND: review_processing_failure
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -756,7 +842,7 @@ jobs:
         continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Prepare review artifact repair state
@@ -766,7 +852,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type }}
           FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
@@ -777,11 +863,11 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STATUS: repairing
           FACTORY_REPAIR_ATTEMPTS: ${{ steps.prepare_repair.outputs.repair_attempts }}
           FACTORY_BLOCKED_ACTION: ""
-          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
           FACTORY_CI_STATUS: pending
           FACTORY_INTERVENTION: ${{ steps.prepare_repair.outputs.failure_intervention }}
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
@@ -793,24 +879,27 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_FAILURE_PHASE: ${{ needs['process-review'].outputs.failure_phase || 'review_delivery' }}
           FACTORY_FAILED_ACTION: review
-          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
           FACTORY_FAILURE_TYPE: ${{ needs['process-review'].outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs['process-review'].outputs.failure_message }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: "0"
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
 
   review-artifact-repair:
     if: needs.review-processing-failed.outputs.schedule_repair == 'true'
     needs:
-      - route
+      - reroute
       - review-processing-failed
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -818,12 +907,12 @@ jobs:
     uses: ./.github/workflows/_factory-stage.yml
     with:
       mode: repair
-      issue_number: ${{ fromJSON(needs.route.outputs.issue_number) }}
-      pr_number: ${{ fromJSON(needs.route.outputs.pr_number) }}
-      branch: ${{ needs.route.outputs.branch }}
-      artifacts_path: ${{ needs.route.outputs.artifacts_path }}
+      issue_number: ${{ fromJSON(needs.reroute.outputs.issue_number) }}
+      pr_number: ${{ fromJSON(needs.reroute.outputs.pr_number) }}
+      branch: ${{ needs.reroute.outputs.branch }}
+      artifacts_path: ${{ needs.reroute.outputs.artifacts_path }}
       max_repair_attempts: 3
-      ci_run_id: ${{ needs.route.outputs.ci_run_id }}
+      ci_run_id: ${{ needs.reroute.outputs.ci_run_id }}
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
@@ -831,10 +920,13 @@ jobs:
   review-artifact-repair-succeeded:
     if: needs.review-processing-failed.outputs.schedule_repair == 'true' && needs.review-artifact-repair.result == 'success'
     needs:
-      - route
+      - reroute
       - review-processing-failed
       - review-artifact-repair
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -852,7 +944,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
@@ -865,10 +957,13 @@ jobs:
   review-artifact-repair-failed:
     if: always() && needs.review-processing-failed.outputs.schedule_repair == 'true' && needs.review-artifact-repair.result == 'failure'
     needs:
-      - route
+      - reroute
       - review-processing-failed
       - review-artifact-repair
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -877,7 +972,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.branch }}
+          ref: ${{ needs.reroute.outputs.branch }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -899,11 +994,11 @@ jobs:
           FACTORY_FAILURE_TYPE: ${{ needs.review-artifact-repair.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.review-artifact-repair.outputs.failure_message }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
-          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.route.outputs.stage_noop_attempts }}
-          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.route.outputs.stage_setup_attempts }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
+          FACTORY_STAGE_NOOP_ATTEMPTS: ${{ needs.reroute.outputs.stage_noop_attempts }}
+          FACTORY_STAGE_SETUP_ATTEMPTS: ${{ needs.reroute.outputs.stage_setup_attempts }}
 
       - name: Decide whether to run failure diagnosis
         id: diagnosis_gate
@@ -946,9 +1041,9 @@ jobs:
           FACTORY_USAGE_CATEGORY: stage
           FACTORY_USAGE_OUTCOME: failed
           FACTORY_MODE: repair
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_STAGE_MODEL: ${{ needs.review-artifact-repair.outputs.stage_model }}
           FACTORY_PROMPT_CHARS: ${{ needs.review-artifact-repair.outputs.prompt_chars }}
           FACTORY_ESTIMATED_INPUT_TOKENS: ${{ needs.review-artifact-repair.outputs.estimated_input_tokens }}
@@ -977,9 +1072,9 @@ jobs:
           FACTORY_USAGE_CATEGORY: failure_diagnosis
           FACTORY_USAGE_OUTCOME: ${{ steps.diagnosis.outcome == 'success' && 'succeeded' || 'failed' }}
           FACTORY_FAILURE_KIND: review_artifact_repair_failure
-          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.reroute.outputs.issue_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_FAILURE_DIAGNOSIS_MODEL: ${{ vars.FACTORY_FAILURE_DIAGNOSIS_MODEL || 'gpt-5-mini' }}
           FACTORY_PROMPT_FILE: ${{ steps.diagnosis_prompt.outputs.prompt_path }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -1000,7 +1095,7 @@ jobs:
         continue-on-error: true
         run: node scripts/push-stage-output.mjs
         env:
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
           FACTORY_TRANSIENT_RETRY_LIMIT: 2
 
       - name: Handle classified repair failure
@@ -1008,7 +1103,7 @@ jobs:
         env:
           FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          FACTORY_PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_FAILURE_PHASE: stage
           FACTORY_FAILED_ACTION: repair
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.review-processing-failed.outputs.repair_attempts }}
@@ -1020,6 +1115,6 @@ jobs:
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.review-artifact-repair.outputs.refreshed_head_sha }}
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}
           FACTORY_RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          FACTORY_BRANCH: ${{ needs.route.outputs.branch }}
-          FACTORY_ARTIFACTS_PATH: ${{ needs.route.outputs.artifacts_path }}
-          FACTORY_CI_RUN_ID: ${{ needs.route.outputs.ci_run_id }}
+          FACTORY_BRANCH: ${{ needs.reroute.outputs.branch }}
+          FACTORY_ARTIFACTS_PATH: ${{ needs.reroute.outputs.artifacts_path }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
