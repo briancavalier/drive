@@ -1,19 +1,16 @@
-Autonomous review decision: REQUEST_CHANGES (methodology: {{REVIEW_METHOD}})
+## Factory Review
+**❌ REQUEST_CHANGES** · Method: `{{REVIEW_METHOD}}`
 
-Summary: {{REVIEW_SUMMARY}}
+**Summary:** {{REVIEW_SUMMARY}}
+**Findings:** {{REVIEW_FINDINGS_SUMMARY}}
+**Artifacts:** {{REVIEW_ARTIFACT_LINKS}}
 
-Blocking findings:
+### Blocking Findings
 {{BLOCKING_FINDINGS_SUMMARY}}
 
-Unmet requirement checks:
+### Requirement Gaps
 {{UNMET_REQUIREMENT_CHECKS_SUMMARY}}
-
-Artifacts:
-- `{{REVIEW_MARKDOWN_PATH}}`
-- `{{REVIEW_JSON_PATH}}`
 
 {{FULL_BLOCKING_FINDINGS_DETAILS}}
 
-{{TRACEABILITY_DETAILS}}
-
-{{FULL_REVIEW_DETAILS}}
+{{TRACEABILITY_FLAT_DETAILS}}
