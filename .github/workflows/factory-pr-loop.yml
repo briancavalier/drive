@@ -40,8 +40,9 @@ on:
       - completed
 
 concurrency:
-  # Keep this expression limited to properties that are always available for the
-  # triggering event. Invalid dereferences here fail the entire workflow at startup.
+  # Keep this startup guard limited to event-safe properties that are always present.
+  # Per-PR serialization across mixed event types happens in job-level concurrency
+  # using the routed concurrency key emitted by the route job.
   group: factory-pr-loop-${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.head_branch || github.run_id }}
   cancel-in-progress: false
 
@@ -58,6 +59,7 @@ jobs:
       pull-requests: read
     outputs:
       action: ${{ steps.route.outputs.action }}
+      concurrency_key: ${{ steps.route.outputs.concurrency_key }}
       pr_number: ${{ steps.route.outputs.pr_number }}
       issue_number: ${{ steps.route.outputs.issue_number }}
       branch: ${{ steps.route.outputs.branch }}
@@ -100,6 +102,9 @@ jobs:
     if: needs.route.outputs.action == 'answer_intervention'
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -135,6 +140,9 @@ jobs:
     if: needs.route.outputs.action == 'implement' || needs.route.outputs.action == 'repair' || needs.route.outputs.action == 'review'
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -201,6 +209,9 @@ jobs:
     if: needs.route.outputs.action == 'pause'
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -230,6 +241,9 @@ jobs:
     if: needs.route.outputs.action == 'reset'
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -284,6 +298,9 @@ jobs:
       - route
       - mark-in-progress
       - resolve-stage-dispatch
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -317,6 +334,9 @@ jobs:
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -357,6 +377,9 @@ jobs:
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -395,6 +418,9 @@ jobs:
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -556,6 +582,9 @@ jobs:
     if: needs.route.outputs.action == 'blocked'
     needs: route
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -599,6 +628,9 @@ jobs:
       - stage
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -651,6 +683,9 @@ jobs:
       - process-review
       - resolve-stage-dispatch
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -811,6 +846,9 @@ jobs:
     needs:
       - route
       - review-processing-failed
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -835,6 +873,9 @@ jobs:
       - review-processing-failed
       - review-artifact-repair
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -869,6 +910,9 @@ jobs:
       - review-processing-failed
       - review-artifact-repair
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.route.outputs.concurrency_key }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write

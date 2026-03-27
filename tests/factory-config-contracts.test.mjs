@@ -128,6 +128,28 @@ test("factory PR loop concurrency uses only event-safe identifiers", () => {
   );
 });
 
+test("factory PR loop serializes mutating jobs behind the routed concurrency key", () => {
+  const workflowText = readWorkflowText("factory-pr-loop.yml");
+
+  assert.match(workflowText, /concurrency_key:\s*\$\{\{\s*steps\.route\.outputs\.concurrency_key\s*\}\}/);
+  assert.match(
+    workflowText,
+    /answer-intervention:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /stage:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /process-review:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /review-artifact-repair:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.route\.outputs\.concurrency_key\s*\}\}/
+  );
+});
+
 test("factory PR loop uses intervention-named intermediate failure outputs", () => {
   const workflowText = readWorkflowText("factory-pr-loop.yml");
 
