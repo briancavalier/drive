@@ -5,6 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { main as parseCodexJsonTelemetry } from "../scripts/parse-codex-json-telemetry.mjs";
 
+process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "parse-codex-json-telemetry-output.txt");
+
 test("parse-codex-json-telemetry extracts actual usage from turn.completed events", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-json-telemetry-"));
   const inputPath = path.join(tempDir, "events.jsonl");

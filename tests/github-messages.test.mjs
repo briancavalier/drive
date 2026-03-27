@@ -17,6 +17,7 @@ import {
   extractPrMetadata,
   renderPrBody
 } from "../scripts/lib/pr-metadata.mjs";
+import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 function makeOverrides(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-messages-"));
@@ -53,6 +54,52 @@ function prBodyInput() {
       actualOutputTokens: 16172,
       actualReasoningTokens: null
     }
+  };
+}
+
+function sampleReviewArtifacts({
+  decision = "pass",
+  methodology = "workflow-safety",
+  summary = "Everything looks good.",
+  findings = [],
+  requirementChecks,
+  additionalMarkdown = ""
+} = {}) {
+  const derivedRequirementChecks =
+    requirementChecks ??
+    [
+      {
+        type: "acceptance_criterion",
+        status: "satisfied",
+        requirement: "All acceptance criteria satisfied.",
+        evidence: ["Tests cover expectations."]
+      }
+    ];
+  const review = {
+    methodology,
+    decision,
+    summary,
+    blocking_findings_count: findings.filter((finding) => finding.level === "blocking").length,
+    requirement_checks: derivedRequirementChecks,
+    findings
+  };
+  const traceability = renderCanonicalTraceabilityMarkdown(derivedRequirementChecks);
+  const sections = [
+    `decision: ${decision}`,
+    "",
+    "## Review Notes",
+    "- Generated for tests."
+  ];
+
+  if (additionalMarkdown.trim()) {
+    sections.push("", additionalMarkdown.trim());
+  }
+
+  sections.push("", traceability);
+
+  return {
+    review,
+    reviewMarkdown: sections.join("\n")
   };
 }
 
@@ -604,93 +651,95 @@ test("renderIntakeRejectedComment uses valid override templates", () => {
   assert.equal(message, "Missing sections: Goals, Risk");
 });
 
-function sampleReviewMarkdown({ decision = "pass" } = {}) {
-  const decisionEmoji = decision === "pass" ? "✅" : "❌";
-  const decisionLabel = decision === "pass" ? "PASS" : "REQUEST_CHANGES";
-
-  return [
-    `# ${decisionEmoji} Autonomous Review Decision: ${decisionLabel}`,
-    "",
-    "## 📝 Summary",
-    "Everything looks good.",
-    "",
-    "## 🧭 Traceability",
-    "",
-    "<details>",
-    "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
-    "",
-    "- ✅ **Satisfied**: Ensure quality",
-    "  - **Evidence:** Tests cover expectations.",
-    "",
-    "</details>"
-  ].join("\n");
-}
-
-test("buildReviewConversationBody posts full review plus footer within limit", () => {
-  const reviewMarkdown = sampleReviewMarkdown();
+test("buildReviewConversationBody returns summary header plus full review when within limit", () => {
   const artifactsPath = ".factory/runs/11";
+  const repositoryUrl = "https://github.com/example/repo";
+  const branch = "factory/11-layout";
+  const { review, reviewMarkdown } = sampleReviewArtifacts();
+
   const body = buildReviewConversationBody({
+    review,
     reviewMarkdown,
-    artifactsPath
+    artifactsPath,
+    repositoryUrl,
+    branch
   });
 
-  const expectedFooter = "\n\n—\nArtifacts: `.factory/runs/11/review.md`";
-
-  assert.equal(body, `${reviewMarkdown}${expectedFooter}`);
-  assert.match(body, /✅ Autonomous Review Decision: PASS/);
-  assert.match(body, /## 📝 Summary/);
-  assert.match(body, /## 🧭 Traceability/);
+  assert.match(body, /^## Factory Review/m);
+  assert.match(body, /\*\*✅ PASS\*\* · Method: `workflow-safety`/);
+  assert.match(body, /\*\*Summary:\*\* Everything looks good\./);
+  assert.match(body, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
+  assert.match(
+    body,
+    /\*\*Artifacts:\*\* \[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/11-layout\/\.factory\/runs\/11\/review\.md\) · \[Review JSON\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/11-layout\/\.factory\/runs\/11\/review\.json\)/
+  );
+  assert.match(body, /### Blocking Findings\n- None\./);
+  assert.match(body, /### Requirement Gaps\n- None\./);
+  assert.ok(body.includes("decision: pass"));
+  assert.ok(body.includes("<summary>🧭 Traceability</summary>"));
+  assert.ok(!body.includes("## 🧭 Traceability"));
 });
 
-test("buildReviewConversationBody retains traceability section when truncated", () => {
-  const traceabilitySection = [
-    "## 🧭 Traceability",
-    "",
-    "<details>",
-    "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
-    "",
-    "- ✅ **Satisfied**: Ensure quality",
-    "  - **Evidence:** Tests cover expectations.",
-    "",
-    "</details>"
-  ].join("\n");
-  const longPreview = `# ❌ Autonomous Review Decision: REQUEST_CHANGES\n\n## 📝 Summary\n${"A".repeat(1000)}\n\n${traceabilitySection}\n\n${"Z".repeat(5000)}`;
-  const body = buildReviewConversationBody({
-    reviewMarkdown: longPreview,
-    artifactsPath: ".factory/runs/44",
-    maxBodyChars: 900
+test("buildReviewConversationBody retains traceability anchor when truncated", () => {
+  const artifactsPath = ".factory/runs/44";
+  const repositoryUrl = "https://github.com/example/repo";
+  const branch = "factory/44-truncate";
+  const findings = [
+    {
+      level: "blocking",
+      title: "Missing validation",
+      details: "Validation logic is absent.",
+      scope: "src/core.js",
+      recommendation: "Add validation checks."
+    }
+  ];
+  const requirementChecks = [
+    {
+      type: "acceptance_criterion",
+      status: "not_satisfied",
+      requirement: "Validation exists",
+      evidence: ["Validation module missing."]
+    }
+  ];
+  const { review, reviewMarkdown } = sampleReviewArtifacts({
+    decision: "request_changes",
+    summary: "Validation missing.",
+    findings,
+    requirementChecks,
+    additionalMarkdown: `${"Intro paragraph. ".repeat(40)}\n\n${"Details ".repeat(200)}`
   });
 
-  assert.match(body, /❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(body, /## 🧭 Traceability/);
-  assert.match(body, /Review truncated after traceability details/);
-  assert.match(body, /Artifacts: `.factory\/runs\/44\/review\.md`/);
-  assert.ok(body.length <= 900);
+  const body = buildReviewConversationBody({
+    review,
+    reviewMarkdown,
+    artifactsPath,
+    repositoryUrl,
+    branch,
+    maxBodyChars: 600
+  });
+
+  assert.match(body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `workflow-safety`/);
+  assert.match(body, /Blocking 1 · Requirement gaps 1/);
+  assert.match(body, /Review truncated after traceability details\./);
+  assert.ok(body.length <= 600);
 });
 
-test("buildReviewConversationBody falls back to raw slice when traceability still too long", () => {
-  const reviewMarkdown = [
-    "# ✅ Autonomous Review Decision: PASS",
-    "",
-    "Intro",
-    "",
-    "## 📝 Summary",
-    "",
-    "Line 1",
-    "Line 2",
-    "Line 3",
-    "",
-    `${"Extended context ".repeat(20)}`
-  ].join("\n");
+test("buildReviewConversationBody falls back to raw slice when traceability anchor exceeds limit", () => {
+  const artifactsPath = ".factory/runs/55";
+  const { review, reviewMarkdown } = sampleReviewArtifacts({
+    additionalMarkdown: `${"Extended context ".repeat(2000)}`
+  });
+
   const body = buildReviewConversationBody({
+    review,
     reviewMarkdown,
-    artifactsPath: ".factory/runs/55",
+    artifactsPath,
+    repositoryUrl: "",
+    branch: "",
     maxBodyChars: 220
   });
 
   assert.match(body, /Review truncated after traceability details/);
-  assert.match(body, /Artifacts: `.factory\/runs\/55\/review\.md`/);
-  assert.match(body, /# ✅ Autonomous Review Decision: PASS/);
-  assert.match(body, /## 📝 Summary/);
+  assert.match(body, /## Factory Review/);
   assert.ok(body.length <= 220);
 });

@@ -185,7 +185,7 @@ test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonica
         status: "satisfied",
         evidence: ["End-to-end tests cover acceptance criteria."]
       }
-    ]), "## 🧭 Traceability\nThis content has drifted.");
+    ]), "<details>\n<summary>🧭 Traceability</summary>\n\nThis content has drifted.\n</details>");
 
   fs.writeFileSync(reviewMdPath, markdownWithoutTraceability);
 
@@ -194,11 +194,9 @@ test("loadValidatedReviewArtifacts rewrites drifted traceability to the canonica
     requestedMethodology: "default"
   });
 
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.match(
     reviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
@@ -227,8 +225,6 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
       "",
       "Reviewer note: retain this intro.",
       "",
-      "## 🧭 Traceability",
-      "",
       "<details><summary>Traceability: Acceptance Criteria</summary>",
       "",
       "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
@@ -249,11 +245,9 @@ test("normalizeReviewArtifacts rewrites drifted traceability using canonical mar
 
   assert.equal(reviewMarkdown, normalizedOnDisk);
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.match(
     reviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
@@ -284,8 +278,6 @@ test("normalizeReviewArtifacts replaces one-line details traceability blocks ins
       "",
       "Reviewer note: retain this intro.",
       "",
-      "## 🧭 Traceability",
-      "",
       "<details><summary>Traceability: Acceptance Criteria</summary>",
       "- Acceptance Criterion: \"Acceptance criteria are covered by automated tests.\" — satisfied.",
       "  - Evidence: Drifted evidence that should be removed.",
@@ -300,7 +292,8 @@ test("normalizeReviewArtifacts replaces one-line details traceability blocks ins
     requestedMethodology: "default"
   });
 
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
   assert.match(
     reviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: Acceptance criteria are covered by automated tests\./
@@ -338,7 +331,8 @@ test("normalizeReviewArtifacts does not treat Traceability Notes as the traceabi
 
   assert.match(reviewMarkdown, /## Traceability Notes/);
   assert.match(reviewMarkdown, /Keep this section unchanged\./);
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
 });
 
 test("normalizeReviewArtifacts replaces prose and subheading traceability content until the next section", () => {
@@ -375,11 +369,12 @@ test("normalizeReviewArtifacts replaces prose and subheading traceability conten
   });
 
   assert.match(reviewMarkdown, /Reviewer note: retain this intro\./);
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
   assert.match(reviewMarkdown, /## Methodology/);
   assert.match(reviewMarkdown, /Methodology used: default\./);
   assert.doesNotMatch(reviewMarkdown, /This prose summary is drifted\./);
-  assert.doesNotMatch(reviewMarkdown, /### Acceptance Criteria/);
+  assert.doesNotMatch(reviewMarkdown, /(^|\n)###(?!#) Acceptance Criteria/);
   assert.doesNotMatch(reviewMarkdown, /Drifted evidence that should be removed\./);
   assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
   assert.doesNotMatch(reviewMarkdown, /- Status:/);
@@ -396,8 +391,6 @@ test("normalizeReviewArtifacts discards unheaded prose after the replaced tracea
       "",
       "## 📝 Summary",
       "All acceptance criteria are satisfied.",
-      "",
-      "## 🧭 Traceability",
       "",
       "<details><summary>Traceability: Acceptance Criteria</summary>",
       "",
@@ -445,11 +438,9 @@ test("loadValidatedReviewArtifacts appends canonical traceability when missing",
   });
 
   assert.match(reviewMarkdown, /Methodology used: default\./);
-  assert.match(reviewMarkdown, /## 🧭 Traceability/);
-  assert.match(
-    reviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(reviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(reviewMarkdown, /## 🧭 Traceability/);
+  assert.match(reviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.doesNotMatch(reviewMarkdown, /- Requirement:/);
   assert.doesNotMatch(reviewMarkdown, /- Status:/);
 });
@@ -488,10 +479,8 @@ test("renderCanonicalTraceabilityMarkdown lists status counts in severity order"
     }
   ]);
 
-  assert.match(
-    markdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(❌ 1, ⚠️ 1, ✅ 2, ⬜ 1\)<\/summary>/
-  );
+  assert.match(markdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(markdown, /#### Acceptance Criteria \(❌ 1, ⚠️ 1, ✅ 2, ⬜ 1\)/);
   assert.match(markdown, /- ❌ \*\*Not satisfied\*\*: CI covers the negative path\./);
   assert.match(markdown, /- ⚠️ \*\*Partially satisfied\*\*: Manual QA verified positive path\./);
   assert.match(markdown, /- ✅ \*\*Satisfied\*\*: Automated regression coverage is in place\./);

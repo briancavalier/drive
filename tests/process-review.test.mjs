@@ -12,6 +12,8 @@ import {
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
+process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "process-review-output.txt");
+
 function renderReviewMarkdown(reviewJson, extras = {}) {
   const decisionLabel =
     reviewJson.decision === "pass" ? "PASS" : "REQUEST_CHANGES";
@@ -151,10 +153,15 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID, "");
   assert.equal(execCalls[0].options.env.FACTORY_INTERVENTION, "__CLEAR__");
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
-  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
-  assert.match(commentBody, /## 📝 Summary/);
-  assert.match(commentBody, /## 🧭 Traceability/);
-  assert.match(commentBody, /Artifacts: `.+\/review\.md`/);
+  assert.match(commentBody, /## Factory Review/);
+  assert.match(commentBody, /\*\*✅ PASS\*\* · Method: `default`/);
+  assert.match(commentBody, /\*\*Summary:\*\* All acceptance criteria are satisfied\./);
+  assert.match(commentBody, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
+  assert.match(
+    commentBody,
+    /\*\*Artifacts:\*\* \[Review summary]\(.+\/review\.md\) · \[Review JSON]\(.+\/review\.json\)/
+  );
+  assert.ok(commentBody.includes("<summary>🧭 Traceability</summary>"));
 });
 
 test("processReview accepts workflow-safety methodology configuration", async () => {
@@ -187,7 +194,7 @@ test("processReview accepts workflow-safety methodology configuration", async ()
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_REVIEW_METHOD, "workflow-safety");
-  assert.match(commentBody, /# ✅ Autonomous Review Decision: PASS/);
+  assert.match(commentBody, /\*\*✅ PASS\*\* · Method: `workflow-safety`/);
 });
 
 test("processReview rejects workflow-safety pass reviews when checklist evidence is missing", async () => {
@@ -244,11 +251,9 @@ test("processReview uses configured pass-comment overrides", async () => {
     }
   });
 
-  const expectedBody = `${renderReviewMarkdown(JSON.parse(
-    fs.readFileSync(path.join(dir, "review.json"), "utf8")
-  ))}\n\n—\nArtifacts: \`${path.join(dir, "review.md")}\``;
-
-  assert.equal(commentBody, expectedBody);
+  assert.match(commentBody, /## Factory Review/);
+  assert.match(commentBody, /\*\*✅ PASS\*\*/);
+  assert.doesNotMatch(commentBody, /PASS OVERRIDE/);
 });
 
 test("processReview rejects pass decision when blocking findings present", async () => {
@@ -305,10 +310,10 @@ test("processReview accepts legacy string evidence by normalizing to arrays", as
       "",
       "No blocking findings.",
       "",
-      "## 🧭 Traceability",
-      "",
       "<details>",
-      "<summary>🧭 Traceability: Acceptance Criteria (✅ 1)</summary>",
+      "<summary>🧭 Traceability</summary>",
+      "",
+      "#### Acceptance Criteria (✅ 1)",
       "",
       "- ✅ **Satisfied**: A factory-managed PR that reaches green CI enters review.",
       "  - **Evidence:** Verified by CI routing and review stage tests.",
@@ -428,11 +433,19 @@ test("processReview normalizes mixed-case enums before rendering request changes
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
+  assert.match(reviewPayload.body, /## Factory Review/);
+  assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
+  assert.match(reviewPayload.body, /\*\*Findings:\*\* Blocking 1 · Requirement gaps 1/);
+  assert.match(
+    reviewPayload.body,
+    /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
+  );
+  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
   assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
   assert.match(reviewPayload.body, /### Missing tests/);
-  assert.doesNotMatch(reviewPayload.body, /`not_satisfied`/);
-  assert.match(reviewPayload.body, /🧭 Traceability: Acceptance Criteria \(❌ 1\)/);
+  assert.match(reviewPayload.body, /`not_satisfied`/);
+  assert.match(reviewPayload.body, /#### Acceptance Criteria \(❌ 1\)/);
   assert.match(
     reviewPayload.body,
     /- ❌ \*\*Not satisfied\*\*: Acceptance criteria are fully covered by tests\./
@@ -523,11 +536,18 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
 
   assert.equal(reviewPayload.prNumber, 33);
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
+  assert.match(reviewPayload.body, /## Factory Review/);
+  assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
   assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
   assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /## 🧭 Traceability/);
   assert.match(reviewPayload.body, /<details>/);
+  assert.match(
+    reviewPayload.body,
+    /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
+  );
+  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
+  assert.doesNotMatch(reviewPayload.body, /## 🧭 Traceability/);
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
@@ -738,7 +758,10 @@ test("processReview uses configured request-changes overrides and preserves trun
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
   assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
-  assert.match(reviewPayload.body, /Artifacts: `.+\/review\.md`/);
+  assert.match(
+    reviewPayload.body,
+    /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
+  );
 });
 
 test("processReview rejects missing requirement checks", async () => {
@@ -815,7 +838,8 @@ test("processReview accepts review markdown missing traceability by normalizing 
   );
 
   const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
-  assert.match(normalizedReviewMarkdown, /## 🧭 Traceability/);
+  assert.match(normalizedReviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.doesNotMatch(normalizedReviewMarkdown, /## 🧭 Traceability/);
   assert.match(
     normalizedReviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: A factory-managed PR that reaches green CI enters review\./
@@ -864,10 +888,8 @@ test("processReview accepts drifted traceability by normalizing it to review.jso
   const normalizedReviewMarkdown = fs.readFileSync(path.join(dir, "review.md"), "utf8");
   assert.doesNotMatch(normalizedReviewMarkdown, /Drifted evidence that does not match review\.json\./);
   assert.match(normalizedReviewMarkdown, /Verified by CI routing and review stage tests\./);
-  assert.match(
-    normalizedReviewMarkdown,
-    /<summary>🧭 Traceability: Acceptance Criteria \(✅ 1\)<\/summary>/
-  );
+  assert.match(normalizedReviewMarkdown, /<summary>🧭 Traceability<\/summary>/);
+  assert.match(normalizedReviewMarkdown, /#### Acceptance Criteria \(✅ 1\)/);
   assert.match(
     normalizedReviewMarkdown,
     /- ✅ \*\*Satisfied\*\*: A factory-managed PR that reaches green CI enters review\./

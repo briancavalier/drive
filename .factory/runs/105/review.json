@@ -1,0 +1,51 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Templates updated to the dashboard-first Factory Review layout; traceability flattened to a single collapsible block; tests updated.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "PASS review renders new Factory Review header without legacy clutter",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/review-pass-comment.md: contains '## Factory Review' and bold 'Summary', 'Findings', 'Artifacts' lines.",
+        "CI workflow run 23618905389: unit tests passed (unit: success)."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "REQUEST_CHANGES review shares layout and preserves detailed findings",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/templates/github-messages/review-request-changes.md: same top-block and includes '{{FULL_BLOCKING_FINDINGS_DETAILS}}' token for full details.",
+        "scripts/lib/github-messages.mjs: buildReviewConversationBody renders templates for both decisions."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Traceability appears as a single collapsible block in both comment and review.md",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/review-output.mjs: renderCanonicalTraceabilityMarkdown returns a single '<details>' element with summary '🧭 Traceability' and plain Markdown subsections inside."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Review authoring guidance omits manual methodology instruction",
+      "status": "satisfied",
+      "evidence": [
+        ".factory/prompts/review.md: contains 'Omit a manual methodology line; the control plane adds it to the published summary automatically.'"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "Duplicate traceability heading",
+      "details": "renderCanonicalTraceabilityMarkdown emits a top-level '## 🧭 Traceability' heading immediately followed by a '<details>' whose summary is the same string, causing a small visual duplication in rendered comments and review.md.",
+      "scope": "scripts/lib/review-output.mjs",
+      "recommendation": "Remove or consolidate the extra '## 🧭 Traceability' heading so the single '<details>' wrapper contains the traceability subsections without a duplicate heading."
+    }
+  ]
+}
