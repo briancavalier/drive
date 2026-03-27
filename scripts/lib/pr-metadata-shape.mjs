@@ -72,6 +72,7 @@ export function defaultPrMetadata(overrides = {}) {
   return {
     issueNumber: null,
     artifactsPath: null,
+    artifactRef: null,
     status: FACTORY_PR_STATUSES.planning,
     repairAttempts: 0,
     maxRepairAttempts: DEFAULT_MAX_REPAIR_ATTEMPTS,
@@ -104,6 +105,7 @@ export function defaultPrMetadata(overrides = {}) {
     actualReasoningTokens: null,
     intervention: null,
     ...normalizedOverrides,
+    artifactRef: normalizeArtifactRef(normalizedOverrides.artifactRef),
     pendingStageDecision: normalizePendingStageDecision(
       normalizedOverrides.pendingStageDecision
     ),
@@ -117,6 +119,12 @@ function normalizeIssueNumber(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function normalizeArtifactRef(value) {
+  const normalized = `${value ?? ""}`.trim();
+
+  return normalized ? normalized : null;
+}
+
 export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadata?.issueNumber) {
   const normalizedMetadata = stripLegacyFailureMetadata(metadata);
   const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
@@ -128,6 +136,7 @@ export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadat
     ...normalizedMetadata,
     issueNumber: normalizedIssueNumber ?? normalizedMetadata.issueNumber ?? null,
     artifactsPath: canonicalArtifactsPath,
+    artifactRef: normalizeArtifactRef(normalizedMetadata.artifactRef),
     pendingStageDecision: normalizePendingStageDecision(
       normalizedMetadata.pendingStageDecision
     ),

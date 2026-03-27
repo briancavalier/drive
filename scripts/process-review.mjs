@@ -79,10 +79,12 @@ async function cleanupStaleReviewState({
   ownedHeadSha
 }) {
   const livePendingReviewSha = `${liveMetadata?.pendingReviewSha || ""}`.trim();
+  const normalizedOwnedHeadSha = `${ownedHeadSha || ""}`.trim();
   const staleWorkerOwnsPendingSha =
     livePendingReviewSha &&
-    ownedHeadSha &&
-    livePendingReviewSha === ownedHeadSha;
+    normalizedOwnedHeadSha &&
+    (livePendingReviewSha === normalizedOwnedHeadSha ||
+      livePendingReviewSha === "HEAD");
 
   try {
     await runApplyPrState(execFileAsync, env, {
@@ -119,7 +121,8 @@ async function handlePass({
   try {
     currentHead = gitRevParse("HEAD");
   } catch (error) {
-    currentHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    const fallbackHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    currentHead = fallbackHead || "HEAD";
   }
 
     await runApplyPrState(execFileAsync, env, {
@@ -238,7 +241,14 @@ export async function processReview({
   const branch = requiredEnv(env, "FACTORY_BRANCH");
   const requestedMethod = env.FACTORY_REVIEW_METHOD || "";
   const expectedCiRunId = `${env.FACTORY_CI_RUN_ID || ""}`.trim();
-  const currentHead = gitRevParse("HEAD");
+  let currentHead = "";
+
+  try {
+    currentHead = gitRevParse("HEAD");
+  } catch (error) {
+    const fallbackHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    currentHead = fallbackHead || "HEAD";
+  }
   const repositoryUrl =
     env.FACTORY_REPOSITORY_URL ||
     (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
