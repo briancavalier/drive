@@ -37,8 +37,10 @@ export function extractPrMetadata(body) {
   }
 }
 
-export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
-  const base = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
+export function buildArtifactLinks({ repositoryUrl, branch, artifactsPath, artifactRef }) {
+  const normalizedArtifactRef = `${artifactRef ?? ""}`.trim();
+  const ref = normalizedArtifactRef || branch;
+  const base = `${repositoryUrl}/blob/${ref}/${artifactsPath}`;
 
   return {
     approvedIssue: `${base}/${APPROVED_ISSUE_FILE_NAME}`,
@@ -93,11 +95,18 @@ export function renderPrBody({
   branch,
   repositoryUrl,
   artifactsPath,
+  artifactRef,
   metadata,
   ciStatus = "pending",
   labels = []
 }, options = {}) {
-  const nextMetadata = canonicalizePrMetadata(metadata, issueNumber);
+  const nextMetadata = canonicalizePrMetadata(
+    {
+      ...metadata,
+      artifactRef: artifactRef !== undefined ? artifactRef : metadata?.artifactRef
+    },
+    issueNumber
+  );
   const resolvedIssueNumber = normalizeIssueNumber(issueNumber) ?? nextMetadata.issueNumber;
   const resolvedArtifactsPath = resolvedIssueNumber
     ? issueArtifactsPath(resolvedIssueNumber)
@@ -109,6 +118,7 @@ export function renderPrBody({
     branch,
     repositoryUrl,
     artifactsPath: resolvedArtifactsPath,
+    artifactRef: nextMetadata.artifactRef,
     metadata: nextMetadata,
     ciStatus,
     labels

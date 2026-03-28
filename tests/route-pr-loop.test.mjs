@@ -200,6 +200,53 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
   assert.equal(collaboratorLookups, 0);
 });
 
+test("routeEvent emits finalize_merge for merged pull request events with factory metadata", async () => {
+  const payload = {
+    action: "closed",
+    pull_request: {
+      number: 33,
+      merged: true,
+      body: managedPrBody("plan_ready"),
+      head: sameRepoHead(),
+      base: {
+        ref: "main",
+        ...sameRepoBase()
+      }
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload
+  });
+
+  assert.equal(route.action, "finalize_merge");
+  assert.equal(route.prNumber, 33);
+  assert.equal(route.issueNumber, 12);
+  assert.equal(route.branch, "factory/12-sample");
+  assert.equal(route.baseBranch, "main");
+  assert.equal(route.finalArtifactRef, "main");
+  assert.equal(route.artifactsPath, ".factory/runs/12");
+});
+
+test("routeEvent ignores merged pull request events without factory metadata", async () => {
+  const payload = {
+    action: "closed",
+    pull_request: {
+      number: 33,
+      merged: true,
+      body: "Hello world"
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload
+  });
+
+  assert.equal(route.action, "noop");
+});
+
 test("routeEvent downgrades implement to noop when live PR is fork-backed", async () => {
   const payload = prIssueCommentPayload("/factory implement");
 

@@ -120,9 +120,13 @@ function baseEnv(overrides = {}) {
 }
 
 function currentHeadSha() {
-  return execFileSync("git", ["rev-parse", "HEAD"], {
-    encoding: "utf8"
-  }).trim();
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8"
+    }).trim();
+  } catch {
+    return "HEAD";
+  }
 }
 
 function livePrBody(metadataOverrides = {}) {

@@ -265,8 +265,10 @@ function renderMessage(messageId, variables, options = {}) {
   return renderTemplateText(templateText, variables).trim();
 }
 
-function buildArtifactLinks({ repositoryUrl, branch, artifactsPath }) {
-  const base = `${repositoryUrl}/blob/${branch}/${artifactsPath}`;
+function buildArtifactLinks({ repositoryUrl, branch, artifactsPath, artifactRef }) {
+  const normalizedRef = `${artifactRef ?? ""}`.trim();
+  const ref = normalizedRef || branch;
+  const base = `${repositoryUrl}/blob/${ref}/${artifactsPath}`;
 
   return {
     approvedIssue: `${base}/${APPROVED_ISSUE_FILE_NAME}`,
@@ -658,6 +660,7 @@ export function renderPrBody(
     branch,
     repositoryUrl,
     artifactsPath,
+    artifactRef,
     metadata,
     ciStatus = "pending",
     labels = []
@@ -667,9 +670,15 @@ export function renderPrBody(
   const state = defaultPrMetadata({
     issueNumber,
     artifactsPath,
+    artifactRef,
     ...metadata
   });
-  const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
+  const links = buildArtifactLinks({
+    repositoryUrl,
+    branch,
+    artifactsPath,
+    artifactRef: state.artifactRef
+  });
   const resolvedPrNumber = prNumber ?? issueNumber ?? null;
   const controlPanel = buildControlPanel({
     metadata: state,
