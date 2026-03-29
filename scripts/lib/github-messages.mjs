@@ -1070,11 +1070,20 @@ function buildNarrativeDetailsSections({ review, reviewMarkdown }) {
     parsed.nonBlocking || renderNonBlockingNotesFallback(review.findings);
 
   return {
-    summary: renderDetailsBlock(NARRATIVE_SECTION_SUMMARIES.summary, summaryContent),
-    blocking: renderDetailsBlock(NARRATIVE_SECTION_SUMMARIES.blocking, blockingContent),
+    summary: renderDetailsBlock(
+      NARRATIVE_SECTION_SUMMARIES.summary,
+      summaryContent,
+      { open: true }
+    ),
+    blocking: renderDetailsBlock(
+      NARRATIVE_SECTION_SUMMARIES.blocking,
+      blockingContent,
+      { open: true }
+    ),
     nonBlocking: renderDetailsBlock(
       NARRATIVE_SECTION_SUMMARIES.nonBlocking,
-      nonBlockingContent
+      nonBlockingContent,
+      { open: true }
     )
   };
 }
@@ -1137,7 +1146,6 @@ function buildFactoryReviewHeader({ review, links, artifactsPath }) {
     "## Factory Review",
     resolveReviewDecisionLine(review),
     "",
-    `**Summary:** ${review.summary}`,
     `**Findings:** Blocking ${review.blocking_findings_count} · Requirement gaps ${countRequirementGaps(review.requirement_checks)}`,
     `**Artifacts:** ${buildArtifactsLine({ links, artifactsPath })}`,
     "",

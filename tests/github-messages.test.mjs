@@ -723,7 +723,7 @@ test("buildReviewConversationBody returns summary header plus full review when w
 
   assert.match(body, /^## Factory Review/m);
   assert.match(body, /\*\*✅ PASS\*\* · Method: `workflow-safety`/);
-  assert.match(body, /\*\*Summary:\*\* Everything looks good\./);
+  assert.ok(!body.includes("**Summary:**"), "summary line should not appear in header");
   assert.match(body, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
   assert.match(
     body,
@@ -732,19 +732,19 @@ test("buildReviewConversationBody returns summary header plus full review when w
   assert.match(body, /### Requirement Gaps\n- None\./);
 
   const summaryDetails = body.match(
-    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(summaryDetails, "expected summary details block");
   assert.match(summaryDetails[1], /Everything looks good\./);
 
   const blockingDetails = body.match(
-    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(blockingDetails, "expected blocking findings details block");
   assert.match(blockingDetails[1], /No blocking findings\./);
 
   const nonBlockingDetails = body.match(
-    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
   assert.match(nonBlockingDetails[1], /_None\._/);

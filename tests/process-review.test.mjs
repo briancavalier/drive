@@ -213,26 +213,26 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
   assert.match(commentBody, /## Factory Review/);
   assert.match(commentBody, /\*\*✅ PASS\*\* · Method: `default`/);
-  assert.match(commentBody, /\*\*Summary:\*\* All acceptance criteria are satisfied\./);
+  assert.ok(!commentBody.includes("**Summary:**"));
   assert.match(commentBody, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
   assert.match(
     commentBody,
     /\*\*Artifacts:\*\* \[Review summary]\(.+\/review\.md\) · \[Review JSON]\(.+\/review\.json\)/
   );
   const summaryDetails = commentBody.match(
-    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(summaryDetails, "expected summary details block");
   assert.match(summaryDetails[1], /All acceptance criteria are satisfied\./);
 
   const blockingDetails = commentBody.match(
-    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(blockingDetails, "expected blocking findings details block");
   assert.match(blockingDetails[1], /No blocking findings\./);
 
   const nonBlockingDetails = commentBody.match(
-    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
   assert.match(nonBlockingDetails[1], /_None\._/);
@@ -520,18 +520,18 @@ test("processReview normalizes mixed-case enums before rendering request changes
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
   const summaryDetails = reviewPayload.body.match(
-    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(summaryDetails, "expected summary details block");
 
   const blockingDetails = reviewPayload.body.match(
-    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(blockingDetails, "expected blocking findings details block");
   assert.match(blockingDetails[1], /### Missing tests/);
 
   const nonBlockingDetails = reviewPayload.body.match(
-    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
   assert.match(nonBlockingDetails[1], /_None\._/);
@@ -636,18 +636,18 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.match(reviewPayload.body, /## Factory Review/);
   assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
   const summaryDetails = reviewPayload.body.match(
-    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(summaryDetails, "expected summary details block");
 
   const blockingDetails = reviewPayload.body.match(
-    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(blockingDetails, "expected blocking findings details block");
   assert.match(blockingDetails[1], /### Missing tests/);
 
   const nonBlockingDetails = reviewPayload.body.match(
-    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
 
@@ -1005,12 +1005,12 @@ test("processReview uses configured request-changes overrides and preserves trun
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
   const summaryDetails = reviewPayload.body.match(
-    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(summaryDetails, "expected summary details block");
 
   const blockingDetails = reviewPayload.body.match(
-    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
   );
   assert.ok(blockingDetails, "expected blocking findings details block");
   assert.match(blockingDetails[1], /### Missing tests/);
