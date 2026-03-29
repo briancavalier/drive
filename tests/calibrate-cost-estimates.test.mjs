@@ -93,3 +93,53 @@ test("calibrate-usage-estimates aggregates usage events into calibration buckets
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("calibrate-usage-estimates is idempotent for unchanged usage events", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-calibration-"));
+  const originalCwd = process.cwd();
+
+  writeJson(
+    path.join(
+      tempDir,
+      ".factory",
+      "usage-events",
+      "2026-03-19",
+      "run-1-1-stage-plan.json"
+    ),
+    {
+      provider: "openai",
+      category: "stage",
+      stage: "plan",
+      model: "gpt-5-codex",
+      estimatedUsageBeforeCalibration: {
+        inputTokens: 100,
+        cachedInputTokens: 0,
+        outputTokens: 15
+      },
+      actualUsage: {
+        inputTokens: 120,
+        cachedInputTokens: 0,
+        outputTokens: 18
+      },
+      runId: "run-1",
+      runAttempt: 1,
+      recordedAt: "2026-03-19T12:00:00Z"
+    }
+  );
+
+  try {
+    process.chdir(tempDir);
+    const calibrationPath = path.join(tempDir, ".factory", "usage-calibration.json");
+
+    calibrateUsageEstimates();
+    const first = fs.readFileSync(calibrationPath, "utf8");
+
+    calibrateUsageEstimates();
+    const second = fs.readFileSync(calibrationPath, "utf8");
+
+    assert.equal(second, first);
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
