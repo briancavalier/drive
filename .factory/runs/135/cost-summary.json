@@ -1,6 +1,6 @@
 {
   "issueNumber": 135,
-  "prNumber": null,
+  "prNumber": 136,
   "branch": "factory/135-fix-duplicated-traceability-and-raw-markdown-lea",
   "estimated": true,
   "provider": "openai",
@@ -24,25 +24,25 @@
     }
   },
   "current": {
-    "stage": "plan",
+    "stage": "implement",
     "provider": "openai",
     "apiSurface": "codex-cli",
     "model": "gpt-5-codex",
-    "promptChars": 5742,
+    "promptChars": 3569,
     "estimatedUsageBeforeCalibration": {
-      "inputTokens": 1436,
+      "inputTokens": 893,
       "cachedInputTokens": 0,
-      "outputTokens": 215,
+      "outputTokens": 1116,
       "reasoningTokens": null
     },
     "estimatedUsage": {
-      "inputTokens": 1436,
+      "inputTokens": 893,
       "cachedInputTokens": 0,
-      "outputTokens": 215,
+      "outputTokens": 1116,
       "reasoningTokens": null
     },
     "usageCalibration": {
-      "bucket": "openai:stage:plan:gpt-5-codex",
+      "bucket": "openai:stage:implement:gpt-5-codex",
       "sampleSize": 0,
       "generatedAt": "",
       "source": "default",
@@ -53,21 +53,21 @@
       }
     },
     "derivedCost": {
-      "stageUsdBeforeCalibration": 0.0039,
-      "stageUsd": 0.0039,
-      "totalEstimatedUsd": 0.0039,
+      "stageUsdBeforeCalibration": 0.0123,
+      "stageUsd": 0.0123,
+      "totalEstimatedUsd": 0.0162,
       "band": "low",
       "emoji": "🟢",
       "pricingSource": "model",
-      "actualUsd": 0.8597
+      "actualUsd": 13.6519
     },
     "actualUsage": {
-      "inputTokens": 579500,
-      "cachedInputTokens": 528896,
-      "outputTokens": 6919,
+      "inputTokens": 9285233,
+      "cachedInputTokens": 9085440,
+      "outputTokens": 90964,
       "reasoningTokens": null
     },
-    "sourceEventPath": ".factory/usage-events/2026-03-29/23697586472-1-stage-plan.json"
+    "sourceEventPath": ".factory/usage-events/2026-03-29/23698771283-1-stage-implement.json"
   },
   "stages": {
     "plan": {
@@ -112,6 +112,49 @@
         "reasoningTokens": null
       },
       "sourceEventPath": ".factory/usage-events/2026-03-29/23697586472-1-stage-plan.json"
+    },
+    "implement": {
+      "mode": "implement",
+      "provider": "openai",
+      "apiSurface": "codex-cli",
+      "model": "gpt-5-codex",
+      "promptChars": 3569,
+      "estimatedUsageBeforeCalibration": {
+        "inputTokens": 893,
+        "cachedInputTokens": 0,
+        "outputTokens": 1116,
+        "reasoningTokens": null
+      },
+      "estimatedUsage": {
+        "inputTokens": 893,
+        "cachedInputTokens": 0,
+        "outputTokens": 1116,
+        "reasoningTokens": null
+      },
+      "usageCalibration": {
+        "bucket": "openai:stage:implement:gpt-5-codex",
+        "sampleSize": 0,
+        "generatedAt": "",
+        "source": "default",
+        "multipliers": {
+          "inputTokens": 1,
+          "cachedInputTokens": 1,
+          "outputTokens": 1
+        }
+      },
+      "derivedCost": {
+        "stageUsdBeforeCalibration": 0.0123,
+        "stageUsd": 0.0123,
+        "pricingSource": "model",
+        "actualUsd": 13.6519
+      },
+      "actualUsage": {
+        "inputTokens": 9285233,
+        "cachedInputTokens": 9085440,
+        "outputTokens": 90964,
+        "reasoningTokens": null
+      },
+      "sourceEventPath": ".factory/usage-events/2026-03-29/23698771283-1-stage-implement.json"
     }
   }
 }

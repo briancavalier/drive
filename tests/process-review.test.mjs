@@ -219,7 +219,28 @@ test("processReview marks PR ready and comments on pass decision", async () => {
     commentBody,
     /\*\*Artifacts:\*\* \[Review summary]\(.+\/review\.md\) · \[Review JSON]\(.+\/review\.json\)/
   );
-  assert.ok(commentBody.includes("<summary>🧭 Traceability</summary>"));
+  const summaryDetails = commentBody.match(
+    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+  assert.match(summaryDetails[1], /All acceptance criteria are satisfied\./);
+
+  const blockingDetails = commentBody.match(
+    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /No blocking findings\./);
+
+  const nonBlockingDetails = commentBody.match(
+    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+  assert.match(nonBlockingDetails[1], /_None\._/);
+
+  const traceabilityMatches = commentBody.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!commentBody.includes("## 🧭 Traceability"));
+  assert.ok(!commentBody.includes("decision: pass"));
 });
 
 test("processReview accepts workflow-safety methodology configuration", async () => {
@@ -498,10 +519,28 @@ test("processReview normalizes mixed-case enums before rendering request changes
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
-  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
+  const summaryDetails = reviewPayload.body.match(
+    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const nonBlockingDetails = reviewPayload.body.match(
+    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+  assert.match(nonBlockingDetails[1], /_None\._/);
+  assert.match(nonBlockingDetails[1], /_None\._/);
+
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!reviewPayload.body.includes("## 🧭 Traceability"));
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
   assert.match(reviewPayload.body, /`not_satisfied`/);
   assert.match(reviewPayload.body, /#### Acceptance Criteria \(❌ 1\)/);
   assert.match(
@@ -596,16 +635,30 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /## Factory Review/);
   assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /<details>/);
+  const summaryDetails = reviewPayload.body.match(
+    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const nonBlockingDetails = reviewPayload.body.match(
+    /<details>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+
   assert.match(
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
-  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
   assert.doesNotMatch(reviewPayload.body, /## 🧭 Traceability/);
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
@@ -944,12 +997,29 @@ test("processReview uses configured request-changes overrides and preserves trun
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(reviewPayload.body, /## Factory Review/);
+  assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
   assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
   assert.match(
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
+  const summaryDetails = reviewPayload.body.match(
+    /<details>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!reviewPayload.body.includes("## 🧭 Traceability"));
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
+  assert.doesNotMatch(reviewPayload.body, /OVERRIDE/);
 });
 
 test("processReview rejects missing requirement checks", async () => {
