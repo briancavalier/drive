@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "implement",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-cli",
+  "model": "gpt-5-codex",
+  "issueNumber": 135,
+  "prNumber": 136,
+  "branch": "factory/135-fix-duplicated-traceability-and-raw-markdown-lea",
+  "runId": "23698771283",
+  "runAttempt": 1,
+  "promptChars": 3569,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 893,
+    "cachedInputTokens": 0,
+    "outputTokens": 1116,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 893,
+    "cachedInputTokens": 0,
+    "outputTokens": 1116,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": 9285233,
+    "cachedInputTokens": 9085440,
+    "outputTokens": 90964,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:implement:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0123,
+    "estimatedUsd": 0.0123,
+    "actualUsd": 13.6519,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "succeeded",
+  "recordedAt": "2026-03-29T01:53:30.280Z"
+}
