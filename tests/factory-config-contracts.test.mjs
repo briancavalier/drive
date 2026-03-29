@@ -155,6 +155,10 @@ test("factory PR loop serializes mutating jobs behind the routed concurrency key
     workflowText,
     /review-artifact-repair:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
   );
+  assert.match(
+    workflowText,
+    /finalize-merged-pr:[\s\S]*concurrency:\s*[\s\S]*group:\s*factory-pr-loop-\$\{\{\s*needs\.reroute\.outputs\.concurrency_key\s*\}\}/
+  );
 });
 
 test("factory PR loop uses intervention-named intermediate failure outputs", () => {

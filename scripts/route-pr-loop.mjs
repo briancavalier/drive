@@ -13,6 +13,7 @@ import {
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
 import { isTrustedReviewTrigger } from "./lib/event-router.mjs";
+import { extractPrMetadata } from "./lib/pr-metadata.mjs";
 
 export function resolveConcurrencyKey({ route = {}, eventName = "", payload = {}, env = process.env } = {}) {
   const prNumber =
@@ -56,6 +57,26 @@ export async function routeEvent({
   }
 }) {
   if (eventName === "pull_request") {
+    if (payload.action === "closed" && payload.pull_request?.merged) {
+      const pullRequest = payload.pull_request;
+      const metadata = extractPrMetadata(pullRequest.body);
+
+      if (metadata?.artifactsPath && metadata?.issueNumber) {
+        const branch = pullRequest.head?.ref || "";
+        const baseBranch = pullRequest.base?.ref || "";
+
+        return {
+          action: "finalize_merge",
+          prNumber: pullRequest.number || "",
+          issueNumber: metadata.issueNumber,
+          branch,
+          baseBranch,
+          finalArtifactRef: baseBranch,
+          artifactsPath: metadata.artifactsPath
+        };
+      }
+    }
+
     return { action: "noop" };
   }
 
@@ -132,6 +153,8 @@ export async function main(env = process.env) {
     pr_number: route.prNumber || "",
     issue_number: route.issueNumber || "",
     branch: route.branch || "",
+    base_branch: route.baseBranch || "",
+    final_artifact_ref: route.finalArtifactRef || "",
     artifacts_path: route.artifactsPath || "",
     ci_run_id: route.ciRunId || "",
     review_id: route.reviewId || "",

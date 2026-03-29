@@ -126,6 +126,7 @@ test("renderPrBody uses valid override templates and preserves parseable metadat
   assert.match(body, /# Custom Factory Run/);
   assert.equal(metadata.issueNumber, 7);
   assert.equal(metadata.status, "plan_ready");
+  assert.equal(metadata.artifactRef, null);
 });
 
 test("renderPrBody falls back to default template when required tokens are missing", () => {
@@ -214,6 +215,29 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
   );
 
   assert.ok(lines.includes("Closes #7"));
+});
+
+test("renderPrBody uses artifactRef override for dashboard links", () => {
+  const input = prBodyInput();
+  const body = renderPrBody({
+    ...input,
+    artifactRef: "main",
+    metadata: {
+      ...input.metadata,
+      artifactRef: "main"
+    }
+  });
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.artifactRef, "main");
+  assert.match(
+    body,
+    /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/spec\.md\)/
+  );
+  assert.match(
+    body,
+    /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/review\.md\)/
+  );
 });
 
 test("renderPrBody renders blocked summary with stage from blockedAction", () => {

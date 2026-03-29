@@ -403,6 +403,30 @@ export function applyIntervention(metadata, envValue) {
   };
 }
 
+export function applyArtifactRef(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      artifactRef: null
+    };
+  }
+
+  return {
+    ...metadata,
+    artifactRef: normalized
+  };
+}
+
 export async function main(env = process.env) {
   const prNumber = Number(env.FACTORY_PR_NUMBER);
   const pullRequest = await getPullRequest(prNumber);
@@ -455,6 +479,7 @@ export async function main(env = process.env) {
     env.FACTORY_PENDING_STAGE_DECISION
   );
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
+  nextMetadata = applyArtifactRef(nextMetadata, env.FACTORY_ARTIFACT_REF);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
 
   const body = renderPrBody({

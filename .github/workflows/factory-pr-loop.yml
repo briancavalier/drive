@@ -30,6 +30,9 @@ on:
   issue_comment:
     types:
       - created
+  pull_request:
+    types:
+      - closed
   pull_request_review:
     types:
       - submitted
@@ -63,6 +66,8 @@ jobs:
       pr_number: ${{ steps.route.outputs.pr_number }}
       issue_number: ${{ steps.route.outputs.issue_number }}
       branch: ${{ steps.route.outputs.branch }}
+      base_branch: ${{ steps.route.outputs.base_branch }}
+      final_artifact_ref: ${{ steps.route.outputs.final_artifact_ref }}
       artifacts_path: ${{ steps.route.outputs.artifacts_path }}
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
@@ -114,6 +119,8 @@ jobs:
       pr_number: ${{ steps.route.outputs.pr_number }}
       issue_number: ${{ steps.route.outputs.issue_number }}
       branch: ${{ steps.route.outputs.branch }}
+      base_branch: ${{ steps.route.outputs.base_branch }}
+      final_artifact_ref: ${{ steps.route.outputs.final_artifact_ref }}
       artifacts_path: ${{ steps.route.outputs.artifacts_path }}
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
@@ -148,6 +155,39 @@ jobs:
         run: node scripts/route-pr-loop.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  finalize-merged-pr:
+    if: needs.reroute.outputs.action == 'finalize_merge'
+    needs: reroute
+    runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rewrite artifact links to base branch
+        run: node scripts/apply-pr-state.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_ARTIFACT_REF: ${{ needs.reroute.outputs.final_artifact_ref }}
 
   answer-intervention:
     if: needs.reroute.outputs.action == 'answer_intervention'
