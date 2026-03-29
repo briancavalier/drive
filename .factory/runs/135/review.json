@@ -9,9 +9,9 @@
       "requirement": "PASS comment structure: PASS body emits a single <summary>🧭 Traceability block, wraps Summary/Blocking/Non-Blocking in <details>, and omits raw 'decision:' strings.",
       "status": "satisfied",
       "evidence": [
-        "tests/github-messages.test.mjs: 'processReview marks PR ready and comments on pass decision' asserts presence of <details> blocks and absence of 'decision:' text (tests around the PASS scenario).",
+        "tests/github-messages.test.mjs: 'processReview marks PR ready and comments on pass decision' asserts presence of <details> blocks and absence of 'decision:' text (PASS scenario).",
         "scripts/lib/github-messages.mjs: buildCuratedReviewMarkdown() composes narrative <details> and appends renderCanonicalTraceabilityMarkdown(review.requirement_checks).",
-        "commit 10c0d77: changes to scripts/lib/github-messages.mjs and tests/github-messages.test.mjs implementing and exercising the behavior."
+        "tests: unit suite succeeded in CI (workflow run id: 23719058862)."
       ]
     },
     {
@@ -19,7 +19,7 @@
       "requirement": "REQUEST_CHANGES structure: failing review path emits curated layout with collapsible sections and exactly one traceability block.",
       "status": "satisfied",
       "evidence": [
-        "tests/process-review.test.mjs: multiple assertions validate request-changes review payloads contain a single <summary>🧭 Traceability and do not include '## 🧭 Traceability'.",
+        "tests/process-review.test.mjs: assertions validate request-changes review payloads contain a single <summary>🧭 Traceability and do not include duplicate traceability headings.",
         "scripts/lib/github-messages.mjs: buildReviewConversationBody() uses buildCuratedReviewMarkdown(), not raw concatenation of review.md."
       ]
     },
@@ -28,7 +28,7 @@
       "requirement": "Regression for PR #134: filter duplicate traceability and manual 'decision:' lines from review.md when composing GitHub bodies.",
       "status": "satisfied",
       "evidence": [
-        "tests/github-messages.test.mjs & tests/process-review.test.mjs: assertions explicitly check for absence of duplicated traceability and absence of '## 🧭 Traceability'.",
+        "tests/github-messages.test.mjs & tests/process-review.test.mjs: assertions explicitly check for absence of duplicated traceability and absence of 'decision:' / 'methodology:' lines.",
         "scripts/lib/github-messages.mjs: parseReviewNarrativeSections() stops at traceability anchors and ignores lines matching 'decision:' or 'methodology:'."
       ]
     },
@@ -55,8 +55,8 @@
       "requirement": "Update process-review and github-messages flow to generate curated review bodies; add unit tests for PASS, REQUEST_CHANGES, regression and truncation cases.",
       "status": "satisfied",
       "evidence": [
-        "commit 10c0d77: modifies scripts/lib/github-messages.mjs and adds/updates tests in tests/github-messages.test.mjs and tests/process-review.test.mjs.",
-        "CI: workflow run id 23698997864 — unit tests and actionlint succeeded (factory-artifact-guard: success; unit: success; actionlint: success)."
+        "commit history: scripts/lib/github-messages.mjs and tests updated to implement curated composition and regression coverage.",
+        "CI: unit tests and actionlint succeeded in workflow run id 23719058862 (factory-artifact-guard: success; unit: success; actionlint: success)."
       ]
     }
   ],
