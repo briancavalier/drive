@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "reviewers": {
+    "traceability": {
+      "enabled": true,
+      "kind": "built_in",
+      "instructions_path": ".factory/reviewers/traceability/instructions.md",
+      "purpose": "Check alignment between the diff, spec, plan, acceptance tests, and evidence.",
+      "priority": 100,
+      "selection": {
+        "always": true
+      },
+      "authority": {
+        "can_block": true
+      }
+    },
+    "correctness": {
+      "enabled": true,
+      "kind": "built_in",
+      "instructions_path": ".factory/reviewers/correctness/instructions.md",
+      "purpose": "Check correctness, regressions, and edge cases in the changed behavior.",
+      "priority": 90,
+      "selection": {
+        "always": true
+      },
+      "authority": {
+        "can_block": true
+      }
+    },
+    "workflow_safety": {
+      "enabled": true,
+      "kind": "built_in",
+      "instructions_path": ".factory/review-methods/workflow-safety/instructions.md",
+      "purpose": "Check workflow, routing, and control-plane safety for factory changes.",
+      "priority": 95,
+      "selection": {
+        "paths_any": [
+          ".github/workflows/**",
+          ".factory/review-methods/**",
+          "scripts/apply-pr-state.mjs",
+          "scripts/**/*",
+          "tests/**/*"
+        ],
+        "labels_any": [
+          "workflow",
+          "factory"
+        ]
+      },
+      "authority": {
+        "can_block": true,
+        "requires_checklist": "workflow-safety"
+      }
+    }
+  },
+  "policy": {
+    "mode": "single_review",
+    "max_reviewers": 4,
+    "fallback_methodology": "default",
+    "required_reviewers": [
+      "traceability",
+      "correctness"
+    ],
+    "coordinator": {
+      "strategy": "conservative",
+      "require_evidence_for_blocking": true,
+      "preserve_blocking_from": [
+        "workflow_safety"
+      ],
+      "record_disagreements": true
+    }
+  }
+}

@@ -156,6 +156,68 @@ test("loadValidatedReviewArtifacts rejects workflow-safety pass reviews with inc
   );
 });
 
+test("loadValidatedReviewArtifacts requires checklist for multi-review when workflow_safety ran", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      methodology: "multi-review",
+      reviewers_run: [
+        {
+          name: "traceability",
+          status: "completed",
+          summary: "Traceability satisfied."
+        },
+        {
+          name: "workflow_safety",
+          status: "completed",
+          summary: "Workflow safety satisfied."
+        }
+      ],
+      checklist: undefined
+    }
+  });
+  const reviewJsonPath = path.join(artifactsPath, "review.json");
+  const parsed = JSON.parse(fs.readFileSync(reviewJsonPath, "utf8"));
+  delete parsed.checklist;
+  fs.writeFileSync(reviewJsonPath, JSON.stringify(parsed, null, 2));
+
+  assert.throws(
+    () =>
+      loadValidatedReviewArtifacts({
+        artifactsPath,
+        requestedMethodology: "multi-review"
+      }),
+    /checklist must be an object for workflow-safety reviews/
+  );
+});
+
+test("loadValidatedReviewArtifacts accepts checklist for multi-review when workflow_safety ran", () => {
+  const artifactsPath = createArtifacts({
+    reviewJson: {
+      methodology: "multi-review",
+      reviewers_run: [
+        {
+          name: "traceability",
+          status: "completed",
+          summary: "Traceability satisfied."
+        },
+        {
+          name: "workflow_safety",
+          status: "completed",
+          summary: "Workflow safety satisfied."
+        }
+      ]
+    }
+  });
+
+  const { review } = loadValidatedReviewArtifacts({
+    artifactsPath,
+    requestedMethodology: "multi-review"
+  });
+
+  assert.equal(review.methodology, "multi-review");
+  assert.equal(review.checklist.state_changed, true);
+});
+
 test("loadValidatedReviewArtifacts rejects mismatched methodology", () => {
   const artifactsPath = createArtifacts({
     reviewJson: { methodology: "custom" }

@@ -332,6 +332,10 @@ test("factory stage workflow gates the Codex CLI hybrid path by stage-specific f
     workflowText,
     /name:\s+Run Codex[\s\S]*if:\s*\(inputs\.mode != 'plan' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true'\) && \(inputs\.mode != 'implement' \|\| vars\.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true'\)[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*\.factory\/tmp\/prompt\.md[\s\S]*tee "\$codex_log"/
   );
+  assert.match(
+    workflowText,
+    /name:\s+Run multi-review reviewers[\s\S]*selection_path="\$\{\{\s*inputs\.artifacts_path\s*\}\}\/reviewers\/selection\.json"[\s\S]*for reviewer in "\$\{reviewers\[@\]\}"[\s\S]*node scripts\/run-reviewer\.mjs[\s\S]*codex exec[\s\S]*< "\$reviewer_prompt"/
+  );
 });
 
 test("factory stage workflow resolves per-stage models before running Codex", () => {

@@ -12,7 +12,7 @@ Methodology rubric:
 
 {{METHODOLOGY_INSTRUCTIONS}}
 
-Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
+Deliverables{{MRH}}:
 
 1. `review.md`
    - Write sections in this order: decision, `📝` Summary, `🚨` blocking findings, `⚠️` non-blocking notes.
@@ -27,6 +27,7 @@ Deliverables (write both files inside `{{ARTIFACTS_PATH}}/`):
    - Status values must be `satisfied`, `partially_satisfied`, `not_satisfied`, or `not_applicable`.
    - `findings` entries must include `level`, `title`, `details`, `scope`, and `recommendation`.
    - `findings` must use `blocking` or `non_blocking`.
+{{MRD}}
 
 Execution requirements:
 
@@ -35,6 +36,7 @@ Execution requirements:
 - Do not stop with a prose response that says what you would write. The task is only complete when both files exist on disk with final content.
 - Prefer direct file writes or straightforward edits over multi-step shell quoting tricks or heredocs.
 - Do not run `git commit` or `git push`; the workflow handles that after validation.
+{{MRR}}
 
 Validation:
 
@@ -53,6 +55,7 @@ Review guidance:
 - Flag missing artifacts, weak evidence, or deviations from plan/spec.
 - Keep blocking findings and unmet requirements visible outside collapsible sections.
 - When requesting changes, clearly document actionable recommendations.
+{{MRG}}
 
 Context:
 

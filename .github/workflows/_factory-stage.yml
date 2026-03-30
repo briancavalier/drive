@@ -417,7 +417,7 @@ jobs:
 
       - name: Run Codex
         id: codex
-        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true') && steps.codex_bootstrap_standard.outcome == 'success'
+        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true') && steps.codex_bootstrap_standard.outcome == 'success' && !(inputs.mode == 'review' && steps.build.outputs.review_methodology == 'multi-review')
         continue-on-error: true
         shell: bash
         env:
@@ -449,16 +449,70 @@ jobs:
 
           exit "$status"
 
+      - name: Run multi-review reviewers
+        id: codex_multi_review
+        if: (inputs.mode != 'plan' || vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY != 'true') && (inputs.mode != 'implement' || vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT != 'true') && steps.codex_bootstrap_standard.outcome == 'success' && inputs.mode == 'review' && steps.build.outputs.review_methodology == 'multi-review'
+        continue-on-error: true
+        shell: bash
+        env:
+          FACTORY_STAGE_MODEL: ${{ steps.model.outputs.model }}
+        run: |
+          set -euo pipefail
+
+          selection_path="${{ inputs.artifacts_path }}/reviewers/selection.json"
+          if [ ! -f "$selection_path" ]; then
+            echo "Missing reviewer selection artifact at $selection_path" >&2
+            exit 1
+          fi
+
+          mapfile -t reviewers < <(node --input-type=module -e 'import fs from "node:fs"; const selection = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); for (const reviewer of selection.selected_reviewers || []) console.log(reviewer.name);' "$selection_path")
+
+          if [ "${#reviewers[@]}" -eq 0 ]; then
+            echo "No selected reviewers found in $selection_path" >&2
+            exit 1
+          fi
+
+          mkdir -p .factory/tmp
+          combined_log=".factory/tmp/codex-run.log"
+          : > "$combined_log"
+          last_output=""
+
+          for reviewer in "${reviewers[@]}"; do
+            reviewer_safe="${reviewer//[^A-Za-z0-9_-]/-}"
+            reviewer_prompt="$(FACTORY_REVIEWER_NAME="$reviewer" FACTORY_ARTIFACTS_PATH="${{ inputs.artifacts_path }}" node scripts/run-reviewer.mjs)"
+            reviewer_output=".factory/tmp/reviewer-${reviewer_safe}-final-message.md"
+            last_output="$reviewer_output"
+
+            {
+              echo "===== reviewer:${reviewer} ====="
+              codex exec \
+                --skip-git-repo-check \
+                --cd "$PWD" \
+                --output-last-message "$reviewer_output" \
+                --model "$FACTORY_STAGE_MODEL" \
+                --full-auto \
+                --sandbox workspace-write \
+                < "$reviewer_prompt"
+            } 2>&1 | tee -a "$combined_log"
+          done
+
+          {
+            echo "log_path=$combined_log"
+            echo "output_file=$last_output"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Stop on Codex failure
         id: codex_failure
-        if: steps.codex.outcome == 'failure' || (((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
+        if: steps.codex.outcome == 'failure' || steps.codex_multi_review.outcome == 'failure' || (((inputs.mode == 'plan' && vars.FACTORY_ENABLE_CODEX_HYBRID_CANARY == 'true') || (inputs.mode == 'implement' && vars.FACTORY_ENABLE_CODEX_HYBRID_IMPLEMENT == 'true')) && (steps.codex_bootstrap.outcome == 'failure' || steps.codex_verify.outcome == 'failure' || steps.codex_cli.outcome == 'failure' || steps.codex_json_telemetry.outcome == 'failure'))
         shell: bash
         env:
           FACTORY_IMPLEMENT_TIMEOUT_MINUTES: ${{ vars.FACTORY_IMPLEMENT_TIMEOUT_MINUTES || '20' }}
         run: |
           if [ "${{ steps.codex.outcome }}" = "failure" ]; then
             failure_message="$(node scripts/extract-codex-failure.mjs ".factory/tmp/codex-run.log")"
-
+            failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
+          elif [ "${{ steps.codex_multi_review.outcome }}" = "failure" ]; then
+            failure_message="$(node scripts/extract-codex-failure.mjs ".factory/tmp/codex-run.log")"
             failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
           elif [ "${{ inputs.mode }}" = "implement" ] && { [ "${{ steps.codex_cli.outputs.exit_code }}" = "124" ] || [ "${{ steps.codex_cli.outputs.exit_code }}" = "137" ]; }; then
             failure_type="budget_guardrail"
@@ -486,6 +540,12 @@ jobs:
       - name: Stop on stage intervention validation failure
         if: steps.detect_intervention.outcome == 'failure'
         run: exit 1
+
+      - name: Synthesize multi-review artifacts
+        if: inputs.mode == 'review' && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.build.outputs.review_methodology == 'multi-review'
+        run: node scripts/run-review-coordinator.mjs
+        env:
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
 
       - name: Prepare stage output for push
         id: prepare

@@ -41,6 +41,20 @@ function fixture(name) {
   return fs.readFileSync(path.join(fixturesDir, name), "utf8");
 }
 
+function reviewTemplateVariables(methodology, note = "") {
+  return {
+    METHODOLOGY_NAME: methodology.name,
+    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
+    METHODOLOGY_NOTE: note,
+    METHODOLOGY_REQUESTED: methodology.requested,
+    METHODOLOGY_FALLBACK: methodology.fallback ? "true" : "false",
+    MRH: "",
+    MRD: "",
+    MRR: "",
+    MRG: ""
+  };
+}
+
 function makeArtifactsDir(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-prompt-"));
   const files = {
@@ -381,13 +395,7 @@ test("stage prompts include factory policy context ahead of stage-specific secti
     pullRequestBody: "",
     factoryPolicyText,
     templateText: reviewTemplate,
-    templateVariables: {
-      METHODOLOGY_NAME: reviewMethodology.name,
-      METHODOLOGY_INSTRUCTIONS: reviewMethodology.instructions.trim(),
-      METHODOLOGY_NOTE: "",
-      METHODOLOGY_REQUESTED: reviewMethodology.requested,
-      METHODOLOGY_FALLBACK: "false"
-    },
+    templateVariables: reviewTemplateVariables(reviewMethodology),
     jobsPayload: {
       jobs: [{ name: "ci / test", conclusion: "success", steps: [] }]
     },
@@ -639,13 +647,7 @@ test("review prompt embeds methodology instructions and metadata", () => {
     })
   });
   const methodology = resolveReviewMethodology({ requested: "default" });
-  const templateVariables = {
-    METHODOLOGY_NAME: methodology.name,
-    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
-    METHODOLOGY_NOTE: "",
-    METHODOLOGY_REQUESTED: methodology.requested,
-    METHODOLOGY_FALLBACK: "false"
-  };
+  const templateVariables = reviewTemplateVariables(methodology);
 
   const result = buildStagePrompt({
     mode: "review",
@@ -706,13 +708,7 @@ test("review prompt resolves workflow-safety methodology when requested", () => 
     })
   });
   const methodology = resolveReviewMethodology({ requested: "workflow-safety" });
-  const templateVariables = {
-    METHODOLOGY_NAME: methodology.name,
-    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
-    METHODOLOGY_NOTE: "",
-    METHODOLOGY_REQUESTED: methodology.requested,
-    METHODOLOGY_FALLBACK: methodology.fallback ? "true" : "false"
-  };
+  const templateVariables = reviewTemplateVariables(methodology);
 
   const result = buildStagePrompt({
     mode: "review",
@@ -778,13 +774,7 @@ test("workflow-safety review checklist exists and is referenced by the rubric", 
 test("review prompt includes CI evidence when workflow run provided", () => {
   const artifactsDir = makeArtifactsDir();
   const methodology = resolveReviewMethodology({ requested: "default" });
-  const templateVariables = {
-    METHODOLOGY_NAME: methodology.name,
-    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
-    METHODOLOGY_NOTE: "",
-    METHODOLOGY_REQUESTED: methodology.requested,
-    METHODOLOGY_FALLBACK: "false"
-  };
+  const templateVariables = reviewTemplateVariables(methodology);
   const jobsPayload = {
     jobs: [
       {
@@ -830,13 +820,10 @@ test("review prompt includes CI evidence when workflow run provided", () => {
 test("review prompt records fallback note when method missing", () => {
   const artifactsDir = makeArtifactsDir();
   const methodology = resolveReviewMethodology({ requested: "nonexistent-method" });
-  const templateVariables = {
-    METHODOLOGY_NAME: methodology.name,
-    METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
-    METHODOLOGY_NOTE: `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`,
-    METHODOLOGY_REQUESTED: methodology.requested,
-    METHODOLOGY_FALLBACK: "true"
-  };
+  const templateVariables = reviewTemplateVariables(
+    methodology,
+    `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`
+  );
 
   const result = buildStagePrompt({
     mode: "review",
