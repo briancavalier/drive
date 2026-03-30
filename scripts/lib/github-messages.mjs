@@ -14,9 +14,8 @@ import { defaultPrMetadata } from "./pr-metadata-shape.mjs";
 import { getQuestionOptions } from "./intervention-state.mjs";
 import {
   normalizeNewlines,
-  renderBlockingFindingsSummary,
   renderCanonicalTraceabilityMarkdown,
-  renderFullBlockingFindingsDetails,
+  renderDetailsBlock,
   renderUnmetRequirementChecksSummary
 } from "./review-output.mjs";
 import { buildControlPanel } from "./control-panel.mjs";
@@ -916,6 +915,194 @@ function trimCorePreservingIntro(text, limit) {
   return slice.trimEnd();
 }
 
+const NARRATIVE_SECTION_SUMMARIES = Object.freeze({
+  summary: "📝 Summary",
+  blocking: "🚨 Blocking Findings",
+  nonBlocking: "⚠️ Non-Blocking Notes"
+});
+
+const DECISION_OR_METHOD_PATTERN = /^\s*(decision|methodology)\s*:/i;
+
+function normalizeNarrativeHeading(line) {
+  const match = /^#{2,6}\s+(.*)$/.exec(line.trim());
+
+  if (!match) {
+    return null;
+  }
+
+  let label = match[1].trim();
+  label = label.replace(/^[^A-Za-z0-9]+/u, "");
+  label = label.replace(/[-_]/g, " ");
+  label = label.replace(/nonblocking/gi, "non blocking");
+  label = label.replace(/blockingnotes/gi, "blocking notes");
+  label = label.replace(/nonblockingnotes/gi, "non blocking notes");
+
+  return label.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function resolveNarrativeSectionKey(heading) {
+  const normalized = normalizeNarrativeHeading(heading);
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (["summary", "review summary", "review notes"].includes(normalized)) {
+    return "summary";
+  }
+
+  if (["blocking findings", "blocking finding", "blocking notes"].includes(normalized)) {
+    return "blocking";
+  }
+
+  if (
+    [
+      "non blocking notes",
+      "non blocking findings",
+      "non blocking review notes",
+      "nonblocking notes"
+    ].includes(normalized)
+  ) {
+    return "nonBlocking";
+  }
+
+  return null;
+}
+
+function parseReviewNarrativeSections(markdown) {
+  const normalizedMarkdown = normalizeReviewMarkdown(markdown);
+
+  if (!normalizedMarkdown) {
+    return {
+      summary: "",
+      blocking: "",
+      nonBlocking: ""
+    };
+  }
+
+  const lines = normalizedMarkdown.split("\n");
+  const sections = {
+    summary: [],
+    blocking: [],
+    nonBlocking: []
+  };
+  let activeKey = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (
+      TRACEABILITY_ANCHOR_PATTERNS.some((token) => token && trimmed.includes(token))
+    ) {
+      break;
+    }
+
+    const sectionKey = resolveNarrativeSectionKey(line);
+
+    if (sectionKey) {
+      activeKey = sectionKey;
+      sections[sectionKey] = [];
+      continue;
+    }
+
+    if (!activeKey) {
+      continue;
+    }
+
+    if (DECISION_OR_METHOD_PATTERN.test(trimmed)) {
+      continue;
+    }
+
+    sections[activeKey].push(line);
+  }
+
+  return Object.fromEntries(
+    Object.entries(sections).map(([key, value]) => [key, value.join("\n").trim()])
+  );
+}
+
+function formatFindingSummaryLine(finding = {}) {
+  const title = finding.title ? `**${finding.title}**` : "**Finding**";
+  const scope = finding.scope ? ` (${finding.scope})` : "";
+  const details = finding.details ? ` -- ${finding.details}` : "";
+  const recommendation = finding.recommendation
+    ? ` Recommendation: ${finding.recommendation}`
+    : "";
+
+  return `- ${title}${scope}${details}${recommendation}`.trim();
+}
+
+function renderBlockingFindingsFallback(findings = []) {
+  const blockingFindings = findings.filter(
+    (finding) => `${finding?.level || ""}`.trim().toLowerCase() === "blocking"
+  );
+
+  if (!blockingFindings.length) {
+    return "No blocking findings.";
+  }
+
+  return blockingFindings.map((finding) => formatFindingSummaryLine(finding)).join("\n");
+}
+
+function renderNonBlockingNotesFallback(findings = []) {
+  const nonBlockingFindings = findings.filter(
+    (finding) => `${finding?.level || ""}`.trim().toLowerCase() === "non_blocking"
+  );
+
+  if (!nonBlockingFindings.length) {
+    return "_None._";
+  }
+
+  return nonBlockingFindings.map((finding) => formatFindingSummaryLine(finding)).join("\n");
+}
+
+function resolveSummaryFallback(review = {}) {
+  const summary = `${review?.summary || ""}`.trim();
+
+  return summary || "_No summary provided._";
+}
+
+function buildNarrativeDetailsSections({ review, reviewMarkdown }) {
+  const parsed = parseReviewNarrativeSections(reviewMarkdown);
+  const summaryContent = parsed.summary || resolveSummaryFallback(review);
+  const blockingContent = parsed.blocking || renderBlockingFindingsFallback(review.findings);
+  const nonBlockingContent =
+    parsed.nonBlocking || renderNonBlockingNotesFallback(review.findings);
+
+  return {
+    summary: renderDetailsBlock(
+      NARRATIVE_SECTION_SUMMARIES.summary,
+      summaryContent,
+      { open: true }
+    ),
+    blocking: renderDetailsBlock(
+      NARRATIVE_SECTION_SUMMARIES.blocking,
+      blockingContent,
+      { open: true }
+    ),
+    nonBlocking: renderDetailsBlock(
+      NARRATIVE_SECTION_SUMMARIES.nonBlocking,
+      nonBlockingContent,
+      { open: true }
+    )
+  };
+}
+
+function buildCuratedReviewMarkdown({ review, reviewMarkdown }) {
+  const narrativeSections = buildNarrativeDetailsSections({ review, reviewMarkdown });
+  const traceability = renderCanonicalTraceabilityMarkdown(
+    review.requirement_checks
+  ).trim();
+  const segments = [
+    narrativeSections.summary,
+    narrativeSections.blocking,
+    narrativeSections.nonBlocking,
+    traceability
+  ].filter((segment) => `${segment || ""}`.trim());
+
+  return segments.join("\n\n").trim();
+}
+
 const REVIEW_DECISION_DISPLAY = Object.freeze({
   pass: { icon: "✅", label: "PASS" },
   request_changes: { icon: "❌", label: "REQUEST_CHANGES" }
@@ -941,17 +1128,6 @@ function countRequirementGaps(requirementChecks = []) {
   ).length;
 }
 
-function renderTraceabilitySummary(requirementChecks = []) {
-  const canonicalLines = renderCanonicalTraceabilityMarkdown(requirementChecks).split("\n");
-  const detailsIndex = canonicalLines.findIndex((line) => line.trim() === "<details>");
-
-  if (detailsIndex === -1) {
-    return canonicalLines.join("\n").trim();
-  }
-
-  return canonicalLines.slice(detailsIndex).join("\n").trim();
-}
-
 function buildArtifactsLine({ links, artifactsPath }) {
   const reviewMarkdownPath = path.posix.join(artifactsPath, "review.md");
   const reviewJsonPath = path.posix.join(artifactsPath, "review.json");
@@ -970,30 +1146,12 @@ function buildFactoryReviewHeader({ review, links, artifactsPath }) {
     "## Factory Review",
     resolveReviewDecisionLine(review),
     "",
-    `**Summary:** ${review.summary}`,
     `**Findings:** Blocking ${review.blocking_findings_count} · Requirement gaps ${countRequirementGaps(review.requirement_checks)}`,
     `**Artifacts:** ${buildArtifactsLine({ links, artifactsPath })}`,
-    "",
-    "### Blocking Findings",
-    renderBlockingFindingsSummary(review.findings),
     "",
     "### Requirement Gaps",
     renderUnmetRequirementChecksSummary(review.requirement_checks)
   ];
-
-  if (`${review.decision || ""}`.trim().toLowerCase() === "request_changes") {
-    const fullDetails = renderFullBlockingFindingsDetails(review.findings);
-
-    if (fullDetails) {
-      lines.push("", fullDetails);
-    }
-  }
-
-  const traceabilitySummary = renderTraceabilitySummary(review.requirement_checks);
-
-  if (traceabilitySummary) {
-    lines.push("", traceabilitySummary);
-  }
 
   return lines
     .filter((line, index, allLines) => !(line === "" && allLines[index - 1] === ""))
@@ -1025,7 +1183,50 @@ function buildTruncatedReviewSection({
   const reserve = truncationNote.length;
   const maxCoreLength = Math.max(0, maxBodyChars - headerSegment.length - reserve);
 
+  const lines = normalizedReviewMarkdown.split("\n");
+  const traceabilityIndex = findTraceabilityLineIndex(lines);
+  const hasAnchor = traceabilityIndex !== -1;
+  const detailsStartIndex =
+    hasAnchor && traceabilityIndex > 0 && lines[traceabilityIndex - 1].trim() === "<details>"
+      ? traceabilityIndex - 1
+      : traceabilityIndex;
+  const narrativeLines = hasAnchor ? lines.slice(0, detailsStartIndex) : lines;
+  const narrativeOriginal = narrativeLines.join("\n").trimEnd();
+
+  const canonicalOpenLine =
+    hasAnchor && detailsStartIndex < lines.length ? lines[detailsStartIndex] : "<details>";
+  const anchorLine = hasAnchor ? lines[traceabilityIndex] : "";
+  const canonicalCloseLine =
+    hasAnchor && lines.length > 0 ? lines[lines.length - 1] : "</details>";
+
+  const canonicalFull = hasAnchor
+    ? lines.slice(detailsStartIndex).join("\n").trim()
+    : "";
+  const canonicalMinimal = anchorLine
+    ? [canonicalOpenLine, anchorLine, "", canonicalCloseLine].join("\n")
+    : "";
+
   if (maxCoreLength <= 0) {
+    if (canonicalMinimal) {
+      const headerLimit = Math.max(0, maxBodyChars - canonicalMinimal.length - reserve);
+      const headerTextLimit = Math.max(0, headerLimit - 2);
+      const trimmedHeaderText = trimCorePreservingIntro(header, headerTextLimit);
+      const trimmedHeaderSegment = trimmedHeaderText ? `${trimmedHeaderText}\n\n` : "";
+      const anchorBody = `${trimmedHeaderSegment}${canonicalMinimal}${truncationNote}`.trimStart();
+
+      if (anchorBody.length <= maxBodyChars) {
+        return anchorBody;
+      }
+
+      const anchorOnlyBody = `${canonicalMinimal}${truncationNote}`.trimStart();
+
+      if (anchorOnlyBody.length <= maxBodyChars) {
+        return anchorOnlyBody;
+      }
+
+      return anchorOnlyBody.slice(0, maxBodyChars);
+    }
+
     const trimmedHeader = trimCorePreservingIntro(header, maxBodyChars);
     const withNote = `${trimmedHeader}${truncationNote}`.trimStart();
 
@@ -1036,30 +1237,49 @@ function buildTruncatedReviewSection({
     return withNote.slice(0, maxBodyChars);
   }
 
-  const lines = normalizedReviewMarkdown.split("\n");
-  const traceabilityIndex = findTraceabilityLineIndex(lines);
-  let visibleSection = "";
+  let narrativePart = narrativeOriginal;
+  let canonicalPart = canonicalFull;
 
-  if (traceabilityIndex !== -1) {
-    const beforeTraceability = lines.slice(0, traceabilityIndex).join("\n").trimEnd();
-    const anchorLine = lines[traceabilityIndex];
-    const needsSeparator = Boolean(beforeTraceability);
-    let candidate = needsSeparator
-      ? `${beforeTraceability}\n${anchorLine}`
-      : anchorLine;
+  const buildSection = () => {
+    const parts = [];
 
-    if (candidate.length > maxCoreLength) {
-      const maxBeforeLength = Math.max(
-        0,
-        maxCoreLength - anchorLine.length - (needsSeparator ? 1 : 0)
-      );
-      const trimmedBefore = trimCorePreservingIntro(beforeTraceability, maxBeforeLength);
-      candidate = trimmedBefore ? `${trimmedBefore}\n${anchorLine}` : anchorLine;
+    if (narrativePart) {
+      parts.push(narrativePart);
     }
 
-    visibleSection = candidate;
-  } else {
-    visibleSection = trimCorePreservingIntro(normalizedReviewMarkdown, maxCoreLength);
+    if (canonicalPart) {
+      parts.push(canonicalPart);
+    }
+
+    return parts.join("\n\n");
+  };
+
+  let visibleSection = buildSection();
+
+  if (visibleSection.length > maxCoreLength) {
+    const separatorLength = narrativePart && canonicalPart ? 2 : 0;
+    const canonicalLength = canonicalPart.length;
+    const availableNarrative = Math.max(0, maxCoreLength - canonicalLength - separatorLength);
+    narrativePart = trimCorePreservingIntro(narrativeOriginal, availableNarrative);
+    visibleSection = buildSection();
+  }
+
+  if (visibleSection.length > maxCoreLength && canonicalMinimal) {
+    canonicalPart = canonicalMinimal;
+    const separatorLength = narrativePart && canonicalPart ? 2 : 0;
+    const canonicalLength = canonicalPart.length;
+    const availableNarrative = Math.max(0, maxCoreLength - canonicalLength - separatorLength);
+    narrativePart = trimCorePreservingIntro(narrativeOriginal, availableNarrative);
+    visibleSection = buildSection();
+  }
+
+  if (visibleSection.length > maxCoreLength && canonicalPart) {
+    narrativePart = "";
+    visibleSection = buildSection();
+  }
+
+  if (!visibleSection && canonicalPart) {
+    visibleSection = canonicalPart;
   }
 
   const sectionCore = `${headerSegment}${visibleSection}`.replace(/\s+$/u, "");
@@ -1067,6 +1287,26 @@ function buildTruncatedReviewSection({
 
   if (truncatedBody.length <= maxBodyChars) {
     return truncatedBody;
+  }
+
+  if (canonicalPart) {
+    const headerLimit = Math.max(0, maxBodyChars - canonicalPart.length - reserve);
+    const headerTextLimit = Math.max(0, headerLimit - 2);
+    const trimmedHeaderText = trimCorePreservingIntro(header, headerTextLimit);
+    const trimmedHeaderSegment = trimmedHeaderText ? `${trimmedHeaderText}\n\n` : "";
+    const headerTrimmedBody = `${trimmedHeaderSegment}${canonicalPart}${truncationNote}`.trimStart();
+
+    if (headerTrimmedBody.length <= maxBodyChars) {
+      return headerTrimmedBody;
+    }
+
+    const anchorOnlyBody = `${canonicalPart}${truncationNote}`.trimStart();
+
+    if (anchorOnlyBody.length <= maxBodyChars) {
+      return anchorOnlyBody;
+    }
+
+    return anchorOnlyBody.slice(0, maxBodyChars);
   }
 
   const fallbackCore = trimCorePreservingIntro(normalizedReviewMarkdown, maxCoreLength);
@@ -1088,7 +1328,8 @@ export function buildReviewConversationBody({
   branch = "",
   maxBodyChars = MAX_REVIEW_BODY_CHARS
 }) {
-  const normalizedReviewMarkdown = normalizeReviewMarkdown(reviewMarkdown);
+  const curatedReviewMarkdown = buildCuratedReviewMarkdown({ review, reviewMarkdown });
+  const normalizedReviewMarkdown = normalizeReviewMarkdown(curatedReviewMarkdown);
   const links = buildArtifactLinks({ repositoryUrl, branch, artifactsPath });
   const header = buildFactoryReviewHeader({ review, links, artifactsPath });
   const sections = [header];

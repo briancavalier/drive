@@ -1,0 +1,1 @@
+- Addressed review feedback by keeping Summary/Findings/Notes sections expanded by default and eliminating the duplicate summary line in the review header.

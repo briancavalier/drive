@@ -151,7 +151,8 @@ export function renderUnmetRequirementChecksSummary(requirementChecks = []) {
     .join("\n");
 }
 
-export function renderDetailsBlock(summary, body) {
+export function renderDetailsBlock(summary, body, options = {}) {
+  const { open = false } = options;
   const normalizedBody = `${body || ""}`.trim();
 
   if (!normalizedBody) {
@@ -159,7 +160,7 @@ export function renderDetailsBlock(summary, body) {
   }
 
   return [
-    "<details>",
+    `<details${open ? " open" : ""}>`,
     `<summary>${summary}</summary>`,
     "",
     normalizedBody,
