@@ -1147,6 +1147,9 @@ function buildFactoryReviewHeader({ review, links, artifactsPath }) {
     resolveReviewDecisionLine(review),
     "",
     `**Findings:** Blocking ${review.blocking_findings_count} · Requirement gaps ${countRequirementGaps(review.requirement_checks)}`,
+    ...(Array.isArray(review.reviewers_run) && review.reviewers_run.length
+      ? [`**Reviewers:** ${review.reviewers_run.map((entry) => entry.name).join(", ")}`]
+      : []),
     `**Artifacts:** ${buildArtifactsLine({ links, artifactsPath })}`,
     "",
     "### Requirement Gaps",

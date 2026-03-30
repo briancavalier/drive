@@ -3,6 +3,7 @@
 - Treat `.factory/runs/<issue>/approved-issue.md` as the immutable request snapshot after intake.
 - Treat `.factory/runs/<issue>/spec.md`, `plan.md`, and `acceptance-tests.md` as the approved scope for implementation and review.
 - Treat `.factory/runs/<issue>/review.json` as the canonical machine-readable review artifact. Markdown traceability is derived from it.
+- When multi-review is enabled, treat `.factory/runs/<issue>/reviewers/*.json` as reviewer inputs and `review.json` as the coordinator-owned final decision.
 
 ## Stage boundaries
 
@@ -22,6 +23,7 @@
 - A `pass` decision is invalid if any requirement check is unmet or partially satisfied.
 - Traceability between requirements and concrete evidence is mandatory.
 - Weak or missing evidence should result in `request_changes`.
+- Reviewer-specific artifacts may add provenance and disagreement metadata, but the final contract remains one canonical `review.json` and `review.md`.
 
 ## Control-plane guardrails
 

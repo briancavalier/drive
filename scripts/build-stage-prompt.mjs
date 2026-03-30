@@ -22,6 +22,13 @@ import {
   getReviewArtifactFailure
 } from "./lib/intervention-state.mjs";
 import { resolveReviewMethodology } from "./lib/review-methods.mjs";
+import {
+  loadReviewerConfig,
+  MULTI_REVIEW_METHOD_NAME,
+  resolveReviewMethodologyName
+} from "./lib/reviewer-config.mjs";
+import { selectReviewers } from "./lib/reviewer-selection.mjs";
+import { REVIEWERS_DIR_NAME } from "./lib/reviewer-artifacts.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
 
 export const DEFAULT_PROMPT_BUDGETS = Object.freeze({
@@ -182,6 +189,72 @@ function maybeRead(filePath) {
   } catch {
     return "";
   }
+}
+
+function listChangedFiles(baseRef = "origin/main...HEAD") {
+  try {
+    return execFileSync("git", ["diff", "--name-only", baseRef], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    })
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function writeReviewerSelectionArtifact(artifactsPath, selection) {
+  const reviewersDir = path.join(artifactsPath, REVIEWERS_DIR_NAME);
+  fs.mkdirSync(reviewersDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(reviewersDir, "selection.json"),
+    `${JSON.stringify(selection, null, 2)}\n`
+  );
+}
+
+function renderMultiReviewTemplateVariables(selection) {
+  const reviewers = selection?.selected_reviewers || [];
+
+  if (reviewers.length === 0) {
+    return {
+      MRH: " (single-review output only)",
+      MRD: "",
+      MRR: "",
+      MRG: ""
+    };
+  }
+
+  const reviewerList = reviewers
+    .map(
+      (reviewer) =>
+        `- \`${reviewer.name}\` -> write \`reviewers/${reviewer.name}.json\` using \`${reviewer.instructions_path}\``
+    )
+    .join("\n");
+
+  return {
+    MRH: " (plus reviewer artifacts)",
+    MRD: [
+      "",
+      "3. Reviewer artifacts",
+      "   - Write one JSON artifact per selected reviewer under `reviewers/`:",
+      reviewerList.replaceAll("\n", "\n   "),
+      "   - Each reviewer artifact must follow the reviewer artifact schema exactly.",
+      "   - Do not write the final merged `review.json` or `review.md` by hand when running `multi-review`; the coordinator synthesizes them after the reviewer artifacts are present."
+    ].join("\n"),
+    MRR: [
+      "",
+      "- For `multi-review`, first write every selected reviewer artifact under `reviewers/` and let the coordinator script synthesize the final review files.",
+      "- If a selected reviewer cannot confirm a requirement because evidence is missing, record that as a finding in that reviewer artifact instead of omitting the reviewer."
+    ].join("\n"),
+    MRG: [
+      "",
+      "Multi-review execution plan:",
+      reviewerList,
+      "- Treat reviewer rubrics as independent first-pass reviews before coordinator synthesis."
+    ].join("\n")
+  };
 }
 
 export function readTrustedFactoryPolicy(
@@ -916,6 +989,7 @@ export async function loadStagePromptInputs(env = process.env) {
   const reviewId = env.FACTORY_REVIEW_ID;
   const ciRunId = env.FACTORY_CI_RUN_ID;
   const reviewMethod = env.FACTORY_REVIEW_METHOD || "";
+  const reviewerConfig = mode === FACTORY_STAGE_MODES.review ? loadReviewerConfig() : null;
 
   if (!mode || !branch || !artifactsPath || !Number.isInteger(issueNumber) || issueNumber <= 0) {
     throw new Error("FACTORY_MODE, FACTORY_BRANCH, FACTORY_ARTIFACTS_PATH, and FACTORY_ISSUE_NUMBER are required");
@@ -951,6 +1025,10 @@ export async function loadStagePromptInputs(env = process.env) {
     ciRunId,
     factoryPolicyText: readTrustedFactoryPolicy(),
     reviewMethod,
+    reviewerConfig,
+    changedFiles: mode === FACTORY_STAGE_MODES.review ? listChangedFiles() : [],
+    prLabels:
+      Array.isArray(pullRequest?.labels) ? pullRequest.labels.map((label) => label?.name || "") : [],
     budgets: resolvePromptBudgets(env)
   };
 }
@@ -961,14 +1039,37 @@ export async function main(env = process.env) {
   const templateText = fs.readFileSync(templatePath, "utf8");
   let templateVariables = {};
   let methodology = null;
+  let reviewerSelection = null;
 
   if (input.mode === FACTORY_STAGE_MODES.review) {
-    methodology = resolveReviewMethodology({ requested: input.reviewMethod });
+    const resolvedMethodName = resolveReviewMethodologyName({
+      requestedMethodology: input.reviewMethod,
+      reviewerConfig: input.reviewerConfig
+    });
+    methodology = resolveReviewMethodology({ requested: resolvedMethodName });
     const fallbackNote = methodology.fallback
       ? `Requested methodology "${methodology.requested}" was not found. Falling back to "${methodology.name}".`
       : "";
 
     templateVariables = {
+      MRH: "",
+      MRD: "",
+      MRR: "",
+      MRG: ""
+    };
+
+    if (methodology.name === MULTI_REVIEW_METHOD_NAME) {
+      reviewerSelection = selectReviewers({
+        config: input.reviewerConfig,
+        changedFiles: input.changedFiles,
+        labels: input.prLabels
+      });
+      writeReviewerSelectionArtifact(input.artifactsPath, reviewerSelection);
+      Object.assign(templateVariables, renderMultiReviewTemplateVariables(reviewerSelection));
+    }
+
+    templateVariables = {
+      ...templateVariables,
       METHODOLOGY_NAME: methodology.name,
       METHODOLOGY_INSTRUCTIONS: methodology.instructions.trim(),
       METHODOLOGY_NOTE: fallbackNote,
@@ -991,11 +1092,17 @@ export async function main(env = process.env) {
     templateVariables
   });
 
+  if (reviewerSelection) {
+    result.meta.reviewerSelection = reviewerSelection;
+  }
   writePromptArtifacts(path.join(".factory", "tmp"), result);
   setOutputs({
     prompt_mode: input.mode,
     review_methodology: methodology?.name || "",
-    review_methodology_requested: methodology?.requested || "",
+    review_methodology_requested:
+      methodology?.name === MULTI_REVIEW_METHOD_NAME
+        ? MULTI_REVIEW_METHOD_NAME
+        : methodology?.requested || "",
     review_methodology_fallback: methodology?.fallback ? "true" : "false"
   });
 

@@ -93,6 +93,14 @@ function ensureBoolean(value, fieldName) {
   return value;
 }
 
+function ensureOptionalString(value, fieldName) {
+  if (value == null) {
+    return "";
+  }
+
+  return ensureString(value, fieldName);
+}
+
 function validateFindings(findings) {
   if (!Array.isArray(findings)) {
     throw new Error("findings must be an array");
@@ -201,6 +209,52 @@ function validateWorkflowSafetyChecklist(checklist, decision) {
   return normalizedChecklist;
 }
 
+function validateReviewersRun(reviewersRun) {
+  if (reviewersRun == null) {
+    return [];
+  }
+
+  if (!Array.isArray(reviewersRun)) {
+    throw new Error("reviewers_run must be an array");
+  }
+
+  return reviewersRun.map((reviewer, index) => {
+    if (typeof reviewer !== "object" || reviewer === null) {
+      throw new Error(`reviewers_run[${index}] must be an object`);
+    }
+
+    return {
+      ...reviewer,
+      name: ensureString(reviewer.name, `reviewers_run[${index}].name`),
+      status: ensureOptionalString(reviewer.status, `reviewers_run[${index}].status`),
+      summary: ensureOptionalString(reviewer.summary, `reviewers_run[${index}].summary`)
+    };
+  });
+}
+
+function validateDisagreements(disagreements) {
+  if (disagreements == null) {
+    return [];
+  }
+
+  if (!Array.isArray(disagreements)) {
+    throw new Error("disagreements must be an array");
+  }
+
+  return disagreements.map((entry, index) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw new Error(`disagreements[${index}] must be an object`);
+    }
+
+    return {
+      ...entry,
+      topic: ensureString(entry.topic, `disagreements[${index}].topic`),
+      reviewers: ensureEvidence(entry.reviewers, `disagreements[${index}].reviewers`),
+      resolution: ensureString(entry.resolution, `disagreements[${index}].resolution`)
+    };
+  });
+}
+
 function validateReviewPayload(payload, expectedMethodology) {
   if (typeof payload !== "object" || payload === null) {
     throw new Error("review.json must contain an object");
@@ -228,6 +282,8 @@ function validateReviewPayload(payload, expectedMethodology) {
     methodology === "workflow-safety"
       ? validateWorkflowSafetyChecklist(payload.checklist, decision)
       : payload.checklist;
+  const reviewersRun = validateReviewersRun(payload.reviewers_run);
+  const disagreements = validateDisagreements(payload.disagreements);
   const computedBlocking = countBlockingFindings(findings);
 
   if (computedBlocking !== blockingCount) {
@@ -262,6 +318,8 @@ function validateReviewPayload(payload, expectedMethodology) {
     blocking_findings_count: blockingCount,
     requirement_checks: requirementChecks,
     findings,
+    ...(reviewersRun.length ? { reviewers_run: reviewersRun } : {}),
+    ...(disagreements.length ? { disagreements } : {}),
     ...(checklist ? { checklist } : {})
   };
 }

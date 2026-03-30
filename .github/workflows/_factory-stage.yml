@@ -487,6 +487,12 @@ jobs:
         if: steps.detect_intervention.outcome == 'failure'
         run: exit 1
 
+      - name: Synthesize multi-review artifacts
+        if: inputs.mode == 'review' && steps.detect_intervention.outputs.intervention_requested != 'true' && steps.build.outputs.review_methodology == 'multi-review'
+        run: node scripts/run-review-coordinator.mjs
+        env:
+          FACTORY_ARTIFACTS_PATH: ${{ inputs.artifacts_path }}
+
       - name: Prepare stage output for push
         id: prepare
         if: steps.detect_intervention.outputs.intervention_requested != 'true'
