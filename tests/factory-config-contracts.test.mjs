@@ -306,7 +306,7 @@ test("factory stage workflow gates the Codex CLI hybrid path by stage-specific f
   );
   assert.match(
     workflowText,
-    /name:\s+Execute Codex CLI hybrid[\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*--full-auto[\s\S]*--sandbox workspace-write[\s\S]*--json/
+    /name:\s+Execute Codex CLI hybrid[\s\S]*FACTORY_IMPLEMENT_TIMEOUT_MINUTES:\s*\$\{\{\s*vars\.FACTORY_IMPLEMENT_TIMEOUT_MINUTES \|\| '20'\s*\}\}[\s\S]*codex_command=\([\s\S]*codex exec[\s\S]*--output-last-message[\s\S]*--full-auto[\s\S]*--sandbox workspace-write[\s\S]*--json[\s\S]*timeout --signal=TERM --kill-after=30s "\$\{FACTORY_IMPLEMENT_TIMEOUT_MINUTES\}m"/
   );
   assert.match(
     workflowText,
@@ -315,6 +315,10 @@ test("factory stage workflow gates the Codex CLI hybrid path by stage-specific f
   assert.match(
     workflowText,
     /name:\s+Upload Codex CLI hybrid artifacts[\s\S]*uses:\s+actions\/upload-artifact@v4[\s\S]*name:\s*codex-cli-telemetry-\$\{\{\s*github\.run_id\s*\}\}-\$\{\{\s*github\.job\s*\}\}-\$\{\{\s*inputs\.mode\s*\}\}[\s\S]*\.factory\/tmp\/prompt\.md/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Upload Codex CLI hybrid artifacts[\s\S]*steps\.codex_verify\.outputs\.log_path/
   );
   assert.match(
     workflowText,
@@ -401,11 +405,11 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
 
   assert.match(
     workflowText,
-    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\|/
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.budget_preflight\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\|/
   );
   assert.match(
     workflowText,
-    /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\| steps\.refresh\.outputs\.failure_message \|\| steps\.codex_bootstrap_failure\.outputs\.failure_message \|\| steps\.codex_failure\.outputs\.failure_message \|\|/
+    /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\| steps\.refresh\.outputs\.failure_message \|\| steps\.budget_preflight\.outputs\.failure_message \|\| steps\.codex_bootstrap_failure\.outputs\.failure_message \|\| steps\.codex_failure\.outputs\.failure_message \|\|/
   );
 });
 
@@ -426,7 +430,7 @@ test("factory stage workflow detects implement-stage intervention requests befor
   );
   assert.match(
     workflowText,
-    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\| steps\.detect_intervention\.outputs\.failure_type \|\| steps\.prepare\.outputs\.failure_type \|\| steps\.push\.outputs\.failure_type\s*\}\}/
+    /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.budget_preflight\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\| steps\.detect_intervention\.outputs\.failure_type \|\| steps\.prepare\.outputs\.failure_type \|\| steps\.push\.outputs\.failure_type\s*\}\}/
   );
   assert.match(
     workflowText,
@@ -488,7 +492,7 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
-    /name:\s+Stop on Codex failure[\s\S]*node scripts\/extract-codex-failure\.mjs ".factory\/tmp\/codex-run\.log"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)/
+    /name:\s+Stop on Codex failure[\s\S]*node scripts\/extract-codex-failure\.mjs ".factory\/tmp\/codex-run\.log"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)[\s\S]*steps\.codex_cli\.outputs\.exit_code[\s\S]*"124"[\s\S]*steps\.codex_cli\.outputs\.exit_code[\s\S]*"137"[\s\S]*failure_type="budget_guardrail"[\s\S]*runtime guardrail timed out the session and may have force-killed it/
   );
   assert.match(
     workflowText,
@@ -502,7 +506,14 @@ test("factory stage workflow records estimated cost only after a successful push
     workflowText,
     /name:\s+Record cost estimate on pull request[\s\S]*FACTORY_ACTUAL_API_SURFACE:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_api_surface\s*\}\}[\s\S]*FACTORY_ACTUAL_STAGE_COST_USD:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_stage_cost_usd\s*\}\}[\s\S]*FACTORY_ACTUAL_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_CACHED_INPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_cached_input_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_OUTPUT_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_output_tokens\s*\}\}[\s\S]*FACTORY_ACTUAL_REASONING_TOKENS:\s*\$\{\{\s*steps\.actual_cost\.outputs\.actual_reasoning_tokens\s*\}\}/
   );
-  assert.match(workflowText, /name:\s+Budget preflight hook[\s\S]*Budget enforcement hook not configured/);
+  assert.match(
+    workflowText,
+    /name:\s+Budget preflight hook[\s\S]*id:\s*budget_preflight[\s\S]*node scripts\/enforce-stage-budget\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop on budget preflight failure[\s\S]*steps\.budget_preflight\.outcome == 'failure'/
+  );
 });
 
 test("factory PR loop failure jobs build diagnosis prompts and gate Codex advisories", () => {

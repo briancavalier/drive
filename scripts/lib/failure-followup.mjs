@@ -7,6 +7,7 @@ export const FOLLOWUP_CATEGORIES = Object.freeze({
 });
 
 export const INELIGIBLE_FAILURE_TYPES = new Set([
+  "budget_guardrail",
   "transient_infra",
   "stale_branch_conflict",
   "stale_stage_push",
