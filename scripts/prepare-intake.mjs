@@ -22,6 +22,22 @@ import {
   removeLabel
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
+import { INTAKE_FAILURE_CODES } from "./handle-intake-failure.mjs";
+
+const RETRY_ACTION_TEXT =
+  "Reuse or clean up the existing planning branch or PR before retrying /factory start.";
+
+export class IntakeFailure extends Error {
+  constructor(message, payload) {
+    super(message);
+    this.name = "IntakeFailure";
+    this.payload = payload;
+  }
+}
+
+function isIntakeFailure(error) {
+  return error instanceof IntakeFailure && error.payload && typeof error.payload === "object";
+}
 
 function readEvent() {
   return JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -29,6 +45,25 @@ function readEvent() {
 
 function git(args) {
   execFileSync("git", args, { stdio: "inherit" });
+}
+
+function gitHasRef(ref) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", ref], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function writeIntakeFailurePayload({ failurePath, payload, writeFileImpl = fs.writeFileSync }) {
+  const normalizedPath = `${failurePath || ""}`.trim();
+
+  if (!normalizedPath) {
+    return;
+  }
+
+  writeFileImpl(normalizedPath, `${JSON.stringify(payload)}\n`);
 }
 
 const TRUSTED_PERMISSIONS = new Set(["write", "maintain", "admin"]);
@@ -46,6 +81,7 @@ export async function prepareIntake({
   setOutputsImpl = setOutputs,
   mkdirImpl = fs.mkdirSync,
   writeFileImpl = fs.writeFileSync,
+  branchExistsImpl = gitHasRef,
   env = process.env
 } = {}) {
   const event = payload ?? readEventImpl();
@@ -104,10 +140,36 @@ export async function prepareIntake({
   const artifactsPath = issueArtifactsPath(issue.number);
   const maxRepairAttempts =
     Number(env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
+  const branchRef = `refs/remotes/origin/${branch}`;
 
   gitImpl(["config", "user.name", "github-actions[bot]"]);
   gitImpl(["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
   gitImpl(["fetch", "origin", defaultBranch]);
+
+  if (branchExistsImpl(branchRef)) {
+    const failure = {
+      code: INTAKE_FAILURE_CODES.branchExists,
+      issueNumber: issue.number,
+      branch,
+      artifactsPath,
+      nextAction: RETRY_ACTION_TEXT
+    };
+
+    await applyRejectionLabel();
+    setOutputsImpl({
+      intake_failure: JSON.stringify(failure)
+    });
+    writeIntakeFailurePayload({
+      failurePath: env.FACTORY_INTAKE_FAILURE_PATH,
+      payload: failure,
+      writeFileImpl
+    });
+    throw new IntakeFailure(
+      `Factory planning branch already exists on origin: ${branch}`,
+      failure
+    );
+  }
+
   gitImpl(["checkout", "-B", branch, `origin/${defaultBranch}`]);
   mkdirImpl(artifactsPath, { recursive: true });
   writeFileImpl(path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME), issue.body || "");
@@ -131,6 +193,9 @@ if (isDirectExecution) {
   try {
     await prepareIntake();
   } catch (error) {
+    if (isIntakeFailure(error)) {
+      console.error(`FACTORY_INTAKE_FAILURE=${JSON.stringify(error.payload)}`);
+    }
     console.error(`${error.message}`);
     process.exitCode = 1;
   }
