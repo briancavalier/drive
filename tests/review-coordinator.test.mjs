@@ -153,3 +153,58 @@ test("synthesizeMultiReview preserves workflow-safety checklist in final review 
   assert.equal(review.reviewers_run[1].name, "workflow_safety");
   assert.equal(review.checklist.state_changed, true);
 });
+
+test("synthesizeMultiReview downgrades blocking findings from advisory reviewers", () => {
+  const dir = makeArtifactsDir();
+  writeReviewerArtifact(dir, "traceability", {
+    reviewer: "traceability",
+    summary: "Traceability complete.",
+    status: "completed",
+    findings: [],
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Review should stay advisory-safe.",
+        status: "satisfied",
+        evidence: ["Traceability reviewer found no blocking issue."]
+      }
+    ],
+    uncertainties: []
+  });
+  writeReviewerArtifact(dir, "correctness", {
+    reviewer: "correctness",
+    summary: "Advisory reviewer raised one concern.",
+    status: "completed",
+    findings: [
+      {
+        level: "blocking",
+        title: "Advisory concern",
+        details: "This should be downgraded because the reviewer cannot block.",
+        scope: "scripts/process-review.mjs",
+        recommendation: "Inspect manually.",
+        evidence: ["A concrete citation exists."]
+      }
+    ],
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Advisory reviewers should not force request_changes",
+        status: "satisfied",
+        evidence: ["Coordinator policy downgrades advisory blocking findings."]
+      }
+    ],
+    uncertainties: []
+  });
+
+  const config = loadReviewerConfig();
+  config.reviewers.correctness.authority.can_block = false;
+
+  const { review } = synthesizeMultiReview({
+    artifactsPath: dir,
+    reviewerConfig: config
+  });
+
+  assert.equal(review.decision, "pass");
+  assert.equal(review.blocking_findings_count, 0);
+  assert.equal(review.findings[0].level, "non_blocking");
+});

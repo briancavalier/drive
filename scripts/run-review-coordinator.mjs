@@ -55,41 +55,90 @@ function mergeChecklist(reviewerArtifacts, reviewerDefinitions) {
   return checklistArtifacts[0].checklist || null;
 }
 
-function mergeFindings(reviewerArtifacts, reviewerConfig) {
+function resolveReviewerDefinition(reviewerDefinitions, reviewerName) {
+  return reviewerDefinitions.find((reviewer) => reviewer.name === reviewerName) || null;
+}
+
+function applyFindingPolicy(finding, artifact, reviewerConfig, reviewerDefinitions) {
+  const reviewerDefinition = resolveReviewerDefinition(reviewerDefinitions, artifact.reviewer);
+  const coordinatorPolicy = reviewerConfig.policy.coordinator;
+  const canBlock = reviewerDefinition?.authority?.can_block !== false;
+  const hasEvidence = Array.isArray(finding.evidence) && finding.evidence.length > 0;
+  let level = finding.level;
+
+  if (level === "blocking" && !canBlock) {
+    level = "non_blocking";
+  }
+
+  if (level === "blocking" && coordinatorPolicy.require_evidence_for_blocking && !hasEvidence) {
+    level = "non_blocking";
+  }
+
+  return {
+    ...finding,
+    level
+  };
+}
+
+function shouldPreserveBlocking(reviewerNames, preserveBlockingFrom) {
+  return reviewerNames.some((reviewerName) => preserveBlockingFrom.includes(reviewerName));
+}
+
+function mergeFindings(reviewerArtifacts, reviewerConfig, reviewerDefinitions) {
   const merged = new Map();
   const disagreements = [];
+  const preserveBlockingFrom = reviewerConfig.policy.coordinator.preserve_blocking_from || [];
 
   for (const artifact of reviewerArtifacts) {
     for (const finding of artifact.findings) {
+      const normalizedFinding = applyFindingPolicy(
+        finding,
+        artifact,
+        reviewerConfig,
+        reviewerDefinitions
+      );
       const key = [
-        finding.scope.toLowerCase(),
-        finding.title.toLowerCase(),
-        finding.recommendation.toLowerCase()
+        normalizedFinding.scope.toLowerCase(),
+        normalizedFinding.title.toLowerCase(),
+        normalizedFinding.recommendation.toLowerCase()
       ].join("::");
       const existing = merged.get(key);
 
       if (!existing) {
         merged.set(key, {
-          ...finding,
+          ...normalizedFinding,
           reviewers: [artifact.reviewer]
         });
         continue;
       }
 
-      if (existing.level !== finding.level && reviewerConfig.policy.coordinator.record_disagreements) {
+      if (
+        existing.level !== normalizedFinding.level &&
+        reviewerConfig.policy.coordinator.record_disagreements
+      ) {
         disagreements.push({
-          topic: `${finding.scope}: ${finding.title}`,
+          topic: `${normalizedFinding.scope}: ${normalizedFinding.title}`,
           reviewers: uniq([...existing.reviewers, artifact.reviewer]),
           resolution: "Coordinator preserved the more severe evidence-backed finding level."
         });
       }
 
-      const preferBlocking = existing.level === "blocking" || finding.level === "blocking";
+      const existingPreservedBlocking =
+        existing.level === "blocking" &&
+        shouldPreserveBlocking(existing.reviewers || [], preserveBlockingFrom);
+      const nextPreservedBlocking =
+        normalizedFinding.level === "blocking" &&
+        shouldPreserveBlocking([artifact.reviewer], preserveBlockingFrom);
+      const preferBlocking =
+        existingPreservedBlocking ||
+        nextPreservedBlocking ||
+        existing.level === "blocking" ||
+        normalizedFinding.level === "blocking";
       merged.set(key, {
         ...existing,
-        ...finding,
+        ...normalizedFinding,
         level: preferBlocking ? "blocking" : existing.level,
-        evidence: uniq([...(existing.evidence || []), ...(finding.evidence || [])]),
+        evidence: uniq([...(existing.evidence || []), ...(normalizedFinding.evidence || [])]),
         reviewers: uniq([...(existing.reviewers || []), artifact.reviewer])
       });
     }
@@ -223,7 +272,7 @@ export function synthesizeMultiReview({
     reviewerDefinitions,
     selection
   });
-  const mergedFindings = mergeFindings(reviewerArtifacts, reviewerConfig);
+  const mergedFindings = mergeFindings(reviewerArtifacts, reviewerConfig, reviewerDefinitions);
   const mergedRequirementChecks = mergeRequirementChecks(
     reviewerArtifacts,
     reviewerConfig.policy.coordinator.record_disagreements

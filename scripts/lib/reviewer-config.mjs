@@ -111,9 +111,16 @@ function validateReviewerDefinition(name, definition) {
 
 function validateCoordinatorPolicy(coordinator) {
   const normalized = ensureObject(coordinator, "policy.coordinator");
+  const strategy = ensureString(normalized.strategy, "policy.coordinator.strategy");
+
+  if (strategy !== "conservative") {
+    throw new Error(
+      `policy.coordinator.strategy must be "conservative", received "${strategy}"`
+    );
+  }
 
   return {
-    strategy: ensureString(normalized.strategy, "policy.coordinator.strategy"),
+    strategy,
     require_evidence_for_blocking: ensureBoolean(
       normalized.require_evidence_for_blocking,
       "policy.coordinator.require_evidence_for_blocking"

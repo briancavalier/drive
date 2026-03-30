@@ -43,3 +43,26 @@ test("resolveReviewMethodologyName prefers multi-review when policy mode is enab
 
   assert.equal(methodology, "multi-review");
 });
+
+test("validateReviewerConfig rejects unsupported coordinator strategies", () => {
+  assert.throws(
+    () =>
+      validateReviewerConfig({
+        version: 1,
+        reviewers: {},
+        policy: {
+          mode: "multi_review",
+          max_reviewers: 1,
+          fallback_methodology: "default",
+          required_reviewers: [],
+          coordinator: {
+            strategy: "permissive",
+            require_evidence_for_blocking: true,
+            preserve_blocking_from: [],
+            record_disagreements: true
+          }
+        }
+      }),
+    /policy\.coordinator\.strategy must be "conservative"/
+  );
+});
