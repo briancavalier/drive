@@ -72,6 +72,15 @@ jobs:
         run: node scripts/prepare-intake.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_INTAKE_FAILURE_PATH: ${{ runner.temp }}/factory-intake-failure.json
+
+      - name: Handle intake failure
+        if: failure()
+        run: node scripts/handle-intake-failure.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_ISSUE_NUMBER: ${{ needs.route.outputs.issue_number }}
+          FACTORY_INTAKE_FAILURE_PATH: ${{ runner.temp }}/factory-intake-failure.json
 
   plan:
     if: needs.route.outputs.action == 'start'

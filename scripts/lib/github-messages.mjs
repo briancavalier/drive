@@ -133,6 +133,10 @@ const MESSAGE_SPECS = Object.freeze({
     fileName: "intake-rejected-comment.md",
     requiredTokens: []
   },
+  "intake-branch-exists-comment": {
+    fileName: "intake-branch-exists-comment.md",
+    requiredTokens: []
+  },
   "review-pass-comment": {
     fileName: "review-pass-comment.md",
     requiredTokens: []
@@ -864,6 +868,20 @@ export function renderIntakeRejectedComment(
     "intake-rejected-comment",
     {
       MISSING_FIELDS: missingFields
+    },
+    options
+  );
+}
+
+export function renderIntakeBranchExistsComment(
+  { branch, retryCommand },
+  options = {}
+) {
+  return renderMessage(
+    "intake-branch-exists-comment",
+    {
+      BRANCH: branch,
+      RETRY_COMMAND: retryCommand
     },
     options
   );

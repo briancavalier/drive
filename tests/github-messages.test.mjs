@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildReviewConversationBody,
+  renderIntakeBranchExistsComment,
   renderInterventionQuestionComment,
   renderInterventionResolutionComment,
   renderIntakeRejectedComment,
@@ -705,6 +706,25 @@ test("renderIntakeRejectedComment uses valid override templates", () => {
   );
 
   assert.equal(message, "Missing sections: Goals, Risk");
+});
+
+test("renderIntakeBranchExistsComment uses valid override templates", () => {
+  const overridesRoot = makeOverrides({
+    "intake-branch-exists-comment.md":
+      "Branch {{BRANCH}} already exists. Retry with {{RETRY_COMMAND}}."
+  });
+  const message = renderIntakeBranchExistsComment(
+    {
+      branch: "factory/109-example",
+      retryCommand: "/factory start"
+    },
+    { overridesRoot }
+  );
+
+  assert.equal(
+    message,
+    "Branch factory/109-example already exists. Retry with /factory start."
+  );
 });
 
 test("buildReviewConversationBody returns summary header plus full review when within limit", () => {

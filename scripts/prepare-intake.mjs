@@ -22,6 +22,22 @@ import {
   removeLabel
 } from "./lib/github.mjs";
 import { setOutputs } from "./lib/actions-output.mjs";
+import { INTAKE_FAILURE_CODES } from "./handle-intake-failure.mjs";
+
+const RETRY_ACTION_TEXT =
+  "Reuse or clean up the existing planning branch or PR before retrying /factory start.";
+
+export class IntakeFailure extends Error {
+  constructor(message, payload) {
+    super(message);
+    this.name = "IntakeFailure";
+    this.payload = payload;
+  }
+}
+
+function isIntakeFailure(error) {
+  return error instanceof IntakeFailure && error.payload && typeof error.payload === "object";
+}
 
 function readEvent() {
   return JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -29,6 +45,47 @@ function readEvent() {
 
 function git(args) {
   execFileSync("git", args, { stdio: "inherit" });
+}
+
+function gitRemoteBranchExists(branch) {
+  try {
+    execFileSync("git", ["ls-remote", "--exit-code", "--heads", "origin", branch], {
+      stdio: ["ignore", "ignore", "ignore"]
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function writeIntakeFailurePayload({ failurePath, payload, writeFileImpl = fs.writeFileSync }) {
+  const normalizedPath = `${failurePath || ""}`.trim();
+
+  if (!normalizedPath) {
+    return;
+  }
+
+  writeFileImpl(normalizedPath, `${JSON.stringify(payload)}\n`);
+}
+
+function buildBranchExistsFailure({ issueNumber, branch, artifactsPath }) {
+  return {
+    code: INTAKE_FAILURE_CODES.branchExists,
+    issueNumber,
+    branch,
+    artifactsPath,
+    nextAction: RETRY_ACTION_TEXT
+  };
+}
+
+function isPushBranchCollision(error) {
+  const combined = `${error?.stderr || ""}\n${error?.stdout || ""}\n${error?.message || ""}`;
+
+  return (
+    /non-fast-forward/i.test(combined) ||
+    /fetch first/i.test(combined) ||
+    /failed to push some refs/i.test(combined)
+  );
 }
 
 const TRUSTED_PERMISSIONS = new Set(["write", "maintain", "admin"]);
@@ -46,6 +103,7 @@ export async function prepareIntake({
   setOutputsImpl = setOutputs,
   mkdirImpl = fs.mkdirSync,
   writeFileImpl = fs.writeFileSync,
+  branchExistsImpl = gitRemoteBranchExists,
   env = process.env
 } = {}) {
   const event = payload ?? readEventImpl();
@@ -105,15 +163,51 @@ export async function prepareIntake({
   const maxRepairAttempts =
     Number(env.FACTORY_MAX_REPAIR_ATTEMPTS) || DEFAULT_MAX_REPAIR_ATTEMPTS;
 
+  async function failForExistingBranch() {
+    const failure = buildBranchExistsFailure({
+      issueNumber: issue.number,
+      branch,
+      artifactsPath
+    });
+
+    await applyRejectionLabel();
+    setOutputsImpl({
+      intake_failure: JSON.stringify(failure)
+    });
+    writeIntakeFailurePayload({
+      failurePath: env.FACTORY_INTAKE_FAILURE_PATH,
+      payload: failure,
+      writeFileImpl
+    });
+    throw new IntakeFailure(
+      `Factory planning branch already exists on origin: ${branch}`,
+      failure
+    );
+  }
+
   gitImpl(["config", "user.name", "github-actions[bot]"]);
   gitImpl(["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
   gitImpl(["fetch", "origin", defaultBranch]);
+
+  if (branchExistsImpl(branch)) {
+    await failForExistingBranch();
+  }
+
   gitImpl(["checkout", "-B", branch, `origin/${defaultBranch}`]);
   mkdirImpl(artifactsPath, { recursive: true });
   writeFileImpl(path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME), issue.body || "");
   gitImpl(["add", path.join(artifactsPath, APPROVED_ISSUE_FILE_NAME)]);
   gitImpl(["commit", "-m", INTAKE_COMMIT_MESSAGE]);
-  gitImpl(["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+  try {
+    gitImpl(["push", "origin", `HEAD:refs/heads/${branch}`]);
+  } catch (error) {
+    if (isPushBranchCollision(error)) {
+      await failForExistingBranch();
+    }
+
+    throw error;
+  }
 
   setOutputsImpl({
     issue_number: issue.number,
@@ -131,6 +225,9 @@ if (isDirectExecution) {
   try {
     await prepareIntake();
   } catch (error) {
+    if (isIntakeFailure(error)) {
+      console.error(`FACTORY_INTAKE_FAILURE=${JSON.stringify(error.payload)}`);
+    }
     console.error(`${error.message}`);
     process.exitCode = 1;
   }
