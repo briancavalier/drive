@@ -15,7 +15,8 @@ import {
   applyPendingReviewSha,
   buildProjectedLabels,
   canonicalizeUpdatedMetadata,
-  resolveNextStatus
+  resolveNextStatus,
+  applyArtifactRef
 } from "../scripts/apply-pr-state.mjs";
 import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "../scripts/lib/factory-config.mjs";
 import {
@@ -149,6 +150,36 @@ test("applyPauseReason clears when requested", () => {
   const nextMetadata = applyPauseReason(metadata, " ");
 
   assert.equal(nextMetadata.pauseReason, null);
+});
+
+test("applyArtifactRef respects __UNCHANGED__", () => {
+  const metadata = defaultPrMetadata({
+    artifactRef: "factory/12-sample"
+  });
+
+  const nextMetadata = applyArtifactRef(metadata, "__UNCHANGED__");
+
+  assert.equal(nextMetadata.artifactRef, "factory/12-sample");
+});
+
+test("applyArtifactRef clears value when requested", () => {
+  const metadata = defaultPrMetadata({
+    artifactRef: "factory/12-sample"
+  });
+
+  const nextMetadata = applyArtifactRef(metadata, "__CLEAR__");
+
+  assert.equal(nextMetadata.artifactRef, null);
+});
+
+test("applyArtifactRef trims and sets provided ref", () => {
+  const metadata = defaultPrMetadata({
+    artifactRef: null
+  });
+
+  const nextMetadata = applyArtifactRef(metadata, " main ");
+
+  assert.equal(nextMetadata.artifactRef, "main");
 });
 
 test("applyCostEstimateMetadata updates advisory cost fields", () => {

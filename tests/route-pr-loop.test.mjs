@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { routeEvent } from "../scripts/route-pr-loop.mjs";
+import { resolveConcurrencyKey, routeEvent } from "../scripts/route-pr-loop.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
 import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 
@@ -200,6 +200,53 @@ test("routeEvent trusts automation review actors without collaborator lookup", a
   assert.equal(collaboratorLookups, 0);
 });
 
+test("routeEvent emits finalize_merge for merged pull request events with factory metadata", async () => {
+  const payload = {
+    action: "closed",
+    pull_request: {
+      number: 33,
+      merged: true,
+      body: managedPrBody("plan_ready"),
+      head: sameRepoHead(),
+      base: {
+        ref: "main",
+        ...sameRepoBase()
+      }
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload
+  });
+
+  assert.equal(route.action, "finalize_merge");
+  assert.equal(route.prNumber, 33);
+  assert.equal(route.issueNumber, 12);
+  assert.equal(route.branch, "factory/12-sample");
+  assert.equal(route.baseBranch, "main");
+  assert.equal(route.finalArtifactRef, "main");
+  assert.equal(route.artifactsPath, ".factory/runs/12");
+});
+
+test("routeEvent ignores merged pull request events without factory metadata", async () => {
+  const payload = {
+    action: "closed",
+    pull_request: {
+      number: 33,
+      merged: true,
+      body: "Hello world"
+    }
+  };
+
+  const route = await routeEvent({
+    eventName: "pull_request",
+    payload
+  });
+
+  assert.equal(route.action, "noop");
+});
+
 test("routeEvent downgrades implement to noop when live PR is fork-backed", async () => {
   const payload = prIssueCommentPayload("/factory implement");
 
@@ -362,4 +409,138 @@ test("routeEvent downgrades workflow_run to noop when the workflow head SHA is s
   });
 
   assert.equal(route.action, "noop");
+});
+
+test("resolveConcurrencyKey uses the PR number across mixed PR event routes", async () => {
+  const issueCommentRoute = await routeEvent({
+    eventName: "issue_comment",
+    payload: prIssueCommentPayload("/factory implement"),
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody(),
+        labels: managedLabels(),
+        head: sameRepoHead(),
+        base: sameRepoBase()
+      }),
+      getCollaboratorPermission: async () => ({ permission: "write" }),
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  const reviewPayload = {
+    action: "submitted",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 60,
+      state: "changes_requested",
+      body: "Please tighten the tests.",
+      user: { login: "briancavalier" }
+    },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("implementing"),
+      labels: managedLabels(),
+      head: sameRepoHead(),
+      base: sameRepoBase()
+    }
+  };
+  const reviewRoute = await routeEvent({
+    eventName: "pull_request_review",
+    payload: reviewPayload,
+    githubClient: {
+      getPullRequest: async () => reviewPayload.pull_request,
+      getCollaboratorPermission: async () => ({ permission: "write" }),
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  const workflowPayload = {
+    repository: { full_name: "example/repo" },
+    workflow_run: {
+      id: 77,
+      name: "CI",
+      conclusion: "success",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      head_sha: "live123",
+      repository: { full_name: "example/repo" },
+      pull_requests: [{ number: 33 }]
+    }
+  };
+  const workflowRoute = await routeEvent({
+    eventName: "workflow_run",
+    payload: workflowPayload,
+    githubClient: {
+      getPullRequest: async () => ({
+        number: 33,
+        body: managedPrBody("repairing"),
+        labels: managedLabels(),
+        head: sameRepoHead(),
+        base: sameRepoBase()
+      }),
+      findOpenPullRequestByHead: async () => null
+    }
+  });
+
+  const pullRequestPayload = {
+    action: "closed",
+    repository: { full_name: "example/repo" },
+    pull_request: {
+      number: 33,
+      body: managedPrBody("reviewing"),
+      labels: managedLabels(),
+      head: sameRepoHead(),
+      base: sameRepoBase(),
+      merged: true
+    }
+  };
+  const pullRequestRoute = await routeEvent({
+    eventName: "pull_request",
+    payload: pullRequestPayload
+  });
+
+  assert.equal(resolveConcurrencyKey({ route: issueCommentRoute }), "pr-33");
+  assert.equal(resolveConcurrencyKey({ route: reviewRoute, payload: reviewPayload }), "pr-33");
+  assert.equal(resolveConcurrencyKey({ route: workflowRoute, payload: workflowPayload }), "pr-33");
+  assert.equal(
+    resolveConcurrencyKey({ route: pullRequestRoute, payload: pullRequestPayload }),
+    "pr-33"
+  );
+});
+
+test("resolveConcurrencyKey falls back to the issue number for issue-only routes", () => {
+  const key = resolveConcurrencyKey({
+    route: {
+      action: "start",
+      issueNumber: 12
+    }
+  });
+
+  assert.equal(key, "issue-12");
+});
+
+test("resolveConcurrencyKey falls back to the branch when only branch context is known", () => {
+  const key = resolveConcurrencyKey({
+    route: {
+      action: "noop",
+      branch: "factory/12-sample"
+    }
+  });
+
+  assert.equal(key, "branch-factory/12-sample");
+});
+
+test("resolveConcurrencyKey keeps the PR key for stale workflow_run payloads", () => {
+  const key = resolveConcurrencyKey({
+    route: { action: "noop" },
+    payload: {
+      workflow_run: {
+        head_branch: "factory/12-sample",
+        pull_requests: [{ number: 33 }]
+      }
+    }
+  });
+
+  assert.equal(key, "pr-33");
 });

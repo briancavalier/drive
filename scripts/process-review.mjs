@@ -4,6 +4,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 import {
+  getPullRequest,
   commentOnIssue,
   submitPullRequestReview
 } from "./lib/github.mjs";
@@ -16,6 +17,7 @@ import {
   classifyFailure,
   FAILURE_TYPES
 } from "./lib/failure-classification.mjs";
+import { validateTrustedFactoryContext } from "./lib/factory-trust.mjs";
 import { loadValidatedReviewArtifacts } from "./lib/review-artifacts.mjs";
 
 function gitRevParse(ref = "HEAD") {
@@ -32,6 +34,10 @@ function requiredEnv(env, name) {
   }
 
   return value;
+}
+
+function buildStaleReviewMessage(reason) {
+  return `Skipping stale autonomous review delivery: ${reason}`;
 }
 
 async function runApplyPrState(execFileAsync, env, envOverrides) {
@@ -65,6 +71,35 @@ async function clearPendingReviewSha({
   }
 }
 
+async function cleanupStaleReviewState({
+  execFileAsync,
+  env,
+  ciStatus,
+  liveMetadata,
+  ownedHeadSha
+}) {
+  const livePendingReviewSha = `${liveMetadata?.pendingReviewSha || ""}`.trim();
+  const normalizedOwnedHeadSha = `${ownedHeadSha || ""}`.trim();
+  const staleWorkerOwnsPendingSha =
+    livePendingReviewSha &&
+    normalizedOwnedHeadSha &&
+    (livePendingReviewSha === normalizedOwnedHeadSha ||
+      livePendingReviewSha === "HEAD");
+
+  try {
+    await runApplyPrState(execFileAsync, env, {
+      FACTORY_PENDING_REVIEW_SHA: staleWorkerOwnsPendingSha ? "" : "__UNCHANGED__",
+      FACTORY_PENDING_STAGE_DECISION: "__CLEAR__",
+      FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied",
+      FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false",
+      FACTORY_CI_STATUS: `${ciStatus || env.FACTORY_CI_STATUS || ""}`.trim() || "pending",
+      FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: "__UNCHANGED__"
+    });
+  } catch (error) {
+    console.warn(`Failed to clean up stale review state: ${error.message}`);
+  }
+}
+
 async function handlePass({
   review,
   artifactsPath,
@@ -86,7 +121,8 @@ async function handlePass({
   try {
     currentHead = gitRevParse("HEAD");
   } catch (error) {
-    currentHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    const fallbackHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    currentHead = fallbackHead || "HEAD";
   }
 
     await runApplyPrState(execFileAsync, env, {
@@ -185,17 +221,34 @@ export function classifyProcessReviewFailure(error) {
 export async function processReview({
   env = process.env,
   githubClient = {
+    getPullRequest,
     commentOnIssue,
     submitPullRequestReview
   },
   execFileImpl = execFile
 } = {}) {
+  const shouldValidateLiveState = typeof githubClient?.getPullRequest === "function";
+  const resolvedGithubClient = {
+    getPullRequest,
+    commentOnIssue,
+    submitPullRequestReview,
+    ...githubClient
+  };
   const execFileAsync = promisify(execFileImpl);
   const prNumber = Number(requiredEnv(env, "FACTORY_PR_NUMBER"));
   const issueNumber = Number(requiredEnv(env, "FACTORY_ISSUE_NUMBER"));
   const artifactsPath = requiredEnv(env, "FACTORY_ARTIFACTS_PATH");
   const branch = requiredEnv(env, "FACTORY_BRANCH");
   const requestedMethod = env.FACTORY_REVIEW_METHOD || "";
+  const expectedCiRunId = `${env.FACTORY_CI_RUN_ID || ""}`.trim();
+  let currentHead = "";
+
+  try {
+    currentHead = gitRevParse("HEAD");
+  } catch (error) {
+    const fallbackHead = `${env.FACTORY_LAST_READY_SHA || ""}`.trim();
+    currentHead = fallbackHead || "HEAD";
+  }
   const repositoryUrl =
     env.FACTORY_REPOSITORY_URL ||
     (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
@@ -208,6 +261,78 @@ export async function processReview({
 
   if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
     throw new Error("FACTORY_ISSUE_NUMBER must be a positive integer");
+  }
+
+  if (shouldValidateLiveState) {
+    const livePullRequest = await resolvedGithubClient.getPullRequest(prNumber);
+    const trustedContext = validateTrustedFactoryContext({
+      payload: {
+        repositoryFullName: env.GITHUB_REPOSITORY || ""
+      },
+      pullRequest: livePullRequest,
+      candidateBranch: branch,
+      candidateIssueNumber: issueNumber,
+      candidateArtifactsPath: artifactsPath
+    });
+
+    if (!trustedContext.trusted) {
+      const message = buildStaleReviewMessage(trustedContext.reason);
+      await cleanupStaleReviewState({
+        execFileAsync,
+        env,
+        liveMetadata: trustedContext.metadata,
+        ownedHeadSha: currentHead
+      });
+      console.log(message);
+      return;
+    }
+
+    const metadata = trustedContext.metadata || {};
+    if (metadata.status !== FACTORY_PR_STATUSES.reviewing) {
+      const message = buildStaleReviewMessage(
+        `PR status is ${metadata.status || "unknown"} instead of ${FACTORY_PR_STATUSES.reviewing}`
+      );
+      await cleanupStaleReviewState({
+        execFileAsync,
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
+      });
+      console.log(message);
+      return;
+    }
+
+    if (
+      expectedCiRunId &&
+      `${metadata.lastProcessedWorkflowRunId || ""}`.trim() &&
+      `${metadata.lastProcessedWorkflowRunId}` !== expectedCiRunId
+    ) {
+      const message = buildStaleReviewMessage(
+        `last processed workflow run ${metadata.lastProcessedWorkflowRunId} no longer matches ${expectedCiRunId}`
+      );
+      await cleanupStaleReviewState({
+        execFileAsync,
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
+      });
+      console.log(message);
+      return;
+    }
+
+    if (`${livePullRequest.head?.sha || ""}`.trim() !== currentHead) {
+      const message = buildStaleReviewMessage(
+        `PR head ${livePullRequest.head?.sha || "unknown"} no longer matches local review head ${currentHead}`
+      );
+      await cleanupStaleReviewState({
+        execFileAsync,
+        env,
+        liveMetadata: metadata,
+        ownedHeadSha: currentHead
+      });
+      console.log(message);
+      return;
+    }
   }
 
   let review;
@@ -239,7 +364,7 @@ export async function processReview({
         repositoryUrl,
         env,
         execFileAsync,
-        githubClient
+        githubClient: resolvedGithubClient
       });
       console.log("Autonomous review passed. PR marked ready for human review.");
       return;
@@ -252,7 +377,7 @@ export async function processReview({
       prNumber,
       branch,
       repositoryUrl,
-      githubClient
+      githubClient: resolvedGithubClient
     });
     await clearPendingReviewSha({
       execFileAsync,

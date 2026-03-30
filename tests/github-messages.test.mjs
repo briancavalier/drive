@@ -84,12 +84,44 @@ function sampleReviewArtifacts({
     findings
   };
   const traceability = renderCanonicalTraceabilityMarkdown(derivedRequirementChecks);
+  const blockingFindings = findings.filter((finding) => finding.level === "blocking");
+  const nonBlockingFindings = findings.filter(
+    (finding) => finding.level === "non_blocking"
+  );
   const sections = [
     `decision: ${decision}`,
     "",
-    "## Review Notes",
-    "- Generated for tests."
+    "## 📝 Summary",
+    summary,
+    "",
+    "## 🚨 Blocking Findings"
   ];
+
+  if (blockingFindings.length) {
+    sections.push("");
+
+    for (const finding of blockingFindings) {
+      sections.push(
+        `- **${finding.title}** (${finding.scope}) -- ${finding.details} Recommendation: ${finding.recommendation}`
+      );
+    }
+  } else {
+    sections.push("", "No blocking findings.");
+  }
+
+  sections.push("", "## ⚠️ Non-Blocking Notes");
+
+  if (nonBlockingFindings.length) {
+    sections.push("");
+
+    for (const finding of nonBlockingFindings) {
+      sections.push(
+        `- **${finding.title}** (${finding.scope}) -- ${finding.details} Recommendation: ${finding.recommendation}`
+      );
+    }
+  } else {
+    sections.push("", "_None._");
+  }
 
   if (additionalMarkdown.trim()) {
     sections.push("", additionalMarkdown.trim());
@@ -126,6 +158,7 @@ test("renderPrBody uses valid override templates and preserves parseable metadat
   assert.match(body, /# Custom Factory Run/);
   assert.equal(metadata.issueNumber, 7);
   assert.equal(metadata.status, "plan_ready");
+  assert.equal(metadata.artifactRef, null);
 });
 
 test("renderPrBody falls back to default template when required tokens are missing", () => {
@@ -214,6 +247,29 @@ test("renderPrBody renders plan_ready dashboard layout", () => {
   );
 
   assert.ok(lines.includes("Closes #7"));
+});
+
+test("renderPrBody uses artifactRef override for dashboard links", () => {
+  const input = prBodyInput();
+  const body = renderPrBody({
+    ...input,
+    artifactRef: "main",
+    metadata: {
+      ...input.metadata,
+      artifactRef: "main"
+    }
+  });
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.artifactRef, "main");
+  assert.match(
+    body,
+    /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/spec\.md\)/
+  );
+  assert.match(
+    body,
+    /\[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/review\.md\)/
+  );
 });
 
 test("renderPrBody renders blocked summary with stage from blockedAction", () => {
@@ -667,17 +723,36 @@ test("buildReviewConversationBody returns summary header plus full review when w
 
   assert.match(body, /^## Factory Review/m);
   assert.match(body, /\*\*✅ PASS\*\* · Method: `workflow-safety`/);
-  assert.match(body, /\*\*Summary:\*\* Everything looks good\./);
+  assert.ok(!body.includes("**Summary:**"), "summary line should not appear in header");
   assert.match(body, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
   assert.match(
     body,
     /\*\*Artifacts:\*\* \[Review summary\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/11-layout\/\.factory\/runs\/11\/review\.md\) · \[Review JSON\]\(https:\/\/github\.com\/example\/repo\/blob\/factory\/11-layout\/\.factory\/runs\/11\/review\.json\)/
   );
-  assert.match(body, /### Blocking Findings\n- None\./);
   assert.match(body, /### Requirement Gaps\n- None\./);
-  assert.ok(body.includes("decision: pass"));
-  assert.ok(body.includes("<summary>🧭 Traceability</summary>"));
+
+  const summaryDetails = body.match(
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+  assert.match(summaryDetails[1], /Everything looks good\./);
+
+  const blockingDetails = body.match(
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /No blocking findings\./);
+
+  const nonBlockingDetails = body.match(
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+  assert.match(nonBlockingDetails[1], /_None\._/);
+
+  const traceabilityMatches = body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
   assert.ok(!body.includes("## 🧭 Traceability"));
+  assert.ok(!body.includes("decision: pass"));
 });
 
 test("buildReviewConversationBody retains traceability anchor when truncated", () => {
@@ -721,6 +796,9 @@ test("buildReviewConversationBody retains traceability anchor when truncated", (
   assert.match(body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `workflow-safety`/);
   assert.match(body, /Blocking 1 · Requirement gaps 1/);
   assert.match(body, /Review truncated after traceability details\./);
+  const truncatedTraceabilityMatches = body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(truncatedTraceabilityMatches.length, 1);
+  assert.ok(!body.includes("decision: request_changes"));
   assert.ok(body.length <= 600);
 });
 
@@ -741,5 +819,44 @@ test("buildReviewConversationBody falls back to raw slice when traceability anch
 
   assert.match(body, /Review truncated after traceability details/);
   assert.match(body, /## Factory Review/);
+  const fallbackTraceabilityMatches = body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(fallbackTraceabilityMatches.length, 1);
+  assert.ok(!body.includes("decision: pass"));
   assert.ok(body.length <= 220);
+});
+
+test("buildReviewConversationBody filters legacy decision lines and duplicate traceability", () => {
+  const artifactsPath = ".factory/runs/72";
+  const duplicateExtras = [
+    "decision: pass",
+    "",
+    "<details>",
+    "<summary>🧭 Traceability</summary>",
+    "",
+    "- Duplicate <details> traceability block.",
+    "",
+    "</details>",
+    "",
+    "## 🧭 Traceability",
+    "",
+    "- Legacy heading traceability block."
+  ].join("\n");
+  const { review, reviewMarkdown } = sampleReviewArtifacts({
+    additionalMarkdown: duplicateExtras
+  });
+
+  const body = buildReviewConversationBody({
+    review,
+    reviewMarkdown,
+    artifactsPath,
+    repositoryUrl: "https://github.com/example/repo",
+    branch: "factory/72-cleanup"
+  });
+
+  const traceabilityMatches = body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!body.includes("## 🧭 Traceability"));
+  assert.ok(!body.includes("<details>\n<summary>🧭 Traceability</summary>\n\n- Duplicate <details> traceability block."));
+  assert.ok(!body.includes("decision: pass"));
+  assert.match(body, /All acceptance criteria satisfied\./);
 });

@@ -37,6 +37,7 @@ test("renderPrBody embeds parseable metadata", () => {
   assert.equal(metadata.pendingStageDecision, null);
   assert.equal(metadata.costEstimateUsd, 0);
   assert.equal(metadata.costEstimateBand, "");
+  assert.equal(metadata.artifactRef, null);
   assert.match(body, /Closes #7/);
   assert.match(body, /\[Spec\]\(https:\/\/github\.com\/example\/repo\/blob\//);
   assert.match(body, /\[Cost summary\]\(https:\/\/github\.com\/example\/repo\/blob\//);
@@ -102,6 +103,26 @@ test("renderPrBody rewrites metadata and links to the canonical artifacts path",
   assert.match(body, /\.factory\/runs\/7\/spec\.md/);
 });
 
+test("renderPrBody overrides artifact links when artifactRef provided", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    artifactRef: "main",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "plan_ready"
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.artifactRef, "main");
+  assert.match(body, /https:\/\/github\.com\/example\/repo\/blob\/main\/\.factory\/runs\/7\/spec\.md/);
+});
+
 test("canonicalizePrMetadata preserves unrelated metadata fields while fixing artifacts path", () => {
   const metadata = canonicalizePrMetadata({
     issueNumber: 7,
@@ -118,6 +139,17 @@ test("canonicalizePrMetadata preserves unrelated metadata fields while fixing ar
   assert.equal(metadata.artifactsPath, ".factory/runs/7");
   assert.equal(metadata.status, "reviewing");
   assert.equal(metadata.intervention.payload.stageNoopAttempts, 2);
+});
+
+test("canonicalizePrMetadata normalizes artifactRef to trimmed string", () => {
+  const metadata = canonicalizePrMetadata({
+    issueNumber: 7,
+    artifactsPath: ".factory/runs/7",
+    artifactRef: " main ",
+    status: "reviewing"
+  });
+
+  assert.equal(metadata.artifactRef, "main");
 });
 
 test("defaultPrMetadata includes a null intervention by default", () => {

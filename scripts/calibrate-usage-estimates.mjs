@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { USAGE_CALIBRATION_FILE_NAME, USAGE_EVENTS_DIR } from "./lib/cost-estimation.mjs";
 import { loadUsageEvents } from "./lib/cost-telemetry.mjs";
+import { setOutputs } from "./lib/actions-output.mjs";
 
 const OUTPUT_PATH = path.join(".factory", USAGE_CALIBRATION_FILE_NAME);
 
@@ -12,6 +13,18 @@ function roundToFour(value) {
 
 function isUsableCount(value) {
   return Number.isFinite(Number(value)) && Number(value) > 0;
+}
+
+function maybeReadJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 function bucketKey(event) {
@@ -91,13 +104,33 @@ function aggregate(events) {
   return { buckets, skipped };
 }
 
-function buildCalibrationPayload(events) {
+function normalizeBucketForComparison(bucket = {}) {
+  const { generatedAt: _generatedAt, ...rest } = bucket;
+  return rest;
+}
+
+function normalizeCalibrationForComparison(calibration = {}) {
+  const { generatedAt: _generatedAt, buckets: rawBuckets = {}, ...rest } = calibration;
+  const buckets = Object.fromEntries(
+    Object.entries(rawBuckets).map(([key, bucket]) => [
+      key,
+      normalizeBucketForComparison(bucket)
+    ])
+  );
+
+  return {
+    ...rest,
+    buckets
+  };
+}
+
+function buildCalibrationPayload(events, existingCalibration = null) {
   const { buckets, skipped } = aggregate(events);
   const generatedAt = new Date().toISOString();
   const outputBuckets = {};
 
   for (const [key, bucket] of buckets.entries()) {
-    outputBuckets[key] = {
+    const nextBucket = {
       provider: bucket.provider,
       category: bucket.category,
       stage: bucket.stage,
@@ -139,13 +172,34 @@ function buildCalibrationPayload(events) {
       },
       source: "telemetry"
     };
+
+    const existingBucket = existingCalibration?.buckets?.[key];
+    if (
+      existingBucket &&
+      JSON.stringify(normalizeBucketForComparison(existingBucket)) ===
+        JSON.stringify(normalizeBucketForComparison(nextBucket))
+    ) {
+      nextBucket.generatedAt = existingBucket.generatedAt || generatedAt;
+    }
+
+    outputBuckets[key] = nextBucket;
+  }
+
+  const nextCalibration = {
+    generatedAt,
+    buckets: outputBuckets
+  };
+
+  if (
+    existingCalibration &&
+    JSON.stringify(normalizeCalibrationForComparison(existingCalibration)) ===
+      JSON.stringify(normalizeCalibrationForComparison(nextCalibration))
+  ) {
+    nextCalibration.generatedAt = existingCalibration.generatedAt || generatedAt;
   }
 
   return {
-    calibration: {
-      generatedAt,
-      buckets: outputBuckets
-    },
+    calibration: nextCalibration,
     bucketsUpdated: buckets.size,
     entriesEvaluated: events.length,
     entriesSkipped: skipped
@@ -160,10 +214,18 @@ function writeCalibrationFile(calibration, outputPath = OUTPUT_PATH) {
 
 export function main() {
   const events = loadUsageEvents(USAGE_EVENTS_DIR);
+  const existingCalibration = maybeReadJson(OUTPUT_PATH);
   const { calibration, bucketsUpdated, entriesEvaluated, entriesSkipped } =
-    buildCalibrationPayload(events);
+    buildCalibrationPayload(events, existingCalibration);
 
-  writeCalibrationFile(calibration, OUTPUT_PATH);
+  const outputPath = writeCalibrationFile(calibration, OUTPUT_PATH);
+
+  setOutputs({
+    output_path: outputPath,
+    buckets_updated: String(bucketsUpdated),
+    entries_evaluated: String(entriesEvaluated),
+    entries_skipped: String(entriesSkipped)
+  });
 
   if (bucketsUpdated === 0) {
     console.log(
@@ -178,6 +240,13 @@ export function main() {
   if (entriesSkipped > 0) {
     console.log(`Skipped ${entriesSkipped} usage events without actual usage data.`);
   }
+
+  return {
+    outputPath,
+    bucketsUpdated,
+    entriesEvaluated,
+    entriesSkipped
+  };
 }
 
 const isDirectExecution =

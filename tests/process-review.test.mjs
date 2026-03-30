@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   classifyReviewArtifactsFailure,
   classifyProcessReviewFailure,
@@ -10,6 +11,7 @@ import {
   processReview
 } from "../scripts/process-review.mjs";
 import { FAILURE_TYPES } from "../scripts/lib/failure-classification.mjs";
+import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
 import { renderCanonicalTraceabilityMarkdown } from "../scripts/lib/review-output.mjs";
 
 process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "process-review-output.txt");
@@ -109,9 +111,65 @@ function baseEnv(overrides = {}) {
     FACTORY_PR_NUMBER: "33",
     FACTORY_ISSUE_NUMBER: "1",
     FACTORY_BRANCH: "factory/1-sample",
+    GITHUB_REPOSITORY: "example/repo",
+    GITHUB_SERVER_URL: "https://github.com",
     FACTORY_ARTIFACTS_PATH: overrides.artifactsPath || "",
     FACTORY_REVIEW_METHOD: overrides.reviewMethod || "default",
     ...overrides.env
+  };
+}
+
+function currentHeadSha() {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8"
+    }).trim();
+  } catch {
+    return "HEAD";
+  }
+}
+
+function livePrBody(metadataOverrides = {}) {
+  return renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/1",
+    metadata: {
+      issueNumber: 1,
+      artifactsPath: ".factory/runs/1",
+      status: "reviewing",
+      repairAttempts: 0,
+      maxRepairAttempts: 3,
+      lastProcessedWorkflowRunId: null,
+      ...metadataOverrides
+    }
+  });
+}
+
+function createGithubClient(overrides = {}, metadataOverrides = {}, prOverrides = {}) {
+  return {
+    getPullRequest: async () => ({
+      number: 33,
+      body: livePrBody(metadataOverrides),
+      head: {
+        ref: "factory/1-sample",
+        sha: currentHeadSha(),
+        repo: {
+          full_name: "example/repo",
+          fork: false
+        }
+      },
+      base: {
+        repo: {
+          full_name: "example/repo"
+        }
+      },
+      ...prOverrides
+    }),
+    commentOnIssue: async () => {},
+    submitPullRequestReview: async () => {},
+    ...overrides
   };
 }
 
@@ -155,13 +213,34 @@ test("processReview marks PR ready and comments on pass decision", async () => {
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
   assert.match(commentBody, /## Factory Review/);
   assert.match(commentBody, /\*\*✅ PASS\*\* · Method: `default`/);
-  assert.match(commentBody, /\*\*Summary:\*\* All acceptance criteria are satisfied\./);
+  assert.ok(!commentBody.includes("**Summary:**"));
   assert.match(commentBody, /\*\*Findings:\*\* Blocking 0 · Requirement gaps 0/);
   assert.match(
     commentBody,
     /\*\*Artifacts:\*\* \[Review summary]\(.+\/review\.md\) · \[Review JSON]\(.+\/review\.json\)/
   );
-  assert.ok(commentBody.includes("<summary>🧭 Traceability</summary>"));
+  const summaryDetails = commentBody.match(
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+  assert.match(summaryDetails[1], /All acceptance criteria are satisfied\./);
+
+  const blockingDetails = commentBody.match(
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /No blocking findings\./);
+
+  const nonBlockingDetails = commentBody.match(
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+  assert.match(nonBlockingDetails[1], /_None\._/);
+
+  const traceabilityMatches = commentBody.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!commentBody.includes("## 🧭 Traceability"));
+  assert.ok(!commentBody.includes("decision: pass"));
 });
 
 test("processReview accepts workflow-safety methodology configuration", async () => {
@@ -440,10 +519,28 @@ test("processReview normalizes mixed-case enums before rendering request changes
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
-  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
+  const summaryDetails = reviewPayload.body.match(
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const nonBlockingDetails = reviewPayload.body.match(
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+  assert.match(nonBlockingDetails[1], /_None\._/);
+  assert.match(nonBlockingDetails[1], /_None\._/);
+
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!reviewPayload.body.includes("## 🧭 Traceability"));
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
   assert.match(reviewPayload.body, /`not_satisfied`/);
   assert.match(reviewPayload.body, /#### Acceptance Criteria \(❌ 1\)/);
   assert.match(
@@ -538,16 +635,30 @@ test("processReview submits REQUEST_CHANGES review when decision requests change
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
   assert.match(reviewPayload.body, /## Factory Review/);
   assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
-  assert.match(reviewPayload.body, /## 🚨 Blocking Findings/);
-  assert.match(reviewPayload.body, /### Missing tests/);
-  assert.match(reviewPayload.body, /<details>/);
+  const summaryDetails = reviewPayload.body.match(
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const nonBlockingDetails = reviewPayload.body.match(
+    /<details open>\n<summary>⚠️ Non-Blocking Notes<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(nonBlockingDetails, "expected non-blocking notes details block");
+
   assert.match(
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
-  assert.ok(reviewPayload.body.includes("<summary>🧭 Traceability</summary>"));
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
   assert.doesNotMatch(reviewPayload.body, /## 🧭 Traceability/);
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
@@ -581,6 +692,136 @@ test("processReview clears pending review SHA when validation fails early", asyn
   assert.equal(execCalls.length, 1);
   assert.deepEqual(execCalls[0].args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+});
+
+test("processReview no-ops when the live PR is no longer reviewing", async () => {
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+  let commentCalls = 0;
+  let reviewCalls = 0;
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {
+        commentOnIssue: async () => {
+          commentCalls += 1;
+        },
+        submitPullRequestReview: async () => {
+          reviewCalls += 1;
+        }
+      },
+      { status: "repairing" }
+    )
+  });
+
+  assert.equal(commentCalls, 0);
+  assert.equal(reviewCalls, 0);
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview no-ops when the live PR workflow run no longer matches", async () => {
+  const env = baseEnv({
+    artifactsPath: ".factory/runs/1",
+    env: {
+      FACTORY_CI_RUN_ID: "200"
+    }
+  });
+  const execCalls = [];
+  let commentCalls = 0;
+  let reviewCalls = 0;
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {
+        commentOnIssue: async () => {
+          commentCalls += 1;
+        },
+        submitPullRequestReview: async () => {
+          reviewCalls += 1;
+        }
+      },
+      { lastProcessedWorkflowRunId: "201" }
+    )
+  });
+
+  assert.equal(commentCalls, 0);
+  assert.equal(reviewCalls, 0);
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup clears pending review sha only when the worker owns it", async () => {
+  const headSha = currentHeadSha();
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: headSha
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
+});
+
+test("processReview stale cleanup preserves pending review sha when owned by a newer worker", async () => {
+  const env = baseEnv({ artifactsPath: ".factory/runs/1" });
+  const execCalls = [];
+
+  await processReview({
+    env,
+    execFileImpl: (file, args, options, callback) => {
+      execCalls.push({ file, args, options });
+      callback(null, "", "");
+    },
+    githubClient: createGithubClient(
+      {},
+      {
+        status: "repairing",
+        pendingReviewSha: "newer-pending-sha"
+      }
+    )
+  });
+
+  assert.equal(execCalls.length, 1);
+  assert.equal(execCalls[0].options.env.FACTORY_PENDING_REVIEW_SHA, "__UNCHANGED__");
+  assert.equal(
+    execCalls[0].options.env.FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID,
+    "__UNCHANGED__"
+  );
 });
 
 test("processReview main writes failure message output for workflow follow-up", async () => {
@@ -756,12 +997,29 @@ test("processReview uses configured request-changes overrides and preserves trun
   });
 
   assert.equal(reviewPayload.event, "REQUEST_CHANGES");
-  assert.match(reviewPayload.body, /# ❌ Autonomous Review Decision: REQUEST_CHANGES/);
+  assert.match(reviewPayload.body, /## Factory Review/);
+  assert.match(reviewPayload.body, /\*\*❌ REQUEST_CHANGES\*\* · Method: `default`/);
   assert.doesNotMatch(reviewPayload.body, /Review truncated after traceability details/);
   assert.match(
     reviewPayload.body,
     /\*\*Artifacts:\*\* \[Review summary\]\(.+\/review\.md\) · \[Review JSON\]\(.+\/review\.json\)/
   );
+  const summaryDetails = reviewPayload.body.match(
+    /<details open>\n<summary>📝 Summary<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(summaryDetails, "expected summary details block");
+
+  const blockingDetails = reviewPayload.body.match(
+    /<details open>\n<summary>🚨 Blocking Findings<\/summary>\n\n([\s\S]*?)\n\n<\/details>/
+  );
+  assert.ok(blockingDetails, "expected blocking findings details block");
+  assert.match(blockingDetails[1], /### Missing tests/);
+
+  const traceabilityMatches = reviewPayload.body.match(/<summary>🧭 Traceability<\/summary>/g) || [];
+  assert.equal(traceabilityMatches.length, 1);
+  assert.ok(!reviewPayload.body.includes("## 🧭 Traceability"));
+  assert.ok(!reviewPayload.body.includes("decision: request_changes"));
+  assert.doesNotMatch(reviewPayload.body, /OVERRIDE/);
 });
 
 test("processReview rejects missing requirement checks", async () => {
