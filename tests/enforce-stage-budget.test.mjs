@@ -89,6 +89,34 @@ test("enforceStageBudget observes non-implement stages without blocking", () => 
   assert.ok(!("failure_type" in outputs));
 });
 
+test("enforceStageBudget observes plan stages even before plan.md exists", () => {
+  const fixture = makeFixtureDir({
+    summary: createSummary({ band: "medium", stageUsd: 0.2, totalUsd: 0.2 }),
+    promptMeta: createPromptMeta({ truncated: ["issue-body"] }),
+    plan: "- Placeholder"
+  });
+  const outputs = {};
+
+  fs.rmSync(fixture.planPath);
+
+  const result = enforceStageBudget({
+    env: {
+      FACTORY_MODE: "plan",
+      FACTORY_ARTIFACTS_PATH: fixture.artifactsPath,
+      FACTORY_COST_SUMMARY_PATH: fixture.costSummaryPath,
+      FACTORY_PROMPT_META_PATH: fixture.promptMetaPath,
+      FACTORY_PLAN_PATH: fixture.planPath
+    },
+    outputWriter: (data) => Object.assign(outputs, data)
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.status, "observe");
+  assert.equal(outputs.budget_decision, "observe");
+  assert.equal(outputs.planned_path_count, "0");
+  assert.equal(outputs.control_plane_paths_detected, "false");
+});
+
 test("enforceStageBudget blocks high-cost implement runs", () => {
   const fixture = makeFixtureDir({
     summary: createSummary({ band: "high", stageUsd: 1.4, totalUsd: 1.4 }),

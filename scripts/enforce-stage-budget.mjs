@@ -127,12 +127,10 @@ export function enforceStageBudget({
 
   let summary;
   let promptMeta;
-  let planText;
 
   try {
     summary = readJson(costSummaryPath);
     promptMeta = readJson(promptMetaPath);
-    planText = readText(planPath);
   } catch (error) {
     writeDecision(
       {
@@ -156,22 +154,39 @@ export function enforceStageBudget({
   const omittedCount = Array.isArray(promptMeta?.omittedSections)
     ? promptMeta.omittedSections.length
     : 0;
-  const plannedPaths = extractPlannedPaths(planText, { artifactsPath });
-  const controlPlanePathsDetected = hasControlPlanePaths(plannedPaths);
-  const broadPathSurface = plannedPaths.length >= BROAD_PATH_COUNT_THRESHOLD;
-  const reasons = [];
 
   if (mode !== "implement") {
     writeDecision(
       {
         budget_decision: "observe",
-        planned_path_count: String(plannedPaths.length),
-        control_plane_paths_detected: controlPlanePathsDetected ? "true" : "false"
+        planned_path_count: "0",
+        control_plane_paths_detected: "false"
       },
       outputWriter
     );
     return { exitCode: 0, status: "observe" };
   }
+
+  let planText;
+
+  try {
+    planText = readText(planPath);
+  } catch (error) {
+    writeDecision(
+      {
+        budget_decision: "error",
+        failure_type: "configuration",
+        failure_message: error.message
+      },
+      outputWriter
+    );
+    return { exitCode: 1, status: "configuration_failure", message: error.message };
+  }
+
+  const plannedPaths = extractPlannedPaths(planText, { artifactsPath });
+  const controlPlanePathsDetected = hasControlPlanePaths(plannedPaths);
+  const broadPathSurface = plannedPaths.length >= BROAD_PATH_COUNT_THRESHOLD;
+  const reasons = [];
 
   if (costBand === "high") {
     reasons.push("Estimated implement cost is already in the high cost band.");
