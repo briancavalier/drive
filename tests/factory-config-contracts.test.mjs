@@ -626,3 +626,42 @@ test("factory intake finalize job checks out the planned factory branch before f
     /name:\s+Finalize planning state[\s\S]*?run:\s+node scripts\/finalize-plan\.mjs/
   );
 });
+
+test("usage calibration workflow supports manual and weekly triggers and opens replacement PRs", () => {
+  const workflowText = readWorkflowText("factory-update-usage-calibration.yml");
+
+  assert.match(workflowText, /workflow_dispatch:/);
+  assert.match(workflowText, /schedule:\s*\n\s*-\s+cron:\s*"0 15 \* \* 1"/);
+  assert.match(
+    workflowText,
+    /concurrency:\s*\n\s+group:\s+factory-update-usage-calibration\s*\n\s+cancel-in-progress:\s+false/
+  );
+  assert.match(
+    workflowText,
+    /permissions:\s*\n\s+contents:\s+write\n\s+pull-requests:\s+write/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Regenerate usage calibration[\s\S]*run:\s+node scripts\/calibrate-usage-estimates\.mjs/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Detect calibration diff[\s\S]*git diff --quiet -- \.factory\/usage-calibration\.json/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Stop when calibration is unchanged[\s\S]*Usage calibration unchanged; no PR created\./
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Prepare calibration branch[\s\S]*automation\/usage-calibration-\$\(date -u \+%Y%m%d-%H%M%S\)/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Commit calibration update[\s\S]*git add \.factory\/usage-calibration\.json[\s\S]*git commit -m "factory: update usage calibration"/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Open calibration pull request[\s\S]*run:\s+node scripts\/manage-usage-calibration-pr\.mjs/
+  );
+});
