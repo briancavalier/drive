@@ -33,6 +33,28 @@ function loadSelection(artifactsPath) {
   return JSON.parse(fs.readFileSync(selectionPath, "utf8"));
 }
 
+function mergeChecklist(reviewerArtifacts, reviewerDefinitions) {
+  const checklistArtifacts = reviewerArtifacts.filter((artifact) => {
+    const reviewerDefinition = reviewerDefinitions.find(
+      (reviewer) => reviewer.name === artifact.reviewer
+    );
+
+    return reviewerDefinition?.authority?.requires_checklist === "workflow-safety";
+  });
+
+  if (checklistArtifacts.length === 0) {
+    return null;
+  }
+
+  if (checklistArtifacts.length > 1) {
+    throw new Error(
+      "multi-review currently supports at most one checklist-producing reviewer in the final review"
+    );
+  }
+
+  return checklistArtifacts[0].checklist || null;
+}
+
 function mergeFindings(reviewerArtifacts, reviewerConfig) {
   const merged = new Map();
   const disagreements = [];
@@ -206,6 +228,7 @@ export function synthesizeMultiReview({
     reviewerArtifacts,
     reviewerConfig.policy.coordinator.record_disagreements
   );
+  const checklist = mergeChecklist(reviewerArtifacts, reviewerDefinitions);
   const findings = mergedFindings.findings;
   const requirementChecks = mergedRequirementChecks.requirementChecks;
   const disagreements = uniq([
@@ -225,6 +248,7 @@ export function synthesizeMultiReview({
     blocking_findings_count: countBlockingFindings(findings),
     requirement_checks: requirementChecks,
     findings,
+    ...(checklist ? { checklist } : {}),
     reviewers_run: reviewerArtifacts.map((artifact) => ({
       name: artifact.reviewer,
       status: artifact.status,

@@ -278,12 +278,15 @@ function validateReviewPayload(payload, expectedMethodology) {
   const blockingCount = ensureInteger(payload.blocking_findings_count, "blocking_findings_count");
   const requirementChecks = validateRequirementChecks(payload.requirement_checks);
   const findings = validateFindings(payload.findings);
-  const checklist =
-    methodology === "workflow-safety"
-      ? validateWorkflowSafetyChecklist(payload.checklist, decision)
-      : payload.checklist;
   const reviewersRun = validateReviewersRun(payload.reviewers_run);
   const disagreements = validateDisagreements(payload.disagreements);
+  const requiresWorkflowChecklist =
+    methodology === "workflow-safety" ||
+    (methodology === "multi-review" &&
+      reviewersRun.some((reviewer) => reviewer.name === "workflow_safety"));
+  const checklist = requiresWorkflowChecklist
+    ? validateWorkflowSafetyChecklist(payload.checklist, decision)
+    : payload.checklist;
   const computedBlocking = countBlockingFindings(findings);
 
   if (computedBlocking !== blockingCount) {

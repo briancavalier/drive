@@ -85,3 +85,71 @@ test("synthesizeMultiReview merges reviewer artifacts into final review output",
   assert.match(reviewMarkdown, /Reviewers/);
   assert.equal(review.disagreements.length, 1);
 });
+
+test("synthesizeMultiReview preserves workflow-safety checklist in final review output", () => {
+  const dir = makeArtifactsDir();
+  fs.writeFileSync(
+    path.join(dir, "reviewers", "selection.json"),
+    JSON.stringify(
+      {
+        mode: "multi_review",
+        selected_reviewers: [
+          { name: "traceability" },
+          { name: "workflow_safety" }
+        ],
+        skipped_reviewers: []
+      },
+      null,
+      2
+    )
+  );
+  writeReviewerArtifact(dir, "traceability", {
+    reviewer: "traceability",
+    summary: "Traceability is satisfied.",
+    status: "completed",
+    findings: [],
+    requirement_checks: [
+      {
+        type: "acceptance_criterion",
+        requirement: "Review output remains canonical.",
+        status: "satisfied",
+        evidence: ["Coordinator still emits review.json and review.md."]
+      }
+    ],
+    uncertainties: []
+  });
+  writeReviewerArtifact(dir, "workflow_safety", {
+    reviewer: "workflow_safety",
+    summary: "Workflow safety review completed.",
+    status: "completed",
+    findings: [],
+    requirement_checks: [
+      {
+        type: "plan_deliverable",
+        requirement: "Workflow safety review checklist is preserved in the final artifact.",
+        status: "satisfied",
+        evidence: ["workflow_safety reviewer produced a checklist artifact."]
+      }
+    ],
+    uncertainties: [],
+    checklist: {
+      state_changed: true,
+      writers_reviewed: true,
+      readers_reviewed: true,
+      workflow_paths_checked: true,
+      cleanup_paths_checked: true,
+      tests_evidence_checked: true,
+      residual_risks: "No additional residual workflow risks identified."
+    }
+  });
+
+  const { review } = synthesizeMultiReview({
+    artifactsPath: dir,
+    reviewerConfig: loadReviewerConfig()
+  });
+
+  assert.equal(review.methodology, "multi-review");
+  assert.equal(review.reviewers_run.length, 2);
+  assert.equal(review.reviewers_run[1].name, "workflow_safety");
+  assert.equal(review.checklist.state_changed, true);
+});
