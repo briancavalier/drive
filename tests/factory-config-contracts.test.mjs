@@ -492,7 +492,7 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
-    /name:\s+Stop on Codex failure[\s\S]*node scripts\/extract-codex-failure\.mjs ".factory\/tmp\/codex-run\.log"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)[\s\S]*failure_type="budget_guardrail"[\s\S]*hybrid implement Codex session after \$\{FACTORY_IMPLEMENT_TIMEOUT_MINUTES\} minute\(s\)/
+    /name:\s+Stop on Codex failure[\s\S]*node scripts\/extract-codex-failure\.mjs ".factory\/tmp\/codex-run\.log"[\s\S]*classifyFailure\(process\.argv\[1\] \|\| ""\)[\s\S]*steps\.codex_cli\.outputs\.exit_code[\s\S]*"124"[\s\S]*steps\.codex_cli\.outputs\.exit_code[\s\S]*"137"[\s\S]*failure_type="budget_guardrail"[\s\S]*runtime guardrail timed out the session and may have force-killed it/
   );
   assert.match(
     workflowText,

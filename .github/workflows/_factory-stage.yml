@@ -460,9 +460,9 @@ jobs:
             failure_message="$(node scripts/extract-codex-failure.mjs ".factory/tmp/codex-run.log")"
 
             failure_type="$(node --input-type=module -e 'import { classifyFailure } from "./scripts/lib/failure-classification.mjs"; process.stdout.write(classifyFailure(process.argv[1] || ""));' "$failure_message")"
-          elif [ "${{ inputs.mode }}" = "implement" ] && [ "${{ steps.codex_cli.outputs.exit_code }}" = "124" ]; then
+          elif [ "${{ inputs.mode }}" = "implement" ] && { [ "${{ steps.codex_cli.outputs.exit_code }}" = "124" ] || [ "${{ steps.codex_cli.outputs.exit_code }}" = "137" ]; }; then
             failure_type="budget_guardrail"
-            failure_message="Budget guardrail terminated the hybrid implement Codex session after ${FACTORY_IMPLEMENT_TIMEOUT_MINUTES} minute(s). Reduce the planned change surface or split the work before retrying."
+            failure_message="Budget guardrail terminated the hybrid implement Codex session after ${FACTORY_IMPLEMENT_TIMEOUT_MINUTES} minute(s). The runtime guardrail timed out the session and may have force-killed it after the grace period. Reduce the planned change surface or split the work before retrying."
           else
             failure_type="stage_setup"
             failure_message="Stage setup prerequisites failed: Codex stage execution failed before branch output could be prepared."
