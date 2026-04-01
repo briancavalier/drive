@@ -415,6 +415,10 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
     workflowText,
     /failure_message:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_message \|\| steps\.model_preflight\.outputs\.failure_message \|\| steps\.refresh\.outputs\.failure_message \|\| steps\.budget_preflight\.outputs\.failure_message \|\| steps\.codex_bootstrap_failure\.outputs\.failure_message \|\| steps\.codex_failure\.outputs\.failure_message \|\|/
   );
+  assert.match(
+    workflowText,
+    /budget_decision_detail:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_decision_detail\s*\}\}/
+  );
 });
 
 test("factory stage workflow detects implement-stage intervention requests before push", () => {
@@ -516,7 +520,15 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     workflowText,
+    /budget_decision_detail:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_decision_detail\s*\}\}/
+  );
+  assert.match(
+    workflowText,
     /name:\s+Stop on budget preflight failure[\s\S]*steps\.budget_preflight\.outcome == 'failure'/
+  );
+  assert.match(
+    readWorkflowText("factory-pr-loop.yml"),
+    /FACTORY_BUDGET_DECISION_DETAIL:\s*\$\{\{\s*needs\.stage\.outputs\.budget_decision_detail \|\| ''\s*\}\}/
   );
 });
 

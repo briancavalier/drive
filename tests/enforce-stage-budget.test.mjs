@@ -86,6 +86,7 @@ test("enforceStageBudget observes non-implement stages without blocking", () => 
   assert.equal(result.exitCode, 0);
   assert.equal(result.status, "observe");
   assert.equal(outputs.budget_decision, "observe");
+  assert.equal(outputs.budget_decision_detail, "observe");
   assert.ok(!("failure_type" in outputs));
 });
 
@@ -139,6 +140,7 @@ test("enforceStageBudget blocks high-cost implement runs", () => {
   assert.equal(result.exitCode, 1);
   assert.equal(result.status, "blocked");
   assert.equal(outputs.budget_decision, "block");
+  assert.equal(outputs.budget_decision_detail, "hard_block");
   assert.equal(outputs.failure_type, "budget_guardrail");
   assert.match(outputs.failure_message, /Estimated implement cost is already in the high cost band/);
 });
@@ -170,6 +172,7 @@ test("enforceStageBudget blocks truncated implement runs with broad control-plan
   });
 
   assert.equal(result.exitCode, 1);
+  assert.equal(outputs.budget_decision_detail, "question_required");
   assert.equal(outputs.failure_type, "budget_guardrail");
   assert.equal(outputs.control_plane_paths_detected, "true");
   assert.match(outputs.failure_message, /Prompt context was truncated or omitted/);
@@ -197,6 +200,7 @@ test("enforceStageBudget allows medium-cost implement runs without broad-risk si
   assert.equal(result.exitCode, 0);
   assert.equal(result.status, "pass");
   assert.equal(outputs.budget_decision, "pass");
+  assert.equal(outputs.budget_decision_detail, "pass");
   assert.ok(!("failure_type" in outputs));
 });
 
@@ -216,6 +220,7 @@ test("enforceStageBudget surfaces configuration failures for missing inputs", ()
 
   assert.equal(result.exitCode, 1);
   assert.equal(result.status, "configuration_failure");
+  assert.equal(outputs.budget_decision_detail, "error");
   assert.equal(outputs.failure_type, "configuration");
   assert.match(outputs.failure_message, /Unable to read/);
 });

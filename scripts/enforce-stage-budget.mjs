@@ -4,6 +4,13 @@ import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
 
 const FAILURE_TYPE = "budget_guardrail";
+const BUDGET_DECISION_DETAILS = Object.freeze({
+  pass: "pass",
+  hardBlock: "hard_block",
+  questionRequired: "question_required",
+  observe: "observe",
+  error: "error"
+});
 const BROAD_PATH_COUNT_THRESHOLD = 6;
 const CONTROL_PLANE_PATH_PATTERNS = [
   /^\.github\/workflows\//,
@@ -117,6 +124,7 @@ export function enforceStageBudget({
     writeDecision(
       {
         budget_decision: "error",
+        budget_decision_detail: BUDGET_DECISION_DETAILS.error,
         failure_type: "configuration",
         failure_message: message
       },
@@ -135,6 +143,7 @@ export function enforceStageBudget({
     writeDecision(
       {
         budget_decision: "error",
+        budget_decision_detail: BUDGET_DECISION_DETAILS.error,
         failure_type: "configuration",
         failure_message: error.message
       },
@@ -159,6 +168,7 @@ export function enforceStageBudget({
     writeDecision(
       {
         budget_decision: "observe",
+        budget_decision_detail: BUDGET_DECISION_DETAILS.observe,
         planned_path_count: "0",
         control_plane_paths_detected: "false"
       },
@@ -175,6 +185,7 @@ export function enforceStageBudget({
     writeDecision(
       {
         budget_decision: "error",
+        budget_decision_detail: BUDGET_DECISION_DETAILS.error,
         failure_type: "configuration",
         failure_message: error.message
       },
@@ -187,8 +198,10 @@ export function enforceStageBudget({
   const controlPlanePathsDetected = hasControlPlanePaths(plannedPaths);
   const broadPathSurface = plannedPaths.length >= BROAD_PATH_COUNT_THRESHOLD;
   const reasons = [];
+  let budgetDecisionDetail = BUDGET_DECISION_DETAILS.pass;
 
   if (costBand === "high") {
+    budgetDecisionDetail = BUDGET_DECISION_DETAILS.hardBlock;
     reasons.push("Estimated implement cost is already in the high cost band.");
   }
 
@@ -196,6 +209,9 @@ export function enforceStageBudget({
     (truncatedCount > 0 || omittedCount > 0) &&
     (broadPathSurface || controlPlanePathsDetected)
   ) {
+    if (budgetDecisionDetail === BUDGET_DECISION_DETAILS.pass) {
+      budgetDecisionDetail = BUDGET_DECISION_DETAILS.questionRequired;
+    }
     reasons.push(
       "Prompt context was truncated or omitted while the planned change surface is broad or touches control-plane paths."
     );
@@ -205,6 +221,7 @@ export function enforceStageBudget({
     writeDecision(
       {
         budget_decision: "pass",
+        budget_decision_detail: BUDGET_DECISION_DETAILS.pass,
         planned_path_count: String(plannedPaths.length),
         control_plane_paths_detected: controlPlanePathsDetected ? "true" : "false"
       },
@@ -229,6 +246,7 @@ export function enforceStageBudget({
   writeDecision(
     {
       budget_decision: "block",
+      budget_decision_detail: budgetDecisionDetail,
       failure_type: FAILURE_TYPE,
       failure_message: failureMessage,
       planned_path_count: String(plannedPaths.length),

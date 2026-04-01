@@ -277,6 +277,56 @@ test("routeIssueComment preserves review resume context for answered repair inte
   assert.equal(route.repairState.lastFailureSignature, "review:55:requested changes");
 });
 
+test("routeIssueComment resumes implement for answered budget guardrail questions", async () => {
+  const route = await routeIssueComment(
+    prCommandPayload("/factory answer int_q_budget approve_once"),
+    {
+      getPullRequest: async () =>
+        managedPr("blocked", {
+          blockedAction: "implement",
+          intervention: {
+            id: "int_q_budget",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "budget_guardrail",
+              question: "Should the factory continue once with the truncated prompt?",
+              recommendedOptionId: "approve_once",
+              options: [
+                {
+                  id: "approve_once",
+                  label: "Continue once with the truncated prompt",
+                  effect: "resume_current_stage",
+                  instruction: "Proceed with the current implement stage despite prompt truncation."
+                },
+                {
+                  id: "deny",
+                  label: "Keep blocked",
+                  effect: "remain_blocked"
+                }
+              ],
+              resumeContext: {
+                ciRunId: "777",
+                repairAttempts: 0,
+                repeatedFailureCount: 0,
+                failureSignature: "budget:777",
+                stageNoopAttempts: 0,
+                stageSetupAttempts: 0
+              }
+            }
+          }
+        }),
+      getCollaboratorPermission: async () => ({ permission: "write" })
+    }
+  );
+
+  assert.equal(route.action, "answer_intervention");
+  assert.equal(route.resumeAction, "implement");
+  assert.equal(route.ciRunId, "777");
+  assert.equal(route.repairState.lastFailureSignature, "budget:777");
+});
+
 test("routeIssueComment rejects invalid intervention answers", async () => {
   const route = await routeIssueComment(
     prCommandPayload("/factory answer int_q_999 approve_once"),

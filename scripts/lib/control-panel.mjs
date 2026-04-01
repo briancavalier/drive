@@ -443,6 +443,10 @@ function buildRecommendedNextStep({ stateKey, metadata }) {
     }
 
     if (failureType === "budget_guardrail") {
+      if (questionIntervention) {
+        return "Answer the open factory question before continuing with this budget-guardrail blocked stage.";
+      }
+
       return "Reduce the planned change surface or split the work, then reset and rerun the stage.";
     }
 

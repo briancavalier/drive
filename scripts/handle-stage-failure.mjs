@@ -9,7 +9,8 @@ import {
 } from "./lib/failure-comment.mjs";
 import {
   buildApprovalIntervention,
-  buildFailureIntervention
+  buildFailureIntervention,
+  buildQuestionIntervention
 } from "./lib/intervention-state.mjs";
 import { renderInterventionQuestionComment } from "./lib/github-messages.mjs";
 import {
@@ -132,6 +133,13 @@ function isSelfModifyGuardFailure(failureType, failureMessage) {
   );
 }
 
+function isBudgetGuardrailQuestionRequired(failureType, env = process.env) {
+  return (
+    failureType === FAILURE_TYPES.budgetGuardrail &&
+    `${env.FACTORY_BUDGET_DECISION_DETAIL || ""}`.trim() === "question_required"
+  );
+}
+
 export async function main(env = process.env, dependencies = {}) {
   const execFileAsync =
     dependencies.execFileAsync || promisify(execFile);
@@ -179,6 +187,7 @@ export async function main(env = process.env, dependencies = {}) {
     failureType,
     failureMessage
   );
+  const budgetGuardrailQuestionRequired = isBudgetGuardrailQuestionRequired(failureType, env);
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -210,7 +219,7 @@ export async function main(env = process.env, dependencies = {}) {
     ...(dependencies.followup || {})
   };
 
-  if (!selfModifyGuardFailure) {
+  if (!selfModifyGuardFailure && !budgetGuardrailQuestionRequired) {
     try {
     const followupAssessment = followup.classifyFollowup({
       failureType,
@@ -350,6 +359,48 @@ export async function main(env = process.env, dependencies = {}) {
       runId,
       runUrl: resolvedRunUrl,
       applySelfModifyLabelOnApproval: true,
+      resumeContext: {
+        ciRunId: ciRunId || null,
+        reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
+        repairAttempts: Number(env.FACTORY_REPAIR_ATTEMPTS || 0),
+        repeatedFailureCount: repeatedFailureCountBase,
+        failureSignature: previousFailureSignature,
+        stageNoopAttempts: computedStageNoopAttempts,
+        stageSetupAttempts: computedStageSetupAttempts
+      }
+    });
+    childEnv.FACTORY_INTERVENTION = JSON.stringify(intervention);
+    childEnv.FACTORY_COMMENT = renderInterventionQuestionComment({ intervention });
+  } else if (budgetGuardrailQuestionRequired) {
+    const intervention = buildQuestionIntervention({
+      action,
+      questionKind: "budget_guardrail",
+      summary: "Implement prompt was truncated for a broad control-plane change",
+      detail: failureMessage,
+      question:
+        "Should the factory continue once with the truncated implement prompt for this broad control-plane change?",
+      recommendedOptionId: "approve_once",
+      options: [
+        {
+          id: "approve_once",
+          label: "Continue once with the truncated prompt",
+          effect: "resume_current_stage",
+          instruction:
+            "Proceed with the current implement stage despite prompt truncation and omission, keeping the existing approved plan in scope."
+        },
+        {
+          id: "deny",
+          label: "Keep blocked",
+          effect: "remain_blocked"
+        },
+        {
+          id: "human_takeover",
+          label: "Hand off to human-only handling",
+          effect: "manual_only"
+        }
+      ],
+      runId,
+      runUrl: resolvedRunUrl,
       resumeContext: {
         ciRunId: ciRunId || null,
         reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
