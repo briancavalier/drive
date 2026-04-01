@@ -206,6 +206,47 @@ test("blocked reasons map to subtype-specific guidance and actions", () => {
       reason: /budget guardrails/i
     },
     {
+      name: "budget_guardrail_question",
+      metadata: metadata({
+        status: FACTORY_PR_STATUSES.blocked,
+        blockedAction: "implement",
+        lastRunUrl: `${repositoryUrl}/actions/runs/445`,
+        intervention: {
+          id: "int_q_budget",
+          type: "question",
+          status: "open",
+          stage: "implement",
+          summary: "Implement prompt was truncated for a broad control-plane change",
+          payload: {
+            questionKind: "budget_guardrail",
+            question: "Should the factory continue once with the truncated prompt?",
+            recommendedOptionId: "approve_once",
+            options: [
+              {
+                id: "approve_once",
+                label: "Continue once with the truncated prompt",
+                effect: "resume_current_stage",
+                instruction: "Proceed with the current implement stage despite prompt truncation."
+              },
+              {
+                id: "human_takeover",
+                label: "Hand off to human-only handling",
+                effect: "manual_only"
+              }
+            ]
+          }
+        }
+      }),
+      expectedActionIds: [
+        "answer_approve_once",
+        "answer_human_takeover",
+        "reset",
+        "pause",
+        "open_latest_run"
+      ],
+      reason: /Implement prompt was truncated for a broad control-plane change/i
+    },
+    {
       name: "stale_branch_conflict",
       metadata: metadata({
         status: FACTORY_PR_STATUSES.blocked,

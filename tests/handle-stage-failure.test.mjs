@@ -341,3 +341,106 @@ test("main converts self-modify guard failures into approval interventions", asy
   assert.equal(execEnv.FACTORY_SELF_MODIFY_LABEL_ACTION, "remove_if_auto_applied");
   assert.equal(execEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "false");
 });
+
+test("main converts resumable budget guardrail failures into question interventions", async () => {
+  let execEnv = null;
+  let createCalls = 0;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.budgetGuardrail,
+      FACTORY_BUDGET_DECISION_DETAIL: "question_required",
+      FACTORY_FAILURE_MESSAGE:
+        "Budget guardrail blocked the implement stage before Codex execution.\nPrompt truncation count: 1\nPrompt omission count: 1",
+      FACTORY_PR_NUMBER: "456",
+      GITHUB_RUN_ID: "12345",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({ items: [] }),
+        createIssue: async () => {
+          createCalls += 1;
+          return { number: 999 };
+        }
+      }
+    }
+  );
+
+  const intervention = JSON.parse(execEnv.FACTORY_INTERVENTION);
+
+  assert.equal(createCalls, 0);
+  assert.equal(intervention.type, "question");
+  assert.equal(intervention.stage, "implement");
+  assert.equal(intervention.payload.questionKind, "budget_guardrail");
+  assert.equal(intervention.payload.resumeContext.ciRunId, null);
+  assert.equal(intervention.payload.resumeContext.reviewId, null);
+  assert.equal(intervention.payload.resumeContext.repairAttempts, 0);
+  assert.deepEqual(
+    intervention.payload.options.map((option) => option.id),
+    ["approve_once", "deny", "human_takeover"]
+  );
+  assert.match(intervention.summary, /Implement prompt was truncated/);
+  assert.match(intervention.detail, /Prompt truncation count: 1/);
+  assert.match(intervention.payload.options[0].instruction, /despite prompt truncation/i);
+  assert.match(execEnv.FACTORY_COMMENT, /## Factory Question/);
+  assert.match(execEnv.FACTORY_COMMENT, /\/factory answer .* approve_once/);
+});
+
+test("main keeps hard-block budget guardrail failures as failure interventions", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.budgetGuardrail,
+      FACTORY_BUDGET_DECISION_DETAIL: "hard_block",
+      FACTORY_FAILURE_MESSAGE:
+        "Budget guardrail blocked the implement stage before Codex execution.\nEstimated cost band: high",
+      FACTORY_PR_NUMBER: "457",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      }
+    }
+  );
+
+  const intervention = JSON.parse(execEnv.FACTORY_INTERVENTION);
+  assert.equal(intervention.type, "failure");
+  assert.equal(intervention.payload.failureType, FAILURE_TYPES.budgetGuardrail);
+  assert.doesNotMatch(execEnv.FACTORY_COMMENT, /## Factory Question/);
+});
+
+test("main clears consumed budget overrides when handling later stage failures", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.contentOrLogic,
+      FACTORY_FAILURE_MESSAGE: "Implementation failed after resuming.",
+      FACTORY_BUDGET_OVERRIDE_CONSUMED: "true",
+      FACTORY_PR_NUMBER: "458",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      }
+    }
+  );
+
+  assert.equal(execEnv.FACTORY_BUDGET_OVERRIDE, "__CLEAR__");
+});

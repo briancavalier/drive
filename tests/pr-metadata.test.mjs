@@ -328,3 +328,29 @@ test("renderPrBody preserves pending stage decision metadata", () => {
   assert.equal(metadata.pendingStageDecision.selectedOptionId, "api_first");
   assert.match(metadata.pendingStageDecision.instruction, /API-first path/);
 });
+
+test("renderPrBody preserves budget override metadata", () => {
+  const body = renderPrBody({
+    issueNumber: 7,
+    branch: "factory/7-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: ".factory/runs/7",
+    metadata: defaultPrMetadata({
+      issueNumber: 7,
+      artifactsPath: ".factory/runs/7",
+      status: "implementing",
+      budgetOverride: {
+        sourceInterventionId: "int_q_budget",
+        kind: "question_required",
+        approvedBy: "maintainer",
+        approvedAt: "2026-04-01T00:00:00Z"
+      }
+    })
+  });
+
+  const metadata = extractPrMetadata(body);
+
+  assert.equal(metadata.budgetOverride.sourceInterventionId, "int_q_budget");
+  assert.equal(metadata.budgetOverride.kind, "question_required");
+  assert.equal(metadata.budgetOverride.approvedBy, "maintainer");
+});

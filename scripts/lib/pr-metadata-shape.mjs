@@ -66,6 +66,28 @@ function normalizePendingStageDecision(decision) {
   };
 }
 
+function normalizeBudgetOverride(override) {
+  if (!override || typeof override !== "object") {
+    return null;
+  }
+
+  const sourceInterventionId = `${override.sourceInterventionId || ""}`.trim();
+  const kind = `${override.kind || ""}`.trim();
+  const approvedBy = `${override.approvedBy || ""}`.trim();
+  const approvedAt = `${override.approvedAt || ""}`.trim();
+
+  if (!sourceInterventionId || !kind) {
+    return null;
+  }
+
+  return {
+    sourceInterventionId,
+    kind,
+    approvedBy: approvedBy || null,
+    approvedAt: approvedAt || null
+  };
+}
+
 export function defaultPrMetadata(overrides = {}) {
   const normalizedOverrides = stripLegacyFailureMetadata(overrides);
 
@@ -84,6 +106,7 @@ export function defaultPrMetadata(overrides = {}) {
     paused: false,
     autoAppliedSelfModifyLabel: false,
     pendingStageDecision: null,
+    budgetOverride: null,
     lastCompletedStage: null,
     lastRunId: null,
     lastRunUrl: null,
@@ -109,6 +132,7 @@ export function defaultPrMetadata(overrides = {}) {
     pendingStageDecision: normalizePendingStageDecision(
       normalizedOverrides.pendingStageDecision
     ),
+    budgetOverride: normalizeBudgetOverride(normalizedOverrides.budgetOverride),
     intervention: canonicalizeIntervention(normalizedOverrides.intervention ?? null)
   };
 }
@@ -140,6 +164,7 @@ export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadat
     pendingStageDecision: normalizePendingStageDecision(
       normalizedMetadata.pendingStageDecision
     ),
+    budgetOverride: normalizeBudgetOverride(normalizedMetadata.budgetOverride),
     intervention: canonicalizeIntervention(normalizedMetadata.intervention)
   });
 }
