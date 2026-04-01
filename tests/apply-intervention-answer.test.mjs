@@ -342,5 +342,9 @@ test("applyInterventionAnswer resumes implement for budget guardrail questions w
   assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCall.env.FACTORY_STATUS, "implementing");
   assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
+  const budgetOverride = JSON.parse(execCall.env.FACTORY_BUDGET_OVERRIDE);
+  assert.equal(budgetOverride.sourceInterventionId, "int_q_budget");
+  assert.equal(budgetOverride.kind, "question_required");
+  assert.equal(budgetOverride.approvedBy, "maintainer");
   assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
 });

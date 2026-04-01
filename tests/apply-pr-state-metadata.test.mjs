@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyBlockedAction,
   applyAutoAppliedSelfModifyLabel,
+  applyBudgetOverride,
   applyIntervention,
   applyActualUsageMetadata,
   applyPendingStageDecision,
@@ -342,6 +343,36 @@ test("applyPendingStageDecision rejects invalid JSON", () => {
   assert.throws(
     () => applyPendingStageDecision(metadata, "{not-json"),
     /FACTORY_PENDING_STAGE_DECISION must be valid JSON/
+  );
+});
+
+test("applyBudgetOverride updates metadata from the explicit env override", () => {
+  const metadata = defaultPrMetadata();
+  const override = {
+    sourceInterventionId: "int_q_budget",
+    kind: "question_required",
+    approvedBy: "maintainer",
+    approvedAt: "2026-04-01T00:00:00Z"
+  };
+
+  assert.deepEqual(
+    applyBudgetOverride(metadata, JSON.stringify(override)).budgetOverride,
+    override
+  );
+  assert.equal(applyBudgetOverride(metadata, "__CLEAR__").budgetOverride, null);
+  assert.equal(
+    applyBudgetOverride({ ...metadata, budgetOverride: override }, "__UNCHANGED__").budgetOverride
+      .sourceInterventionId,
+    "int_q_budget"
+  );
+});
+
+test("applyBudgetOverride rejects invalid JSON", () => {
+  const metadata = defaultPrMetadata();
+
+  assert.throws(
+    () => applyBudgetOverride(metadata, "{not-json"),
+    /FACTORY_BUDGET_OVERRIDE must be valid JSON/
   );
 });
 

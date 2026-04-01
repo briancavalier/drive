@@ -599,6 +599,48 @@ test("implement prompt includes binding human decision guidance when pendingStag
   assert.ok(result.meta.includedSections.includes("human-decision"));
 });
 
+test("implement prompt metadata carries budget override state for budget preflight", () => {
+  const artifactsDir = makeArtifactsDir();
+  const metadata = defaultPrMetadata({
+    issueNumber: 1,
+    artifactsPath: artifactsDir,
+    status: "implementing",
+    budgetOverride: {
+      sourceInterventionId: "int_q_budget",
+      kind: "question_required",
+      approvedBy: "maintainer",
+      approvedAt: "2026-04-01T00:00:00Z"
+    }
+  });
+  const pullRequestBody = renderPrBody({
+    issueNumber: 1,
+    branch: "factory/1-sample",
+    repositoryUrl: "https://github.com/example/repo",
+    artifactsPath: artifactsDir,
+    metadata
+  });
+
+  const result = buildStagePrompt({
+    mode: "implement",
+    issueNumber: 1,
+    prNumber: 9,
+    branch: "factory/1-sample",
+    artifactsPath: artifactsDir,
+    issueBody: fixture("long-issue-body.md"),
+    pullRequestBody,
+    budgets: {
+      plan: 20000,
+      implement: 7000,
+      repair: 14000,
+      hardMax: 7000
+    },
+    templateText: implementTemplate
+  });
+
+  assert.equal(result.meta.budgetOverride.sourceInterventionId, "int_q_budget");
+  assert.equal(result.meta.budgetOverride.kind, "question_required");
+});
+
 test("implement prompt omits the human decision section when absent", () => {
   const artifactsDir = makeArtifactsDir();
   const pullRequestBody = renderPrBody({

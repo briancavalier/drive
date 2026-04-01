@@ -420,3 +420,27 @@ test("main keeps hard-block budget guardrail failures as failure interventions",
   assert.equal(intervention.payload.failureType, FAILURE_TYPES.budgetGuardrail);
   assert.doesNotMatch(execEnv.FACTORY_COMMENT, /## Factory Question/);
 });
+
+test("main clears consumed budget overrides when handling later stage failures", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "implement",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.contentOrLogic,
+      FACTORY_FAILURE_MESSAGE: "Implementation failed after resuming.",
+      FACTORY_BUDGET_OVERRIDE_CONSUMED: "true",
+      FACTORY_PR_NUMBER: "458",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      }
+    }
+  );
+
+  assert.equal(execEnv.FACTORY_BUDGET_OVERRIDE, "__CLEAR__");
+});

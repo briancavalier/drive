@@ -66,6 +66,22 @@ function buildPendingStageDecision({ intervention, option, actor }) {
   };
 }
 
+function buildBudgetOverride({ intervention, option, actor }) {
+  if (
+    `${intervention?.payload?.questionKind || ""}`.trim() !== "budget_guardrail" ||
+    `${option?.effect || ""}`.trim() !== "resume_current_stage"
+  ) {
+    return null;
+  }
+
+  return {
+    sourceInterventionId: intervention.id,
+    kind: "question_required",
+    approvedBy: `${actor || ""}`.trim() || null,
+    approvedAt: new Date().toISOString()
+  };
+}
+
 export async function main(env = process.env, dependencies = {}) {
   const execFileAsync = dependencies.execFileAsync || promisify(execFile);
   const prNumber = requiredEnv("FACTORY_PR_NUMBER", env);
@@ -111,6 +127,7 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_PR_NUMBER: prNumber,
     FACTORY_INTERVENTION: "__CLEAR__",
     FACTORY_PENDING_STAGE_DECISION: "__UNCHANGED__",
+    FACTORY_BUDGET_OVERRIDE: "__UNCHANGED__",
     FACTORY_COMMENT: answerNote
       ? `${resolutionComment}\n\nOperator note:\n${answerNote}`
       : resolutionComment,
@@ -140,6 +157,16 @@ export async function main(env = process.env, dependencies = {}) {
       childEnv.FACTORY_PENDING_STAGE_DECISION = JSON.stringify(pendingStageDecision);
     }
 
+    const budgetOverride = buildBudgetOverride({
+      intervention,
+      option,
+      actor: env.GITHUB_ACTOR
+    });
+
+    childEnv.FACTORY_BUDGET_OVERRIDE = budgetOverride
+      ? JSON.stringify(budgetOverride)
+      : "__CLEAR__";
+
     childEnv.FACTORY_STATUS = resolveStatusFromAction(resumeAction);
     childEnv.FACTORY_BLOCKED_ACTION = "";
     childEnv.FACTORY_PAUSED = "false";
@@ -149,6 +176,7 @@ export async function main(env = process.env, dependencies = {}) {
     childEnv.FACTORY_BLOCKED_ACTION = "";
     childEnv.FACTORY_PAUSED = "true";
     childEnv.FACTORY_PAUSE_REASON = pauseReason;
+    childEnv.FACTORY_BUDGET_OVERRIDE = "__CLEAR__";
   }
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {

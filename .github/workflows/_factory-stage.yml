@@ -142,6 +142,7 @@ jobs:
       failure_type: ${{ steps.validate_context.outputs.failure_type || steps.model_preflight.outputs.failure_type || steps.refresh.outputs.failure_type || steps.budget_preflight.outputs.failure_type || steps.codex_bootstrap_failure.outputs.failure_type || steps.codex_failure.outputs.failure_type || steps.detect_intervention.outputs.failure_type || steps.prepare.outputs.failure_type || steps.push.outputs.failure_type }}
       failure_message: ${{ steps.validate_context.outputs.failure_message || steps.model_preflight.outputs.failure_message || steps.refresh.outputs.failure_message || steps.budget_preflight.outputs.failure_message || steps.codex_bootstrap_failure.outputs.failure_message || steps.codex_failure.outputs.failure_message || steps.detect_intervention.outputs.failure_message || steps.prepare.outputs.failure_message || steps.push.outputs.failure_message }}
       budget_decision_detail: ${{ steps.budget_preflight.outputs.budget_decision_detail }}
+      budget_override_consumed: ${{ steps.budget_preflight.outputs.budget_override_consumed || 'false' }}
       transient_retry_attempts: ${{ steps.model_preflight.outputs.transient_retry_attempts || steps.push.outputs.transient_retry_attempts || steps.prepare.outputs.transient_retry_attempts || '0' }}
       refreshed_head_sha: ${{ steps.refresh.outputs.refreshed_head_sha || steps.capture_head.outputs.refreshed_head_sha }}
       refreshed_from_main: ${{ steps.refresh.outputs.refreshed || 'false' }}

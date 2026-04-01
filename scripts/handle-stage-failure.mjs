@@ -188,6 +188,8 @@ export async function main(env = process.env, dependencies = {}) {
     failureMessage
   );
   const budgetGuardrailQuestionRequired = isBudgetGuardrailQuestionRequired(failureType, env);
+  const shouldClearBudgetOverride =
+    `${env.FACTORY_BUDGET_OVERRIDE_CONSUMED || ""}`.trim() === "true";
   const advisory = readFailureAdvisory(env.FACTORY_FAILURE_ADVISORY_PATH, {
     logger: console
   });
@@ -315,6 +317,7 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_REMOVE_LABELS: removeLabels,
     FACTORY_BLOCKED_ACTION: status === FACTORY_PR_STATUSES.blocked ? action : "",
     FACTORY_COMMENT: augmentedComment,
+    FACTORY_BUDGET_OVERRIDE: shouldClearBudgetOverride ? "__CLEAR__" : "__UNCHANGED__",
     FACTORY_CI_STATUS: env.FACTORY_CI_STATUS || "pending"
   };
 

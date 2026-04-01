@@ -302,6 +302,38 @@ export function applyPendingStageDecision(metadata, envValue) {
   };
 }
 
+export function applyBudgetOverride(metadata, envValue) {
+  if (envValue === undefined) {
+    return metadata;
+  }
+
+  const normalized = `${envValue ?? ""}`.trim();
+
+  if (normalized === "__UNCHANGED__") {
+    return metadata;
+  }
+
+  if (!normalized || normalized === "__CLEAR__") {
+    return {
+      ...metadata,
+      budgetOverride: null
+    };
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("FACTORY_BUDGET_OVERRIDE must be valid JSON when provided");
+  }
+
+  return {
+    ...metadata,
+    budgetOverride: parsed
+  };
+}
+
 function applySelfModifyLabelAction({ prNumber, pullRequest, previousMetadata, envValue }) {
   const action = `${envValue || ""}`.trim();
 
@@ -478,6 +510,7 @@ export async function main(env = process.env) {
     nextMetadata,
     env.FACTORY_PENDING_STAGE_DECISION
   );
+  nextMetadata = applyBudgetOverride(nextMetadata, env.FACTORY_BUDGET_OVERRIDE);
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = applyArtifactRef(nextMetadata, env.FACTORY_ARTIFACT_REF);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);

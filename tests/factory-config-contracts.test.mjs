@@ -419,6 +419,10 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
     workflowText,
     /budget_decision_detail:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_decision_detail\s*\}\}/
   );
+  assert.match(
+    workflowText,
+    /budget_override_consumed:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_override_consumed \|\| 'false'\s*\}\}/
+  );
 });
 
 test("factory stage workflow detects implement-stage intervention requests before push", () => {
@@ -529,6 +533,10 @@ test("factory stage workflow records estimated cost only after a successful push
   assert.match(
     readWorkflowText("factory-pr-loop.yml"),
     /FACTORY_BUDGET_DECISION_DETAIL:\s*\$\{\{\s*needs\.stage\.outputs\.budget_decision_detail \|\| ''\s*\}\}/
+  );
+  assert.match(
+    readWorkflowText("factory-pr-loop.yml"),
+    /FACTORY_BUDGET_OVERRIDE_CONSUMED:\s*\$\{\{\s*needs\.stage\.outputs\.budget_override_consumed \|\| 'false'\s*\}\}/
   );
 });
 

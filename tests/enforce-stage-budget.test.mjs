@@ -45,10 +45,11 @@ function createSummary({ band = "medium", stageUsd = 0.4, totalUsd = 0.4 } = {})
   };
 }
 
-function createPromptMeta({ truncated = [], omitted = [] } = {}) {
+function createPromptMeta({ truncated = [], omitted = [], budgetOverride = null } = {}) {
   return {
     truncatedSections: truncated,
-    omittedSections: omitted
+    omittedSections: omitted,
+    budgetOverride
   };
 }
 
@@ -87,6 +88,7 @@ test("enforceStageBudget observes non-implement stages without blocking", () => 
   assert.equal(result.status, "observe");
   assert.equal(outputs.budget_decision, "observe");
   assert.equal(outputs.budget_decision_detail, "observe");
+  assert.equal(outputs.budget_override_consumed, undefined);
   assert.ok(!("failure_type" in outputs));
 });
 
@@ -141,6 +143,7 @@ test("enforceStageBudget blocks high-cost implement runs", () => {
   assert.equal(result.status, "blocked");
   assert.equal(outputs.budget_decision, "block");
   assert.equal(outputs.budget_decision_detail, "hard_block");
+  assert.equal(outputs.budget_override_consumed, "false");
   assert.equal(outputs.failure_type, "budget_guardrail");
   assert.match(outputs.failure_message, /Estimated implement cost is already in the high cost band/);
 });
@@ -173,6 +176,7 @@ test("enforceStageBudget blocks truncated implement runs with broad control-plan
 
   assert.equal(result.exitCode, 1);
   assert.equal(outputs.budget_decision_detail, "question_required");
+  assert.equal(outputs.budget_override_consumed, "false");
   assert.equal(outputs.failure_type, "budget_guardrail");
   assert.equal(outputs.control_plane_paths_detected, "true");
   assert.match(outputs.failure_message, /Prompt context was truncated or omitted/);
@@ -201,7 +205,50 @@ test("enforceStageBudget allows medium-cost implement runs without broad-risk si
   assert.equal(result.status, "pass");
   assert.equal(outputs.budget_decision, "pass");
   assert.equal(outputs.budget_decision_detail, "pass");
+  assert.equal(outputs.budget_override_consumed, "false");
   assert.ok(!("failure_type" in outputs));
+});
+
+test("enforceStageBudget allows a single approved budget override for question-required runs", () => {
+  const fixture = makeFixtureDir({
+    summary: createSummary({ band: "medium", stageUsd: 0.6, totalUsd: 0.6 }),
+    promptMeta: createPromptMeta({
+      truncated: ["problem"],
+      omitted: ["factory-policy"],
+      budgetOverride: {
+        sourceInterventionId: "int_q_budget",
+        kind: "question_required",
+        approvedBy: "maintainer",
+        approvedAt: "2026-04-01T00:00:00Z"
+      }
+    }),
+    plan: [
+      "- Update `scripts/process-review.mjs`.",
+      "- Update `scripts/lib/github-messages.mjs`.",
+      "- Update `tests/process-review.test.mjs`.",
+      "- Update `tests/github-messages.test.mjs`.",
+      "- Update `.github/workflows/_factory-stage.yml`.",
+      "- Update `.factory/prompts/review.md`."
+    ].join("\n")
+  });
+  const outputs = {};
+
+  const result = enforceStageBudget({
+    env: {
+      FACTORY_MODE: "implement",
+      FACTORY_ARTIFACTS_PATH: fixture.artifactsPath,
+      FACTORY_COST_SUMMARY_PATH: fixture.costSummaryPath,
+      FACTORY_PROMPT_META_PATH: fixture.promptMetaPath,
+      FACTORY_PLAN_PATH: fixture.planPath
+    },
+    outputWriter: (data) => Object.assign(outputs, data)
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.status, "pass");
+  assert.equal(outputs.budget_decision, "pass");
+  assert.equal(outputs.budget_decision_detail, "pass");
+  assert.equal(outputs.budget_override_consumed, "true");
 });
 
 test("enforceStageBudget surfaces configuration failures for missing inputs", () => {
