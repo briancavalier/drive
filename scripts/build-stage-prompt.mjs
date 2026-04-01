@@ -957,6 +957,10 @@ export function buildStagePrompt({
       }))
   };
 
+  if (mode === FACTORY_STAGE_MODES.implement && metadata?.budgetOverride) {
+    meta.budgetOverride = metadata.budgetOverride;
+  }
+
   if (
     mode === FACTORY_STAGE_MODES.review &&
     templateVariables.METHODOLOGY_NAME

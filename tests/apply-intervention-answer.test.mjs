@@ -288,3 +288,63 @@ test("applyInterventionAnswer resolves denial without resuming", async () => {
   assert.match(execCall.env.FACTORY_PAUSE_REASON, /Approval denied via \/factory answer/);
   assert.match(execCall.env.FACTORY_COMMENT, /remain blocked/i);
 });
+
+test("applyInterventionAnswer resumes implement for budget guardrail questions without persisting a pending decision", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_budget",
+      FACTORY_OPTION_ID: "approve_once",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          intervention: {
+            id: "int_q_budget",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "budget_guardrail",
+              question: "Should the factory continue once with the truncated implement prompt?",
+              recommendedOptionId: "approve_once",
+              options: [
+                {
+                  id: "approve_once",
+                  label: "Continue once with the truncated prompt",
+                  effect: "resume_current_stage",
+                  instruction: "Proceed with the current implement stage despite prompt truncation."
+                },
+                {
+                  id: "human_takeover",
+                  label: "Hand off to human-only handling",
+                  effect: "manual_only"
+                }
+              ]
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
+  assert.equal(execCall.env.FACTORY_STATUS, "implementing");
+  assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
+  const budgetOverride = JSON.parse(execCall.env.FACTORY_BUDGET_OVERRIDE);
+  assert.equal(budgetOverride.sourceInterventionId, "int_q_budget");
+  assert.equal(budgetOverride.kind, "question_required");
+  assert.equal(budgetOverride.approvedBy, "maintainer");
+  assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
+});
