@@ -51,6 +51,12 @@ on:
       failure_message:
         description: Human-readable failure message captured by the stage runner.
         value: ${{ jobs.run.outputs.failure_message }}
+      budget_decision_detail:
+        description: Structured budget preflight decision classification.
+        value: ${{ jobs.run.outputs.budget_decision_detail }}
+      budget_override_consumed:
+        description: Indicates whether a one-shot budget override was consumed by preflight.
+        value: ${{ jobs.run.outputs.budget_override_consumed }}
       transient_retry_attempts:
         description: Number of transient retries consumed during the stage run.
         value: ${{ jobs.run.outputs.transient_retry_attempts }}

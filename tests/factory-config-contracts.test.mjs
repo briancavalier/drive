@@ -409,6 +409,14 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
 
   assert.match(
     workflowText,
+    /budget_decision_detail:\s*\n\s+description:\s+Structured budget preflight decision classification\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.budget_decision_detail\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /budget_override_consumed:\s*\n\s+description:\s+Indicates whether a one-shot budget override was consumed by preflight\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.budget_override_consumed\s*\}\}/
+  );
+  assert.match(
+    workflowText,
     /failure_type:\s*\$\{\{\s*steps\.validate_context\.outputs\.failure_type \|\| steps\.model_preflight\.outputs\.failure_type \|\| steps\.refresh\.outputs\.failure_type \|\| steps\.budget_preflight\.outputs\.failure_type \|\| steps\.codex_bootstrap_failure\.outputs\.failure_type \|\| steps\.codex_failure\.outputs\.failure_type \|\|/
   );
   assert.match(
