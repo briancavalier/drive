@@ -103,19 +103,24 @@ export async function main(env = process.env, dependencies = {}) {
   }
 
   const answerNote = `${env.FACTORY_ANSWER_NOTE || ""}`.trim();
-  const resumeAction = option.effect === "resume_current_stage"
+  const optionEffect = `${option.effect || ""}`.trim();
+  const shouldResetToPlanReady = optionEffect === "reset_to_plan_ready";
+  const resumeAction = optionEffect === "resume_current_stage"
     ? requestedResumeAction || `${metadata.blockedAction || ""}`.trim()
     : "";
   const shouldApplySelfModifyLabel =
     optionId === "approve_once" &&
     intervention.payload?.applySelfModifyLabelOnApproval === true;
   const hasSelfModifyLabel = hasLabel(pullRequest.labels || [], FACTORY_LABELS.selfModify);
-  const resolutionComment = renderInterventionResolutionComment({
+  let resolutionComment = renderInterventionResolutionComment({
     interventionId,
     optionId,
     resumeAction,
-    remainsBlocked: !resumeAction
+    remainsBlocked: !resumeAction && !shouldResetToPlanReady
   });
+  if (shouldResetToPlanReady) {
+    resolutionComment = `${resolutionComment}\nResetting status to \`plan_ready\` and clearing repair counters.`;
+  }
   const pauseReason =
     optionId === "human_takeover"
       ? `Human takeover requested via /factory answer for ${interventionId}.`
@@ -171,6 +176,13 @@ export async function main(env = process.env, dependencies = {}) {
     childEnv.FACTORY_BLOCKED_ACTION = "";
     childEnv.FACTORY_PAUSED = "false";
     childEnv.FACTORY_PAUSE_REASON = "";
+  } else if (shouldResetToPlanReady) {
+    childEnv.FACTORY_STATUS = FACTORY_PR_STATUSES.planReady;
+    childEnv.FACTORY_BLOCKED_ACTION = "";
+    childEnv.FACTORY_PAUSED = "false";
+    childEnv.FACTORY_PAUSE_REASON = "";
+    childEnv.FACTORY_BUDGET_OVERRIDE = "__CLEAR__";
+    childEnv.FACTORY_REPAIR_ATTEMPTS = "0";
   } else {
     childEnv.FACTORY_STATUS = FACTORY_PR_STATUSES.blocked;
     childEnv.FACTORY_BLOCKED_ACTION = "";
@@ -185,7 +197,7 @@ export async function main(env = process.env, dependencies = {}) {
   });
 
   setOutputs({
-    resume_action: resumeAction
+    resume_action: resumeAction || (shouldResetToPlanReady ? "reset_to_plan_ready" : "")
   });
 }
 

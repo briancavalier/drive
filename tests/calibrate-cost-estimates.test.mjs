@@ -13,6 +13,7 @@ function writeJson(filePath, data) {
 test("calibrate-usage-estimates aggregates usage events into calibration buckets", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-calibration-"));
   const originalCwd = process.cwd();
+  const originalGithubOutput = process.env.GITHUB_OUTPUT;
 
   writeJson(
     path.join(
@@ -73,6 +74,9 @@ test("calibrate-usage-estimates aggregates usage events into calibration buckets
 
   try {
     process.chdir(tempDir);
+    const outputFile = path.join(tempDir, "calibration-outputs.txt");
+    fs.writeFileSync(outputFile, "");
+    process.env.GITHUB_OUTPUT = outputFile;
     calibrateUsageEstimates();
     const calibrationPath = path.join(tempDir, ".factory", "usage-calibration.json");
     assert.equal(fs.existsSync(calibrationPath), true);
@@ -89,6 +93,7 @@ test("calibrate-usage-estimates aggregates usage events into calibration buckets
     assert.equal(bucket.multipliers.outputTokens, 1.3);
     assert.equal(bucket.source, "telemetry");
   } finally {
+    process.env.GITHUB_OUTPUT = originalGithubOutput;
     process.chdir(originalCwd);
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -97,6 +102,7 @@ test("calibrate-usage-estimates aggregates usage events into calibration buckets
 test("calibrate-usage-estimates is idempotent for unchanged usage events", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-calibration-"));
   const originalCwd = process.cwd();
+  const originalGithubOutput = process.env.GITHUB_OUTPUT;
 
   writeJson(
     path.join(
@@ -130,6 +136,9 @@ test("calibrate-usage-estimates is idempotent for unchanged usage events", () =>
   try {
     process.chdir(tempDir);
     const calibrationPath = path.join(tempDir, ".factory", "usage-calibration.json");
+    const outputFile = path.join(tempDir, "calibration-outputs.txt");
+    fs.writeFileSync(outputFile, "");
+    process.env.GITHUB_OUTPUT = outputFile;
 
     calibrateUsageEstimates();
     const first = fs.readFileSync(calibrationPath, "utf8");
@@ -139,6 +148,7 @@ test("calibrate-usage-estimates is idempotent for unchanged usage events", () =>
 
     assert.equal(second, first);
   } finally {
+    process.env.GITHUB_OUTPUT = originalGithubOutput;
     process.chdir(originalCwd);
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
