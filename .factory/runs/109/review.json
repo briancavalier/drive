@@ -1,0 +1,83 @@
+{
+  "methodology": "default",
+  "decision": "pass",
+  "summary": "Implements repair-exhaustion question flow with state signals, question builder, routing/workflow integration, and answer handling; unit tests and CI pass.",
+  "blocking_findings_count": 0,
+  "requirement_checks": [
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Repair exhaustion posts a decision question instead of only blocking.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/handle-stage-failure.mjs: branches to buildRepairExhaustionQuestion when repair state indicates exhaustion and sets FACTORY_INTERVENTION/FACTORY_COMMENT.",
+        "tests/handle-stage-failure.test.mjs: test 'main emits repair exhaustion question' asserts a question intervention is produced."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "The question is posted in the PR comment stream with bounded answer commands.",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/raise-repair-exhaustion-question.mjs: applies the question payload via apply-pr-state by setting FACTORY_INTERVENTION and FACTORY_COMMENT.",
+        ".github/workflows/factory-pr-loop.yml: new job 'repair-exhaustion-question' invokes the raise script when routed outputs include a repair question.",
+        "tests/raise-repair-exhaustion-question.test.mjs: verifies apply-pr-state invocation and env payload for raising the question."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "A valid answer updates PR metadata correctly and drives the intended next action (retry, reset, or human takeover).",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/apply-intervention-answer.mjs: recognizes 'reset_to_plan_ready', clears intervention, sets FACTORY_STATUS=plan_ready and FACTORY_REPAIR_ATTEMPTS=0; handles resume_current_stage and manual takeover paths.",
+        "tests/apply-intervention-answer.test.mjs: contains tests for resetting to plan-ready, persisting ambiguity pending decisions, resuming, and human takeover behavior."
+      ]
+    },
+    {
+      "type": "acceptance_criterion",
+      "requirement": "Non-exhausted repair failures continue to surface the legacy failure intervention (no question).",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/event-router.mjs: routeWorkflowRun and routePullRequestReview return a normal 'repair' action when nextRepairState().blocked is false.",
+        "tests/event-router.test.mjs: tests validate repair routing for non-blocked states and show exhausted blocking only when expected."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Add repair-state 'exhaustedBy' signal, repair-interventions helper, route/workflow outputs, ws job to raise question, and answer handler support (reset_to_plan_ready).",
+      "status": "satisfied",
+      "evidence": [
+        "scripts/lib/repair-state.mjs: exports exhaustedBy from nextRepairState().",
+        "scripts/lib/repair-interventions.mjs: implements buildRepairExhaustionQuestion() and resumeContext composition.",
+        "scripts/route-pr-loop.mjs & scripts/lib/event-router.mjs: emit repair_question_intervention, repair_question_comment, and repair_exhaustion_reason outputs.",
+        "scripts/raise-repair-exhaustion-question.mjs & .github/workflows/factory-pr-loop.yml: workflow job added to call the raise script when a question payload is present.",
+        "scripts/apply-intervention-answer.mjs: supports reset_to_plan_ready and clears repair counters; tests updated accordingly."
+      ]
+    },
+    {
+      "type": "plan_deliverable",
+      "requirement": "Unit tests updated/added to cover new behavior: repair-state, repair-interventions builder, stage-failure question path, raise script, and answer handling.",
+      "status": "satisfied",
+      "evidence": [
+        "tests/repair-state.test.mjs: asserts exhaustedBy values for attempt_limit and repeated_failure.",
+        "tests/repair-interventions.test.mjs: exercises summary and resumeContext produced by the builder.",
+        "tests/handle-stage-failure.test.mjs, tests/raise-repair-exhaustion-question.test.mjs, tests/apply-intervention-answer.test.mjs: cover end-to-end branching for question creation and answer handling."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "level": "non_blocking",
+      "title": "No workflow-level integration smoke test",
+      "details": "Unit tests cover the new builder, routing, stage-failure logic, raise script, and answer handling, but there is no end-to-end workflow-level test that executes the 'repair-exhaustion-question' job path across the route->reroute->raise job boundary.",
+      "scope": "workflow (.github/workflows/factory-pr-loop.yml) and scripts/raise-repair-exhaustion-question.mjs",
+      "recommendation": "Add a lightweight integration test or GitHub Actions smoke job (in CI or a dedicated workflow test) that simulates a failing workflow_run and verifies the 'repair-exhaustion-question' job invokes the raise script and applies the intervention payload."
+    },
+    {
+      "level": "non_blocking",
+      "title": "Operator discoverability: document new intervention semantics",
+      "details": "The new 'repair_exhaustion' questionKind and the 'reset_to_plan_ready' option are implemented and surfaced, but contributor/operator docs don't currently call out these new options explicitly.",
+      "scope": "docs / operator guidance",
+      "recommendation": "Add a short note to the contributor docs or PR description explaining the new question type and answer commands so operators learn to use '/factory answer <id> <option-id>' for repair exhaustion cases."
+    }
+  ]
+}
