@@ -1,0 +1,36 @@
+{
+  "task_id": "factory-run-55-cost-telemetry-calibration",
+  "split": "dev",
+  "status": "active",
+  "source_kind": "replayed_factory_run",
+  "issue_number": 55,
+  "title": "Add telemetry and calibration loop for cost estimation",
+  "summary": "Replay a task that extends durable cost artifacts and introduces a calibration loop using repo-local telemetry.",
+  "artifact_paths": {
+    "approved_issue": ".factory/runs/55/approved-issue.md",
+    "spec": ".factory/runs/55/spec.md",
+    "plan": ".factory/runs/55/plan.md",
+    "acceptance_tests": ".factory/runs/55/acceptance-tests.md",
+    "review_json": ".factory/runs/55/review.json",
+    "cost_summary": ".factory/runs/55/cost-summary.json"
+  },
+  "tags": [
+    "telemetry",
+    "cost-estimation",
+    "calibration"
+  ],
+  "risk_profile": "medium",
+  "control_plane": true,
+  "expected_evidence": [
+    "cost telemetry persists in durable artifacts",
+    "calibration reads historical data without external infrastructure",
+    "documentation explains operator usage and limits"
+  ],
+  "comparison_dimensions": [
+    "stage_completion",
+    "cost_sensitivity",
+    "artifact_integrity",
+    "evidence_quality"
+  ],
+  "curator_notes": "Selected because it is a strong example of repo-local telemetry work that future evals can compare on both correctness and operational simplicity."
+}

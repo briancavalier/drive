@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "holdout_revision": 1,
+  "entries": [
+    {
+      "task_id": "holdout-factory-control-plane-001",
+      "status": "holdout_external",
+      "provenance": "Reserved for future private factory-control-plane evals.",
+      "owner": "factory-maintainers",
+      "last_reviewed_at": "2026-04-05T00:00:00Z",
+      "notes": "Manifest-only entry. Runnable task contents are intentionally not stored in this repository.",
+      "external_storage_reference": "private-holdout://factory/control-plane/001"
+    }
+  ]
+}
