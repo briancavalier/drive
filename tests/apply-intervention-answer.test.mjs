@@ -29,7 +29,7 @@ function buildPullRequestBody(metadata = {}) {
   });
 }
 
-test("applyInterventionAnswer resolves approval and resumes the blocked action", async () => {
+test("applyInterventionAnswer resolves self-modify approval and resumes the blocked action", async () => {
   let execCall = null;
 
   await applyInterventionAnswer(
@@ -75,8 +75,13 @@ test("applyInterventionAnswer resolves approval and resumes the blocked action",
   assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
   assert.equal(execCall.env.FACTORY_BLOCKED_ACTION, "");
   assert.equal(execCall.env.FACTORY_PAUSED, "false");
-  assert.equal(execCall.env.FACTORY_SELF_MODIFY_LABEL_ACTION, "add");
-  assert.equal(execCall.env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "true");
+  assert.equal(execCall.env.FACTORY_SELF_MODIFY_LABEL_ACTION, "__UNCHANGED__");
+  assert.equal(execCall.env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "__UNCHANGED__");
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.self_modify.sourceInterventionId,
+    "int_q_123"
+  );
   assert.match(execCall.env.FACTORY_COMMENT, /Resolved factory question `int_q_123`/);
   assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
   assert.match(execCall.env.FACTORY_COMMENT, /Approved after applying the label\./);
@@ -279,7 +284,7 @@ test("applyInterventionAnswer does not persist a pending decision for human take
   assert.equal(execCall.env.FACTORY_STATUS, "blocked");
 });
 
-test("applyInterventionAnswer preserves an existing self-modify label on approval", async () => {
+test("applyInterventionAnswer preserves orthogonal authorization without persisting self-modify when label already exists", async () => {
   let execCall = null;
 
   await applyInterventionAnswer(
@@ -297,6 +302,17 @@ test("applyInterventionAnswer preserves an existing self-modify label on approva
       getPullRequest: async () => ({
         labels: [{ name: "factory:self-modify" }],
         body: buildPullRequestBody({
+          resumeAuthorizations: {
+            implement: {
+              budget_guardrail: {
+                sourceInterventionId: "int_q_budget",
+                kind: "question_required",
+                approvedBy: "maintainer",
+                approvedAt: "2026-04-01T00:00:00Z",
+                consumed: false
+              }
+            }
+          },
           intervention: defaultApprovalIntervention({
             id: "int_q_123",
             stage: "implement",
@@ -321,6 +337,125 @@ test("applyInterventionAnswer preserves an existing self-modify label on approva
   assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCall.env.FACTORY_SELF_MODIFY_LABEL_ACTION, "__UNCHANGED__");
   assert.equal(execCall.env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "__UNCHANGED__");
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.budget_guardrail.sourceInterventionId,
+    "int_q_budget"
+  );
+  assert.equal(resumeAuthorizations.implement.self_modify, undefined);
+});
+
+test("applyInterventionAnswer clears stale self-modify authorization when label already exists", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_123",
+      FACTORY_OPTION_ID: "approve_once",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [{ name: "factory:self-modify" }],
+        body: buildPullRequestBody({
+          resumeAuthorizations: {
+            implement: {
+              self_modify: {
+                sourceInterventionId: "int_q_stale",
+                approvedBy: "maintainer",
+                approvedAt: "2026-04-01T00:00:00Z",
+                consumed: false
+              }
+            }
+          },
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            stage: "implement",
+            payload: {
+              question: "Continue with self-modify authorization for the next resumed stage?",
+              recommendedOptionId: "approve_once",
+              applySelfModifyLabelOnApproval: true,
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+                { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+              ]
+            }
+          })
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  assert.equal(execCall.env.FACTORY_RESUME_AUTHORIZATIONS, "__CLEAR__");
+});
+
+test("applyInterventionAnswer persists self-modify authorization when the durable label is absent", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_123",
+      FACTORY_OPTION_ID: "approve_once",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          resumeAuthorizations: {
+            implement: {
+              budget_guardrail: {
+                sourceInterventionId: "int_q_budget",
+                kind: "question_required",
+                approvedBy: "maintainer",
+                approvedAt: "2026-04-01T00:00:00Z",
+                consumed: false
+              }
+            }
+          },
+          intervention: defaultApprovalIntervention({
+            id: "int_q_123",
+            stage: "implement",
+            payload: {
+              question: "Continue with self-modify authorization for the next resumed stage?",
+              recommendedOptionId: "approve_once",
+              applySelfModifyLabelOnApproval: true,
+              options: [
+                { id: "approve_once", label: "Approve once", effect: "resume_current_stage" },
+                { id: "deny", label: "Do not approve", effect: "remain_blocked" }
+              ]
+            }
+          })
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.budget_guardrail.sourceInterventionId,
+    "int_q_budget"
+  );
+  assert.equal(
+    resumeAuthorizations.implement.self_modify.sourceInterventionId,
+    "int_q_123"
+  );
 });
 
 test("applyInterventionAnswer resolves denial without resuming", async () => {
@@ -368,6 +503,7 @@ test("applyInterventionAnswer resolves denial without resuming", async () => {
   assert.equal(execCall.env.FACTORY_PAUSED, "true");
   assert.equal(execCall.env.FACTORY_SELF_MODIFY_LABEL_ACTION, "__UNCHANGED__");
   assert.equal(execCall.env.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL, "__UNCHANGED__");
+  assert.equal(execCall.env.FACTORY_RESUME_AUTHORIZATIONS, "__CLEAR__");
   assert.match(execCall.env.FACTORY_PAUSE_REASON, /Approval denied via \/factory answer/);
   assert.match(execCall.env.FACTORY_COMMENT, /remain blocked/i);
 });
@@ -425,9 +561,137 @@ test("applyInterventionAnswer resumes implement for budget guardrail questions w
   assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
   assert.equal(execCall.env.FACTORY_STATUS, "implementing");
   assert.equal(execCall.env.FACTORY_PENDING_STAGE_DECISION, "__UNCHANGED__");
-  const budgetOverride = JSON.parse(execCall.env.FACTORY_BUDGET_OVERRIDE);
-  assert.equal(budgetOverride.sourceInterventionId, "int_q_budget");
-  assert.equal(budgetOverride.kind, "question_required");
-  assert.equal(budgetOverride.approvedBy, "maintainer");
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.budget_guardrail.sourceInterventionId,
+    "int_q_budget"
+  );
+  assert.equal(resumeAuthorizations.implement.budget_guardrail.kind, "question_required");
+  assert.equal(resumeAuthorizations.implement.budget_guardrail.approvedBy, "maintainer");
   assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
+});
+
+test("applyInterventionAnswer preserves self-modify approval when adding budget authorization", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_budget",
+      FACTORY_OPTION_ID: "approve_once",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          resumeAuthorizations: {
+            implement: {
+              self_modify: {
+                sourceInterventionId: "int_q_self_modify",
+                approvedBy: "maintainer",
+                approvedAt: "2026-04-01T00:05:00Z",
+                consumed: false
+              }
+            }
+          },
+          intervention: {
+            id: "int_q_budget",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "budget_guardrail",
+              question: "Should the factory continue once with the truncated implement prompt?",
+              recommendedOptionId: "approve_once",
+              options: [
+                {
+                  id: "approve_once",
+                  label: "Continue once with the truncated prompt",
+                  effect: "resume_current_stage",
+                  instruction: "Proceed with the current implement stage despite prompt truncation."
+                }
+              ]
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.self_modify.sourceInterventionId,
+    "int_q_self_modify"
+  );
+  assert.equal(
+    resumeAuthorizations.implement.budget_guardrail.sourceInterventionId,
+    "int_q_budget"
+  );
+});
+
+test("applyInterventionAnswer preserves orthogonal authorization when denying a budget question", async () => {
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_budget",
+      FACTORY_OPTION_ID: "deny",
+      FACTORY_RESUME_ACTION: "implement",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "999",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          resumeAuthorizations: {
+            implement: {
+              self_modify: {
+                sourceInterventionId: "int_q_self_modify",
+                approvedBy: "maintainer",
+                approvedAt: "2026-04-01T00:05:00Z",
+                consumed: false
+              }
+            }
+          },
+          intervention: {
+            id: "int_q_budget",
+            type: "question",
+            status: "open",
+            stage: "implement",
+            payload: {
+              questionKind: "budget_guardrail",
+              question: "Should the factory continue once with the truncated implement prompt?",
+              recommendedOptionId: "approve_once",
+              options: [
+                { id: "approve_once", label: "Continue once", effect: "resume_current_stage" },
+                { id: "deny", label: "Keep blocked", effect: "remain_blocked" }
+              ]
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  const resumeAuthorizations = JSON.parse(execCall.env.FACTORY_RESUME_AUTHORIZATIONS);
+  assert.equal(
+    resumeAuthorizations.implement.self_modify.sourceInterventionId,
+    "int_q_self_modify"
+  );
+  assert.equal(resumeAuthorizations.implement.budget_guardrail, undefined);
 });

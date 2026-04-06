@@ -163,7 +163,7 @@ export function enforceStageBudget({
   const omittedCount = Array.isArray(promptMeta?.omittedSections)
     ? promptMeta.omittedSections.length
     : 0;
-  const budgetOverride = promptMeta?.budgetOverride || null;
+  const budgetAuthorization = promptMeta?.resumeAuthorizations?.budget_guardrail || null;
 
   if (mode !== "implement") {
     writeDecision(
@@ -223,7 +223,7 @@ export function enforceStageBudget({
       {
         budget_decision: "pass",
         budget_decision_detail: BUDGET_DECISION_DETAILS.pass,
-        budget_override_consumed: "false",
+        budget_authorization_consumed: "false",
         planned_path_count: String(plannedPaths.length),
         control_plane_paths_detected: controlPlanePathsDetected ? "true" : "false"
       },
@@ -234,15 +234,15 @@ export function enforceStageBudget({
 
   const canBypassQuestionRequired =
     budgetDecisionDetail === BUDGET_DECISION_DETAILS.questionRequired &&
-    `${budgetOverride?.kind || ""}`.trim() === BUDGET_DECISION_DETAILS.questionRequired &&
-    `${budgetOverride?.sourceInterventionId || ""}`.trim();
+    `${budgetAuthorization?.kind || ""}`.trim() === BUDGET_DECISION_DETAILS.questionRequired &&
+    `${budgetAuthorization?.sourceInterventionId || ""}`.trim();
 
   if (canBypassQuestionRequired) {
     writeDecision(
       {
         budget_decision: "pass",
         budget_decision_detail: BUDGET_DECISION_DETAILS.pass,
-        budget_override_consumed: "true",
+        budget_authorization_consumed: "true",
         planned_path_count: String(plannedPaths.length),
         control_plane_paths_detected: controlPlanePathsDetected ? "true" : "false"
       },
@@ -268,7 +268,7 @@ export function enforceStageBudget({
     {
       budget_decision: "block",
       budget_decision_detail: budgetDecisionDetail,
-      budget_override_consumed: "false",
+      budget_authorization_consumed: "false",
       failure_type: FAILURE_TYPE,
       failure_message: failureMessage,
       planned_path_count: String(plannedPaths.length),

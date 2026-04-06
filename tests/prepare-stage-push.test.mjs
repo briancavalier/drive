@@ -605,7 +605,9 @@ test("resolveStagePushAuthorization reads the live pull request labels", async (
 
   assert.deepEqual(result, {
     selfModifyEnabled: true,
-    hasSelfModifyLabel: true
+    hasSelfModifyLabel: true,
+    hasSelfModifyAuthorization: false,
+    selfModifyAuthorizationConsumed: false
   });
 });
 
@@ -630,9 +632,52 @@ test("resolveStagePushAuthorization skips live PR lookup for non-protected chang
 
   assert.deepEqual(result, {
     selfModifyEnabled: true,
-    hasSelfModifyLabel: false
+    hasSelfModifyLabel: false,
+    hasSelfModifyAuthorization: false,
+    selfModifyAuthorizationConsumed: false
   });
   assert.equal(called, false);
+});
+
+test("resolveStagePushAuthorization accepts one-shot self-modify authorization from metadata", async () => {
+  const result = await resolveStagePushAuthorization({
+    env: {
+      FACTORY_ENABLE_SELF_MODIFY: "true"
+    },
+    prNumber: 33,
+    protectedPathChanges: [{ kind: "scripts", label: "scripts/**", paths: ["scripts/x.mjs"] }],
+    githubClient: {
+      getPullRequest: async () => ({
+        labels: [],
+        body: [
+          "body",
+          "<!-- factory-state",
+          JSON.stringify({
+            issueNumber: 33,
+            artifactsPath: ".factory/runs/33",
+            resumeAuthorizations: {
+              implement: {
+                self_modify: {
+                  sourceInterventionId: "int_q_self_modify",
+                  approvedBy: "maintainer",
+                  approvedAt: "2026-04-05T00:00:00Z",
+                  consumed: false
+                }
+              }
+            }
+          }),
+          "-->"
+        ].join("\n")
+      })
+    }
+  });
+
+  assert.deepEqual(result, {
+    selfModifyEnabled: true,
+    hasSelfModifyLabel: false,
+    hasSelfModifyAuthorization: true,
+    selfModifyAuthorizationConsumed: true
+  });
 });
 
 test("prepare-stage-push fails before git when review payload is invalid", async () => {

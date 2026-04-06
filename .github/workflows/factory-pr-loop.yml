@@ -372,7 +372,7 @@ jobs:
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
-          FACTORY_BUDGET_OVERRIDE: "__CLEAR__"
+          FACTORY_RESUME_AUTHORIZATIONS: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_PAUSED: "false"
@@ -460,7 +460,8 @@ jobs:
           FACTORY_BLOCKED_ACTION: ""
           FACTORY_INTERVENTION: "__CLEAR__"
           FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
-          FACTORY_BUDGET_OVERRIDE: ${{ needs.stage.outputs.budget_override_consumed == 'true' && '__CLEAR__' || '__UNCHANGED__' }}
+          FACTORY_CLEAR_BUDGET_RESUME_AUTHORIZATION: ${{ needs.stage.outputs.budget_authorization_consumed || 'false' }}
+          FACTORY_CLEAR_SELF_MODIFY_RESUME_AUTHORIZATION: ${{ needs.stage.outputs.self_modify_authorization_consumed || 'false' }}
           FACTORY_SELF_MODIFY_LABEL_ACTION: "remove_if_auto_applied"
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
@@ -504,6 +505,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STAGE_ACTION: implement
           FACTORY_INTERVENTION_REQUEST: ${{ needs.stage.outputs.intervention_payload }}
+          FACTORY_CLEAR_BUDGET_RESUME_AUTHORIZATION: ${{ needs.stage.outputs.budget_authorization_consumed || 'false' }}
+          FACTORY_CLEAR_SELF_MODIFY_RESUME_AUTHORIZATION: ${{ needs.stage.outputs.self_modify_authorization_consumed || 'false' }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -673,7 +676,8 @@ jobs:
           FACTORY_FAILURE_TYPE: ${{ needs.stage.outputs.failure_type || 'content_or_logic' }}
           FACTORY_FAILURE_MESSAGE: ${{ needs.stage.outputs.failure_message }}
           FACTORY_BUDGET_DECISION_DETAIL: ${{ needs.stage.outputs.budget_decision_detail || '' }}
-          FACTORY_BUDGET_OVERRIDE_CONSUMED: ${{ needs.stage.outputs.budget_override_consumed || 'false' }}
+          FACTORY_BUDGET_AUTHORIZATION_CONSUMED: ${{ needs.stage.outputs.budget_authorization_consumed || 'false' }}
+          FACTORY_SELF_MODIFY_AUTHORIZATION_CONSUMED: ${{ needs.stage.outputs.self_modify_authorization_consumed || 'false' }}
           FACTORY_TRANSIENT_RETRY_ATTEMPTS: ${{ needs.stage.outputs.transient_retry_attempts || '0' }}
           FACTORY_LAST_REFRESHED_SHA: ${{ needs.stage.outputs.refreshed_head_sha }}
           FACTORY_FAILURE_ADVISORY_PATH: ${{ steps.diagnosis_prompt.outputs.advisory_path }}

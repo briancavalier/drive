@@ -302,7 +302,7 @@ export function applyPendingStageDecision(metadata, envValue) {
   };
 }
 
-export function applyBudgetOverride(metadata, envValue) {
+export function applyResumeAuthorizations(metadata, envValue) {
   if (envValue === undefined) {
     return metadata;
   }
@@ -316,7 +316,7 @@ export function applyBudgetOverride(metadata, envValue) {
   if (!normalized || normalized === "__CLEAR__") {
     return {
       ...metadata,
-      budgetOverride: null
+      resumeAuthorizations: null
     };
   }
 
@@ -325,13 +325,54 @@ export function applyBudgetOverride(metadata, envValue) {
   try {
     parsed = JSON.parse(normalized);
   } catch {
-    throw new Error("FACTORY_BUDGET_OVERRIDE must be valid JSON when provided");
+    throw new Error("FACTORY_RESUME_AUTHORIZATIONS must be valid JSON when provided");
   }
 
   return {
     ...metadata,
-    budgetOverride: parsed
+    resumeAuthorizations: parsed
   };
+}
+
+function clearAuthorizationAtPath(metadata, stage, key) {
+  const current = metadata?.resumeAuthorizations;
+  const stageAuthorizations = current?.[stage];
+
+  if (!stageAuthorizations?.[key]) {
+    return metadata;
+  }
+
+  const nextStageAuthorizations = { ...stageAuthorizations };
+  delete nextStageAuthorizations[key];
+
+  const nextResumeAuthorizations = { ...(current || {}) };
+  if (Object.keys(nextStageAuthorizations).length === 0) {
+    delete nextResumeAuthorizations[stage];
+  } else {
+    nextResumeAuthorizations[stage] = nextStageAuthorizations;
+  }
+
+  return {
+    ...metadata,
+    resumeAuthorizations:
+      Object.keys(nextResumeAuthorizations).length > 0 ? nextResumeAuthorizations : null
+  };
+}
+
+export function applyConsumedResumeAuthorizationClears(metadata, env = {}) {
+  let nextMetadata = metadata;
+
+  if (`${env.FACTORY_CLEAR_BUDGET_RESUME_AUTHORIZATION || ""}`.trim().toLowerCase() === "true") {
+    nextMetadata = clearAuthorizationAtPath(nextMetadata, "implement", "budget_guardrail");
+  }
+
+  if (
+    `${env.FACTORY_CLEAR_SELF_MODIFY_RESUME_AUTHORIZATION || ""}`.trim().toLowerCase() === "true"
+  ) {
+    nextMetadata = clearAuthorizationAtPath(nextMetadata, "implement", "self_modify");
+  }
+
+  return nextMetadata;
 }
 
 function applySelfModifyLabelAction({ prNumber, pullRequest, previousMetadata, envValue }) {
@@ -510,7 +551,8 @@ export async function main(env = process.env) {
     nextMetadata,
     env.FACTORY_PENDING_STAGE_DECISION
   );
-  nextMetadata = applyBudgetOverride(nextMetadata, env.FACTORY_BUDGET_OVERRIDE);
+  nextMetadata = applyResumeAuthorizations(nextMetadata, env.FACTORY_RESUME_AUTHORIZATIONS);
+  nextMetadata = applyConsumedResumeAuthorizationClears(nextMetadata, env);
   nextMetadata = applyIntervention(nextMetadata, env.FACTORY_INTERVENTION);
   nextMetadata = applyArtifactRef(nextMetadata, env.FACTORY_ARTIFACT_REF);
   nextMetadata = canonicalizeUpdatedMetadata(nextMetadata);
