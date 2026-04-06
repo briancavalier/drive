@@ -14,6 +14,8 @@ import {
   getQuestionOption
 } from "./lib/intervention-state.mjs";
 
+const SELF_MODIFY_LABEL = "factory:self-modify";
+
 function requiredEnv(name, env = process.env) {
   const value = `${env[name] || ""}`.trim();
 
@@ -99,7 +101,12 @@ function getAuthorizationKey(intervention) {
   return "";
 }
 
-function buildUpdatedResumeAuthorizations({ metadata, intervention, option, actor }) {
+function hasSelfModifyLabel(pullRequest) {
+  const labels = Array.isArray(pullRequest?.labels) ? pullRequest.labels : [];
+  return labels.some((label) => `${label?.name || label || ""}`.trim() === SELF_MODIFY_LABEL);
+}
+
+function buildUpdatedResumeAuthorizations({ metadata, intervention, option, actor, pullRequest }) {
   const key = getAuthorizationKey(intervention);
 
   if (!key) {
@@ -109,8 +116,14 @@ function buildUpdatedResumeAuthorizations({ metadata, intervention, option, acto
   const currentImplement = { ...(metadata?.resumeAuthorizations?.implement || {}) };
   const nextImplement = { ...currentImplement };
   const optionEffect = `${option?.effect || ""}`.trim();
+  const shouldSkipSelfModifyAuthorization =
+    key === "self_modify" &&
+    optionEffect === "resume_current_stage" &&
+    hasSelfModifyLabel(pullRequest);
 
-  if (optionEffect === "resume_current_stage") {
+  if (shouldSkipSelfModifyAuthorization) {
+    delete nextImplement.self_modify;
+  } else if (optionEffect === "resume_current_stage") {
     nextImplement[key] =
       key === "budget_guardrail"
         ? buildBudgetOverride({ intervention, option, actor })
@@ -170,7 +183,8 @@ export async function main(env = process.env, dependencies = {}) {
       metadata,
       intervention,
       option,
-      actor: env.GITHUB_ACTOR
+      actor: env.GITHUB_ACTOR,
+      pullRequest
     }),
     FACTORY_COMMENT: answerNote
       ? `${resolutionComment}\n\nOperator note:\n${answerNote}`
