@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { setOutputs } from "./lib/actions-output.mjs";
-import { FACTORY_LABELS, FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
+import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
 import {
   renderInterventionResolutionComment
@@ -13,10 +13,6 @@ import {
   getOpenQuestionIntervention,
   getQuestionOption
 } from "./lib/intervention-state.mjs";
-
-function hasLabel(labels = [], labelName) {
-  return labels.some((label) => label.name === labelName);
-}
 
 function requiredEnv(name, env = process.env) {
   const value = `${env[name] || ""}`.trim();
@@ -67,19 +63,66 @@ function buildPendingStageDecision({ intervention, option, actor }) {
 }
 
 function buildBudgetOverride({ intervention, option, actor }) {
+  return buildResumeAuthorization({ intervention, option, actor, questionKind: "budget_guardrail" });
+}
+
+function buildResumeAuthorization({ intervention, option, actor, questionKind }) {
   if (
-    `${intervention?.payload?.questionKind || ""}`.trim() !== "budget_guardrail" ||
+    `${intervention?.payload?.questionKind || ""}`.trim() !== `${questionKind || ""}`.trim() ||
     `${option?.effect || ""}`.trim() !== "resume_current_stage"
   ) {
     return null;
   }
 
+  const kind = questionKind === "budget_guardrail" ? "question_required" : null;
+
   return {
     sourceInterventionId: intervention.id,
-    kind: "question_required",
+    kind,
     approvedBy: `${actor || ""}`.trim() || null,
-    approvedAt: new Date().toISOString()
+    approvedAt: new Date().toISOString(),
+    consumed: false
   };
+}
+
+function getAuthorizationKey(intervention) {
+  const questionKind = `${intervention?.payload?.questionKind || ""}`.trim();
+
+  if (questionKind === "budget_guardrail") {
+    return "budget_guardrail";
+  }
+
+  if (`${intervention?.type || ""}`.trim() === "approval") {
+    return "self_modify";
+  }
+
+  return "";
+}
+
+function buildUpdatedResumeAuthorizations({ metadata, intervention, option, actor }) {
+  const key = getAuthorizationKey(intervention);
+
+  if (!key) {
+    return "__UNCHANGED__";
+  }
+
+  const currentImplement = { ...(metadata?.resumeAuthorizations?.implement || {}) };
+  const nextImplement = { ...currentImplement };
+  const optionEffect = `${option?.effect || ""}`.trim();
+
+  if (optionEffect === "resume_current_stage") {
+    nextImplement[key] =
+      key === "budget_guardrail"
+        ? buildBudgetOverride({ intervention, option, actor })
+        : buildResumeAuthorization({ intervention, option, actor, questionKind: "approval" });
+  } else {
+    delete nextImplement[key];
+  }
+
+  const nextResumeAuthorizations =
+    Object.keys(nextImplement).length > 0 ? { implement: nextImplement } : null;
+
+  return nextResumeAuthorizations ? JSON.stringify(nextResumeAuthorizations) : "__CLEAR__";
 }
 
 export async function main(env = process.env, dependencies = {}) {
@@ -106,10 +149,6 @@ export async function main(env = process.env, dependencies = {}) {
   const resumeAction = option.effect === "resume_current_stage"
     ? requestedResumeAction || `${metadata.blockedAction || ""}`.trim()
     : "";
-  const shouldApplySelfModifyLabel =
-    optionId === "approve_once" &&
-    intervention.payload?.applySelfModifyLabelOnApproval === true;
-  const hasSelfModifyLabel = hasLabel(pullRequest.labels || [], FACTORY_LABELS.selfModify);
   const resolutionComment = renderInterventionResolutionComment({
     interventionId,
     optionId,
@@ -127,7 +166,12 @@ export async function main(env = process.env, dependencies = {}) {
     FACTORY_PR_NUMBER: prNumber,
     FACTORY_INTERVENTION: "__CLEAR__",
     FACTORY_PENDING_STAGE_DECISION: "__UNCHANGED__",
-    FACTORY_BUDGET_OVERRIDE: "__UNCHANGED__",
+    FACTORY_RESUME_AUTHORIZATIONS: buildUpdatedResumeAuthorizations({
+      metadata,
+      intervention,
+      option,
+      actor: env.GITHUB_ACTOR
+    }),
     FACTORY_COMMENT: answerNote
       ? `${resolutionComment}\n\nOperator note:\n${answerNote}`
       : resolutionComment,
@@ -137,14 +181,8 @@ export async function main(env = process.env, dependencies = {}) {
         ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
         : ""
   };
-
-  if (shouldApplySelfModifyLabel && !hasSelfModifyLabel) {
-    childEnv.FACTORY_SELF_MODIFY_LABEL_ACTION = "add";
-    childEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL = "true";
-  } else {
-    childEnv.FACTORY_SELF_MODIFY_LABEL_ACTION = "__UNCHANGED__";
-    childEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL = "__UNCHANGED__";
-  }
+  childEnv.FACTORY_SELF_MODIFY_LABEL_ACTION = "__UNCHANGED__";
+  childEnv.FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL = "__UNCHANGED__";
 
   if (resumeAction) {
     const pendingStageDecision = buildPendingStageDecision({
@@ -157,16 +195,6 @@ export async function main(env = process.env, dependencies = {}) {
       childEnv.FACTORY_PENDING_STAGE_DECISION = JSON.stringify(pendingStageDecision);
     }
 
-    const budgetOverride = buildBudgetOverride({
-      intervention,
-      option,
-      actor: env.GITHUB_ACTOR
-    });
-
-    childEnv.FACTORY_BUDGET_OVERRIDE = budgetOverride
-      ? JSON.stringify(budgetOverride)
-      : "__CLEAR__";
-
     childEnv.FACTORY_STATUS = resolveStatusFromAction(resumeAction);
     childEnv.FACTORY_BLOCKED_ACTION = "";
     childEnv.FACTORY_PAUSED = "false";
@@ -176,7 +204,6 @@ export async function main(env = process.env, dependencies = {}) {
     childEnv.FACTORY_BLOCKED_ACTION = "";
     childEnv.FACTORY_PAUSED = "true";
     childEnv.FACTORY_PAUSE_REASON = pauseReason;
-    childEnv.FACTORY_BUDGET_OVERRIDE = "__CLEAR__";
   }
 
   await execFileAsync(process.execPath, ["scripts/apply-pr-state.mjs"], {

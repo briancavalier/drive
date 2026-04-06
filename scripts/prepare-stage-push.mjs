@@ -13,6 +13,7 @@ import {
 } from "./lib/cost-estimation.mjs";
 import { FACTORY_LABELS } from "./lib/factory-config.mjs";
 import { getPullRequest } from "./lib/github.mjs";
+import { extractPrMetadata } from "./lib/pr-metadata.mjs";
 import {
   evaluateStagePush,
   getProtectedPathChanges,
@@ -370,6 +371,10 @@ function pullRequestHasLabel(pullRequest, label) {
   return pullRequest.labels.some((entry) => `${entry?.name || ""}`.trim() === label);
 }
 
+function getResumeAuthorization(metadata, key) {
+  return metadata?.resumeAuthorizations?.implement?.[key] || null;
+}
+
 export async function resolveStagePushAuthorization({
   env,
   prNumber,
@@ -381,15 +386,23 @@ export async function resolveStagePushAuthorization({
   if (!(prNumber > 0) || protectedPathChanges.length === 0) {
     return {
       selfModifyEnabled,
-      hasSelfModifyLabel: false
+      hasSelfModifyLabel: false,
+      hasSelfModifyAuthorization: false,
+      selfModifyAuthorizationConsumed: false
     };
   }
 
   const pullRequest = await githubClient.getPullRequest(prNumber);
+  const metadata = pullRequest?.body ? extractPrMetadata(pullRequest.body) || {} : {};
+  const hasSelfModifyLabel = pullRequestHasLabel(pullRequest, FACTORY_LABELS.selfModify);
+  const hasSelfModifyAuthorization =
+    !hasSelfModifyLabel && Boolean(getResumeAuthorization(metadata, "self_modify"));
 
   return {
     selfModifyEnabled,
-    hasSelfModifyLabel: pullRequestHasLabel(pullRequest, FACTORY_LABELS.selfModify)
+    hasSelfModifyLabel,
+    hasSelfModifyAuthorization,
+    selfModifyAuthorizationConsumed: hasSelfModifyAuthorization
   };
 }
 
@@ -406,6 +419,7 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
   const githubRunId = env.GITHUB_RUN_ID || "";
   const githubRunAttempt = env.GITHUB_RUN_ATTEMPT || "";
   const factoryTokenConfigured = Boolean(`${env.FACTORY_GITHUB_TOKEN || ""}`.trim());
+  let selfModifyAuthorizationConsumed = false;
 
   if (!branch) {
     throw new Error("FACTORY_BRANCH is required.");
@@ -489,6 +503,7 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
         changed_files: "",
         token_source: resolvedToken.source,
         workflow_changes: "false",
+        self_modify_authorization_consumed: "false",
         failure_type: "",
         failure_message: "",
         transient_retry_attempts: "0",
@@ -515,11 +530,13 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
     protectedPathChanges,
     githubClient
   });
+  selfModifyAuthorizationConsumed = authorization.selfModifyAuthorizationConsumed === true;
   const evaluation = evaluateStagePush({
     changedFiles,
     hasFactoryToken: resolvedToken.source === "factory",
     selfModifyEnabled: authorization.selfModifyEnabled,
-    hasSelfModifyLabel: authorization.hasSelfModifyLabel
+    hasSelfModifyLabel: authorization.hasSelfModifyLabel,
+    hasSelfModifyAuthorization: authorization.hasSelfModifyAuthorization
   });
 
   if (!evaluation.allowed) {
@@ -536,6 +553,7 @@ export async function main(env = process.env, { githubClient = { getPullRequest 
     changed_files: changedFiles.join("\n"),
     token_source: resolvedToken.source,
     workflow_changes: evaluation.workflowChanges ? "true" : "false",
+    self_modify_authorization_consumed: selfModifyAuthorizationConsumed ? "true" : "false",
     failure_type: "",
     failure_message: "",
     transient_retry_attempts: "0",
@@ -554,6 +572,7 @@ if (isDirectExecution) {
     setOutputs({
       failure_type: classifyFailure(error.message),
       failure_message: `${error.message || ""}`.trim(),
+      self_modify_authorization_consumed: "false",
       transient_retry_attempts: "0",
       prepared_head_sha: ""
     });

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   applyBlockedAction,
   applyAutoAppliedSelfModifyLabel,
-  applyBudgetOverride,
+  applyConsumedResumeAuthorizationClears,
+  applyResumeAuthorizations,
   applyIntervention,
   applyActualUsageMetadata,
   applyPendingStageDecision,
@@ -346,33 +347,73 @@ test("applyPendingStageDecision rejects invalid JSON", () => {
   );
 });
 
-test("applyBudgetOverride updates metadata from the explicit env override", () => {
+test("applyResumeAuthorizations updates metadata from the explicit env override", () => {
   const metadata = defaultPrMetadata();
-  const override = {
-    sourceInterventionId: "int_q_budget",
-    kind: "question_required",
-    approvedBy: "maintainer",
-    approvedAt: "2026-04-01T00:00:00Z"
+  const authorizations = {
+    implement: {
+      budget_guardrail: {
+        sourceInterventionId: "int_q_budget",
+        kind: "question_required",
+        approvedBy: "maintainer",
+        approvedAt: "2026-04-01T00:00:00Z",
+        consumed: false
+      }
+    }
   };
 
   assert.deepEqual(
-    applyBudgetOverride(metadata, JSON.stringify(override)).budgetOverride,
-    override
+    applyResumeAuthorizations(metadata, JSON.stringify(authorizations)).resumeAuthorizations,
+    authorizations
   );
-  assert.equal(applyBudgetOverride(metadata, "__CLEAR__").budgetOverride, null);
+  assert.equal(applyResumeAuthorizations(metadata, "__CLEAR__").resumeAuthorizations, null);
   assert.equal(
-    applyBudgetOverride({ ...metadata, budgetOverride: override }, "__UNCHANGED__").budgetOverride
-      .sourceInterventionId,
+    applyResumeAuthorizations(
+      { ...metadata, resumeAuthorizations: authorizations },
+      "__UNCHANGED__"
+    ).resumeAuthorizations.implement.budget_guardrail.sourceInterventionId,
     "int_q_budget"
   );
 });
 
-test("applyBudgetOverride rejects invalid JSON", () => {
+test("applyResumeAuthorizations rejects invalid JSON", () => {
   const metadata = defaultPrMetadata();
 
   assert.throws(
-    () => applyBudgetOverride(metadata, "{not-json"),
-    /FACTORY_BUDGET_OVERRIDE must be valid JSON/
+    () => applyResumeAuthorizations(metadata, "{not-json"),
+    /FACTORY_RESUME_AUTHORIZATIONS must be valid JSON/
+  );
+});
+
+test("applyConsumedResumeAuthorizationClears removes only consumed authorizations", () => {
+  const metadata = defaultPrMetadata({
+    resumeAuthorizations: {
+      implement: {
+        budget_guardrail: {
+          sourceInterventionId: "int_q_budget",
+          kind: "question_required",
+          approvedBy: "maintainer",
+          approvedAt: "2026-04-01T00:00:00Z",
+          consumed: false
+        },
+        self_modify: {
+          sourceInterventionId: "int_q_self_modify",
+          approvedBy: "maintainer",
+          approvedAt: "2026-04-01T00:05:00Z",
+          consumed: false
+        }
+      }
+    }
+  });
+
+  const nextMetadata = applyConsumedResumeAuthorizationClears(metadata, {
+    FACTORY_CLEAR_BUDGET_RESUME_AUTHORIZATION: "true",
+    FACTORY_CLEAR_SELF_MODIFY_RESUME_AUTHORIZATION: "false"
+  });
+
+  assert.equal(nextMetadata.resumeAuthorizations.implement.budget_guardrail, undefined);
+  assert.equal(
+    nextMetadata.resumeAuthorizations.implement.self_modify.sourceInterventionId,
+    "int_q_self_modify"
   );
 });
 
