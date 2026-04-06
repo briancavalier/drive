@@ -957,8 +957,8 @@ export function buildStagePrompt({
       }))
   };
 
-  if (mode === FACTORY_STAGE_MODES.implement && metadata?.budgetOverride) {
-    meta.budgetOverride = metadata.budgetOverride;
+  if (mode === FACTORY_STAGE_MODES.implement && metadata?.resumeAuthorizations?.implement) {
+    meta.resumeAuthorizations = metadata.resumeAuthorizations.implement;
   }
 
   if (
