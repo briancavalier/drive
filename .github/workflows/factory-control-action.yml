@@ -118,6 +118,7 @@ jobs:
           FACTORY_LAST_RUN_ID: ""
           FACTORY_LAST_RUN_URL: ""
           FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
+          FACTORY_RESUME_AUTHORIZATIONS: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_PAUSE_REASON: ""
@@ -134,6 +135,7 @@ jobs:
           FACTORY_ADD_LABELS: factory:blocked
           FACTORY_REMOVE_LABELS: factory:implement
           FACTORY_PENDING_STAGE_DECISION: "__CLEAR__"
+          FACTORY_RESUME_AUTHORIZATIONS: "__CLEAR__"
           FACTORY_SELF_MODIFY_LABEL_ACTION: remove_if_auto_applied
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_CONVERT_TO_DRAFT: "true"

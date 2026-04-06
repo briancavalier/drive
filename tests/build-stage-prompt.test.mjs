@@ -605,12 +605,17 @@ test("implement prompt metadata carries budget override state for budget preflig
     issueNumber: 1,
     artifactsPath: artifactsDir,
     status: "implementing",
-    budgetOverride: {
-      sourceInterventionId: "int_q_budget",
-      kind: "question_required",
-      approvedBy: "maintainer",
-      approvedAt: "2026-04-01T00:00:00Z"
-    }
+      resumeAuthorizations: {
+        implement: {
+          budget_guardrail: {
+            sourceInterventionId: "int_q_budget",
+            kind: "question_required",
+            approvedBy: "maintainer",
+            approvedAt: "2026-04-01T00:00:00Z",
+            consumed: false
+          }
+        }
+      }
   });
   const pullRequestBody = renderPrBody({
     issueNumber: 1,
@@ -637,8 +642,8 @@ test("implement prompt metadata carries budget override state for budget preflig
     templateText: implementTemplate
   });
 
-  assert.equal(result.meta.budgetOverride.sourceInterventionId, "int_q_budget");
-  assert.equal(result.meta.budgetOverride.kind, "question_required");
+  assert.equal(result.meta.resumeAuthorizations.budget_guardrail.sourceInterventionId, "int_q_budget");
+  assert.equal(result.meta.resumeAuthorizations.budget_guardrail.kind, "question_required");
 });
 
 test("implement prompt omits the human decision section when absent", () => {

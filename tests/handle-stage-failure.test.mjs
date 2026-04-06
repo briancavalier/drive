@@ -421,7 +421,7 @@ test("main keeps hard-block budget guardrail failures as failure interventions",
   assert.doesNotMatch(execEnv.FACTORY_COMMENT, /## Factory Question/);
 });
 
-test("main clears consumed budget overrides when handling later stage failures", async () => {
+test("main clears consumed resume authorizations when handling later stage failures", async () => {
   let execEnv = null;
 
   await handleFailure(
@@ -430,7 +430,8 @@ test("main clears consumed budget overrides when handling later stage failures",
       FACTORY_FAILURE_PHASE: "stage",
       FACTORY_FAILURE_TYPE: FAILURE_TYPES.contentOrLogic,
       FACTORY_FAILURE_MESSAGE: "Implementation failed after resuming.",
-      FACTORY_BUDGET_OVERRIDE_CONSUMED: "true",
+      FACTORY_BUDGET_AUTHORIZATION_CONSUMED: "true",
+      FACTORY_SELF_MODIFY_AUTHORIZATION_CONSUMED: "true",
       FACTORY_PR_NUMBER: "458",
       GITHUB_SERVER_URL: "https://github.com",
       GITHUB_REPOSITORY: "example/repo"
@@ -442,5 +443,6 @@ test("main clears consumed budget overrides when handling later stage failures",
     }
   );
 
-  assert.equal(execEnv.FACTORY_BUDGET_OVERRIDE, "__CLEAR__");
+  assert.equal(execEnv.FACTORY_CLEAR_BUDGET_RESUME_AUTHORIZATION, "true");
+  assert.equal(execEnv.FACTORY_CLEAR_SELF_MODIFY_RESUME_AUTHORIZATION, "true");
 });

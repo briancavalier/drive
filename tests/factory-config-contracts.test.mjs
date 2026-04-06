@@ -60,6 +60,10 @@ test("factory control-action reset clears canonical intervention state", () => {
   );
   assert.match(
     workflowText,
+    /name:\s+Reset factory PR[\s\S]*FACTORY_RESUME_AUTHORIZATIONS:\s*"__CLEAR__"/
+  );
+  assert.match(
+    workflowText,
     /name:\s+Reset factory PR[\s\S]*FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL:\s*"false"/
   );
   assert.doesNotMatch(
@@ -90,6 +94,10 @@ test("factory control-action escalate clears auto-applied self-modify authorizat
     workflowText,
     /name:\s+Escalate to human-only[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*"__CLEAR__"/
   );
+  assert.match(
+    workflowText,
+    /name:\s+Escalate to human-only[\s\S]*FACTORY_RESUME_AUTHORIZATIONS:\s*"__CLEAR__"/
+  );
 });
 
 test("factory reset workflow clears canonical intervention state when repair state is reset", () => {
@@ -114,6 +122,10 @@ test("factory reset workflow clears canonical intervention state when repair sta
   assert.match(
     workflowText,
     /name:\s+Reset factory PR state[\s\S]*FACTORY_PENDING_STAGE_DECISION:\s*\$\{\{\s*inputs\.clear_repair_state && '__CLEAR__' \|\| '__UNCHANGED__'\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /name:\s+Reset factory PR state[\s\S]*FACTORY_RESUME_AUTHORIZATIONS:\s*\$\{\{\s*inputs\.clear_repair_state && '__CLEAR__' \|\| '__UNCHANGED__'\s*\}\}/
   );
 });
 
@@ -413,7 +425,11 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
   );
   assert.match(
     workflowText,
-    /budget_override_consumed:\s*\n\s+description:\s+Indicates whether a one-shot budget override was consumed by preflight\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.budget_override_consumed\s*\}\}/
+    /budget_authorization_consumed:\s*\n\s+description:\s+Indicates whether a one-shot budget authorization was consumed by preflight\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.budget_authorization_consumed\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /self_modify_authorization_consumed:\s*\n\s+description:\s+Indicates whether a one-shot self-modify authorization was consumed by stage preparation\.\s*\n\s+value:\s*\$\{\{\s*jobs\.run\.outputs\.self_modify_authorization_consumed\s*\}\}/
   );
   assert.match(
     workflowText,
@@ -429,7 +445,11 @@ test("factory stage workflow surfaces model validation failures ahead of downstr
   );
   assert.match(
     workflowText,
-    /budget_override_consumed:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_override_consumed \|\| 'false'\s*\}\}/
+    /budget_authorization_consumed:\s*\$\{\{\s*steps\.budget_preflight\.outputs\.budget_authorization_consumed \|\| 'false'\s*\}\}/
+  );
+  assert.match(
+    workflowText,
+    /self_modify_authorization_consumed:\s*\$\{\{\s*steps\.prepare\.outputs\.self_modify_authorization_consumed \|\| 'false'\s*\}\}/
   );
 });
 
@@ -544,7 +564,11 @@ test("factory stage workflow records estimated cost only after a successful push
   );
   assert.match(
     readWorkflowText("factory-pr-loop.yml"),
-    /FACTORY_BUDGET_OVERRIDE_CONSUMED:\s*\$\{\{\s*needs\.stage\.outputs\.budget_override_consumed \|\| 'false'\s*\}\}/
+    /FACTORY_BUDGET_AUTHORIZATION_CONSUMED:\s*\$\{\{\s*needs\.stage\.outputs\.budget_authorization_consumed \|\| 'false'\s*\}\}/
+  );
+  assert.match(
+    readWorkflowText("factory-pr-loop.yml"),
+    /FACTORY_SELF_MODIFY_AUTHORIZATION_CONSUMED:\s*\$\{\{\s*needs\.stage\.outputs\.self_modify_authorization_consumed \|\| 'false'\s*\}\}/
   );
 });
 

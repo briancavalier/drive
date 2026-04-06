@@ -88,8 +88,105 @@ function normalizeBudgetOverride(override) {
   };
 }
 
+function normalizeResumeAuthorization(authorization) {
+  if (!authorization || typeof authorization !== "object") {
+    return null;
+  }
+
+  const sourceInterventionId = `${authorization.sourceInterventionId || ""}`.trim();
+  const kind = `${authorization.kind || ""}`.trim();
+  const approvedBy = `${authorization.approvedBy || ""}`.trim();
+  const approvedAt = `${authorization.approvedAt || ""}`.trim();
+  const consumed = authorization.consumed === true;
+
+  if (!sourceInterventionId) {
+    return null;
+  }
+
+  return {
+    sourceInterventionId,
+    kind: kind || null,
+    approvedBy: approvedBy || null,
+    approvedAt: approvedAt || null,
+    consumed
+  };
+}
+
+function normalizeStageResumeAuthorizations(authorizations) {
+  if (!authorizations || typeof authorizations !== "object") {
+    return null;
+  }
+
+  const budgetGuardrail = normalizeResumeAuthorization(authorizations.budget_guardrail);
+  const selfModify = normalizeResumeAuthorization(authorizations.self_modify);
+
+  if (!budgetGuardrail && !selfModify) {
+    return null;
+  }
+
+  return {
+    ...(budgetGuardrail ? { budget_guardrail: budgetGuardrail } : {}),
+    ...(selfModify ? { self_modify: selfModify } : {})
+  };
+}
+
+function normalizeResumeAuthorizations(authorizations, legacyBudgetOverride = null) {
+  const migratedBudgetOverride = normalizeBudgetOverride(legacyBudgetOverride);
+
+  if (!authorizations || typeof authorizations !== "object") {
+    if (!migratedBudgetOverride) {
+      return null;
+    }
+
+    return {
+      implement: {
+        budget_guardrail: {
+          ...migratedBudgetOverride,
+          consumed: false
+        }
+      }
+    };
+  }
+
+  const implement = normalizeStageResumeAuthorizations(authorizations.implement);
+
+  if (!implement) {
+    if (!migratedBudgetOverride) {
+      return null;
+    }
+
+    return {
+      implement: {
+        budget_guardrail: {
+          ...migratedBudgetOverride,
+          consumed: false
+        }
+      }
+    };
+  }
+
+  if (!implement.budget_guardrail && migratedBudgetOverride) {
+    return {
+      implement: {
+        ...implement,
+        budget_guardrail: {
+          ...migratedBudgetOverride,
+          consumed: false
+        }
+      }
+    };
+  }
+
+  return { implement };
+}
+
 export function defaultPrMetadata(overrides = {}) {
   const normalizedOverrides = stripLegacyFailureMetadata(overrides);
+  const {
+    budgetOverride: legacyBudgetOverride,
+    resumeAuthorizations: requestedResumeAuthorizations,
+    ...restOverrides
+  } = normalizedOverrides;
 
   return {
     issueNumber: null,
@@ -106,7 +203,7 @@ export function defaultPrMetadata(overrides = {}) {
     paused: false,
     autoAppliedSelfModifyLabel: false,
     pendingStageDecision: null,
-    budgetOverride: null,
+    resumeAuthorizations: null,
     lastCompletedStage: null,
     lastRunId: null,
     lastRunUrl: null,
@@ -127,13 +224,16 @@ export function defaultPrMetadata(overrides = {}) {
     actualOutputTokens: null,
     actualReasoningTokens: null,
     intervention: null,
-    ...normalizedOverrides,
-    artifactRef: normalizeArtifactRef(normalizedOverrides.artifactRef),
+    ...restOverrides,
+    artifactRef: normalizeArtifactRef(restOverrides.artifactRef),
     pendingStageDecision: normalizePendingStageDecision(
-      normalizedOverrides.pendingStageDecision
+      restOverrides.pendingStageDecision
     ),
-    budgetOverride: normalizeBudgetOverride(normalizedOverrides.budgetOverride),
-    intervention: canonicalizeIntervention(normalizedOverrides.intervention ?? null)
+    resumeAuthorizations: normalizeResumeAuthorizations(
+      requestedResumeAuthorizations,
+      legacyBudgetOverride
+    ),
+    intervention: canonicalizeIntervention(restOverrides.intervention ?? null)
   };
 }
 
@@ -151,20 +251,28 @@ function normalizeArtifactRef(value) {
 
 export function canonicalizePrMetadataShape(metadata = {}, issueNumber = metadata?.issueNumber) {
   const normalizedMetadata = stripLegacyFailureMetadata(metadata);
+  const {
+    budgetOverride: legacyBudgetOverride,
+    resumeAuthorizations: requestedResumeAuthorizations,
+    ...restMetadata
+  } = normalizedMetadata;
   const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
   const canonicalArtifactsPath = normalizedIssueNumber
     ? issueArtifactsPath(normalizedIssueNumber)
-    : normalizedMetadata.artifactsPath ?? null;
+    : restMetadata.artifactsPath ?? null;
 
   return defaultPrMetadata({
-    ...normalizedMetadata,
-    issueNumber: normalizedIssueNumber ?? normalizedMetadata.issueNumber ?? null,
+    ...restMetadata,
+    issueNumber: normalizedIssueNumber ?? restMetadata.issueNumber ?? null,
     artifactsPath: canonicalArtifactsPath,
-    artifactRef: normalizeArtifactRef(normalizedMetadata.artifactRef),
+    artifactRef: normalizeArtifactRef(restMetadata.artifactRef),
     pendingStageDecision: normalizePendingStageDecision(
-      normalizedMetadata.pendingStageDecision
+      restMetadata.pendingStageDecision
     ),
-    budgetOverride: normalizeBudgetOverride(normalizedMetadata.budgetOverride),
-    intervention: canonicalizeIntervention(normalizedMetadata.intervention)
+    resumeAuthorizations: normalizeResumeAuthorizations(
+      requestedResumeAuthorizations,
+      legacyBudgetOverride
+    ),
+    intervention: canonicalizeIntervention(restMetadata.intervention)
   });
 }

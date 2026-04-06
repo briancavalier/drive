@@ -137,7 +137,8 @@ export function evaluateStagePush({
   changedFiles,
   hasFactoryToken,
   selfModifyEnabled = false,
-  hasSelfModifyLabel = false
+  hasSelfModifyLabel = false,
+  hasSelfModifyAuthorization = false
 }) {
   const files = parseChangedFiles(changedFiles);
   const workflowChanges = hasWorkflowFileChanges(files);
@@ -168,15 +169,14 @@ export function evaluateStagePush({
     };
   }
 
-  if (protectedPathChanges.length > 0 && !hasSelfModifyLabel) {
+  if (protectedPathChanges.length > 0 && !hasSelfModifyLabel && !hasSelfModifyAuthorization) {
     return {
       allowed: false,
       workflowChanges,
       protectedPathChanges,
       reason:
         `Factory stage output touches protected control-plane paths (${protectedPathLabels}) ` +
-        "but the pull request is missing the factory:self-modify label. Add that label " +
-        "before retrying this self-modifying factory run."
+        "but the pull request is missing the factory:self-modify label or a one-shot self-modify authorization. Add that label or approve the self-modify question before retrying this self-modifying factory run."
     };
   }
 
