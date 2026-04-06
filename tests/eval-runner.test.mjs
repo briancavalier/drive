@@ -14,16 +14,20 @@ import {
 
 const REPO_ROOT = path.resolve(path.join(import.meta.dirname, ".."));
 
-function makeTempRepoFixture() {
+function makeTempRepoFixture({ telemetryOnly = false, extraTask = false } = {}) {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "eval-runner-"));
   const corpusRoot = path.join(repoRoot, "eval", "corpus");
   const tasksDir = path.join(corpusRoot, "tasks");
   const runDir = path.join(repoRoot, ".factory", "runs", "1");
+  const secondRunDir = path.join(repoRoot, ".factory", "runs", "2");
   const usageDir = path.join(repoRoot, ".factory", "usage-events", "2026-04-06");
 
   fs.mkdirSync(runDir, { recursive: true });
   fs.mkdirSync(tasksDir, { recursive: true });
   fs.mkdirSync(usageDir, { recursive: true });
+  if (extraTask) {
+    fs.mkdirSync(secondRunDir, { recursive: true });
+  }
 
   fs.writeFileSync(path.join(runDir, "approved-issue.md"), "# Approved issue\n");
   fs.writeFileSync(path.join(runDir, "spec.md"), "# Spec\n");
@@ -89,7 +93,6 @@ function makeTempRepoFixture() {
             provider: "openai",
             apiSurface: "codex-action",
             model: "gpt-5-codex",
-            sourceEventPath: ".factory/usage-events/2026-04-06/run-1-1-stage-implement.json",
             derivedCost: {
               stageUsd: 0.75,
               actualUsd: 0.75
@@ -100,18 +103,95 @@ function makeTempRepoFixture() {
             provider: "openai",
             apiSurface: "codex-action",
             model: "gpt-5-mini",
-            sourceEventPath: ".factory/usage-events/2026-04-06/run-1-1-stage-review.json",
             derivedCost: {
               stageUsd: 0.5,
               actualUsd: null
             }
           }
-        }
+        },
+        telemetry: [
+          {
+            stage: "implement",
+            outcome: "succeeded",
+            recordedAt: "2026-04-06T00:00:00Z"
+          },
+          {
+            stage: "review",
+            outcome: "succeeded",
+            recordedAt: "2026-04-06T00:10:00Z"
+          }
+        ]
       },
       null,
       2
     )
   );
+
+  if (!telemetryOnly) {
+    fs.writeFileSync(
+      path.join(runDir, "cost-summary.json"),
+      JSON.stringify(
+        {
+          estimated: true,
+          provider: "openai",
+          apiSurface: "codex-action",
+          pricing: {
+            version: "openai-2026-03-19",
+            model: "gpt-5-codex",
+            currency: "USD"
+          },
+          current: {
+            stage: "review",
+            derivedCost: {
+              totalEstimatedUsd: 1.25
+            }
+          },
+          thresholds: {
+            warnUsd: 0.25,
+            highUsd: 1
+          },
+          stages: {
+            implement: {
+              mode: "implement",
+              provider: "openai",
+              apiSurface: "codex-action",
+              model: "gpt-5-codex",
+              sourceEventPath: ".factory/usage-events/2026-04-06/run-1-1-stage-implement.json",
+              derivedCost: {
+                stageUsd: 0.75,
+                actualUsd: 0.75
+              }
+            },
+            review: {
+              mode: "review",
+              provider: "openai",
+              apiSurface: "codex-action",
+              model: "gpt-5-mini",
+              sourceEventPath: ".factory/usage-events/2026-04-06/run-1-1-stage-review.json",
+              derivedCost: {
+                stageUsd: 0.5,
+                actualUsd: null
+              }
+            }
+          },
+          telemetry: [
+            {
+              stage: "implement",
+              outcome: "succeeded",
+              recordedAt: "2026-04-06T00:00:00Z"
+            },
+            {
+              stage: "review",
+              outcome: "succeeded",
+              recordedAt: "2026-04-06T00:10:00Z"
+            }
+          ]
+        },
+        null,
+        2
+      )
+    );
+  }
 
   fs.writeFileSync(
     path.join(usageDir, "run-1-1-stage-implement.json"),
@@ -149,14 +229,14 @@ function makeTempRepoFixture() {
         updated_at: "2026-04-06T00:00:00Z",
         splits: {
           dev: {
-            task_ids: ["task-1"]
+            task_ids: extraTask ? ["task-1", "task-2"] : ["task-1"]
           },
           holdout: {
             task_ids: ["holdout-1"],
             note: "Holdout is external."
           }
         },
-        task_ids: ["task-1"],
+        task_ids: extraTask ? ["task-1", "task-2"] : ["task-1"],
         holdout_ids: ["holdout-1"],
         notes: ["Sample corpus"]
       },
@@ -217,6 +297,91 @@ function makeTempRepoFixture() {
       2
     )
   );
+
+  if (extraTask) {
+    fs.writeFileSync(path.join(secondRunDir, "approved-issue.md"), "# Approved issue 2\n");
+    fs.writeFileSync(path.join(secondRunDir, "spec.md"), "# Spec 2\n");
+    fs.writeFileSync(path.join(secondRunDir, "plan.md"), "# Plan 2\n");
+    fs.writeFileSync(path.join(secondRunDir, "acceptance-tests.md"), "# Acceptance 2\n");
+    fs.writeFileSync(
+      path.join(secondRunDir, "review.json"),
+      JSON.stringify(
+        {
+          methodology: "default",
+          decision: "pass",
+          blocking_findings_count: 0,
+          requirement_checks: []
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(secondRunDir, "cost-summary.json"),
+      JSON.stringify(
+        {
+          estimated: true,
+          provider: "openai",
+          apiSurface: "codex-action",
+          pricing: {
+            version: "openai-2026-03-19",
+            model: "gpt-5-mini",
+            currency: "USD"
+          },
+          current: {
+            stage: "review",
+            derivedCost: {
+              totalEstimatedUsd: 0.5
+            }
+          },
+          stages: {
+            review: {
+              mode: "review",
+              provider: "openai",
+              apiSurface: "codex-action",
+              model: "gpt-5-mini",
+              derivedCost: {
+                stageUsd: 0.5,
+                actualUsd: null
+              }
+            }
+          }
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(tasksDir, "task-2.json"),
+      JSON.stringify(
+        {
+          task_id: "task-2",
+          split: "dev",
+          status: "active",
+          source_kind: "replayed_factory_run",
+          issue_number: 2,
+          title: "Second task",
+          summary: "Second task summary",
+          artifact_paths: {
+            approved_issue: ".factory/runs/2/approved-issue.md",
+            spec: ".factory/runs/2/spec.md",
+            plan: ".factory/runs/2/plan.md",
+            acceptance_tests: ".factory/runs/2/acceptance-tests.md",
+            review_json: ".factory/runs/2/review.json",
+            cost_summary: ".factory/runs/2/cost-summary.json"
+          },
+          tags: ["secondary"],
+          risk_profile: "medium",
+          control_plane: false,
+          expected_evidence: ["evidence"],
+          comparison_dimensions: ["stage_completion"],
+          curator_notes: "Secondary task"
+        },
+        null,
+        2
+      )
+    );
+  }
 
   fs.mkdirSync(path.join(repoRoot, ".git"), { recursive: true });
   fs.writeFileSync(path.join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n");
@@ -292,6 +457,33 @@ test("synthesizeTaskResult derives stage, review, cost, timing, and human audit 
   assert.equal(result.intervention_summary.known, false);
 });
 
+test("synthesizeTaskResult falls back to normalized cost-summary telemetry when event files are not linked", () => {
+  const repoRoot = makeTempRepoFixture({ telemetryOnly: true });
+  const corpus = loadEvalCorpus(path.join("eval", "corpus"), repoRoot);
+  const task = selectEvalTasks(corpus)[0];
+  const result = synthesizeTaskResult({
+    task,
+    runId: "run-telemetry-only",
+    corpusRevision: corpus.index.corpus_revision,
+    repoRoot,
+    evaluatedAt: "2026-04-06T00:15:00Z"
+  });
+
+  assert.equal(result.stage_outcomes.implement.succeeded, true);
+  assert.equal(result.stage_outcomes.implement.usage_event_paths.length, 0);
+  assert.equal(result.stage_outcomes.review.succeeded, true);
+  assert.equal(result.timing.started_at, "2026-04-06T00:00:00Z");
+  assert.equal(result.timing.duration_ms, 600000);
+  assert.equal(
+    result.notes.some((note) => /Stage implement is present but no linked usage event was available/i.test(note)),
+    false
+  );
+  assert.equal(
+    result.notes.some((note) => /Stage review is present but no linked usage event was available/i.test(note)),
+    false
+  );
+});
+
 test("summarizeEvalRun aggregates multiple task results", () => {
   const taskResults = [
     {
@@ -365,6 +557,29 @@ test("runEval writes task results and aggregate outputs to the requested output 
   assert.equal(fileExists(path.join(outputDir, "eval-summary.json")), true);
   assert.equal(fileExists(path.join(outputDir, "eval-summary.md")), true);
   assert.equal(result.summary.task_count, 1);
+});
+
+test("runEval clears stale task results when reusing an output directory", () => {
+  const repoRoot = makeTempRepoFixture({ extraTask: true });
+  const outputDir = path.join(repoRoot, "eval", "runs", "manual-smoke");
+
+  runEval({
+    repoRoot,
+    output: outputDir,
+    now: () => new Date("2026-04-06T00:15:00Z"),
+    getGitCommitFn: () => "fixture-commit"
+  });
+
+  runEval({
+    repoRoot,
+    taskIds: ["task-1"],
+    output: outputDir,
+    now: () => new Date("2026-04-06T00:20:00Z"),
+    getGitCommitFn: () => "fixture-commit"
+  });
+
+  assert.equal(fileExists(path.join(outputDir, "tasks", "task-1.json")), true);
+  assert.equal(fileExists(path.join(outputDir, "tasks", "task-2.json")), false);
 });
 
 function fileExists(filePath) {

@@ -166,13 +166,50 @@ function loadUsageEvent(repoRoot, sourceEventPath) {
   };
 }
 
+function selectLatestTelemetryEntriesByStage(costSummary) {
+  const latestByStage = new Map();
+
+  for (const telemetryEntry of costSummary?.telemetry || []) {
+    const stageName = trimString(telemetryEntry?.stage);
+    if (!stageName) {
+      continue;
+    }
+
+    const recordedAt = trimString(telemetryEntry?.recordedAt);
+    const existing = latestByStage.get(stageName);
+
+    if (!existing) {
+      latestByStage.set(stageName, telemetryEntry);
+      continue;
+    }
+
+    const existingRecordedAt = trimString(existing.recordedAt);
+    if (!existingRecordedAt || (recordedAt && recordedAt > existingRecordedAt)) {
+      latestByStage.set(stageName, telemetryEntry);
+    }
+  }
+
+  return latestByStage;
+}
+
 function collectStageUsageEvents(repoRoot, costSummary) {
   const stageUsageEvents = {};
+  const latestTelemetryByStage = selectLatestTelemetryEntriesByStage(costSummary);
 
   for (const [stageName, stageData] of Object.entries(costSummary?.stages || {})) {
     const usageEvent = loadUsageEvent(repoRoot, stageData?.sourceEventPath);
     if (usageEvent) {
       stageUsageEvents[stageName] = usageEvent;
+      continue;
+    }
+
+    const telemetryEntry = latestTelemetryByStage.get(stageName);
+    if (telemetryEntry) {
+      stageUsageEvents[stageName] = {
+        path: null,
+        payload: telemetryEntry,
+        source: "cost_summary.telemetry"
+      };
     }
   }
 
@@ -227,7 +264,7 @@ function summarizeStageOutcome({
     present,
     succeeded,
     artifact_evidence: artifactEvidence,
-    usage_event_paths: usageEvent ? [usageEvent.path] : []
+    usage_event_paths: usageEvent?.path ? [usageEvent.path] : []
   };
 }
 
@@ -359,15 +396,21 @@ function buildRepairSummary(task, absoluteArtifactPaths, stageUsageEvents) {
     repair_log_present: repairLogExists,
     repair_log_path: repairLogExists ? repairLogPath : null,
     evidence_present: repairLogExists || Boolean(repairUsageEvent),
-    usage_event_paths: repairUsageEvent ? [repairUsageEvent.path] : []
+    usage_event_paths: repairUsageEvent?.path ? [repairUsageEvent.path] : []
   };
 }
 
-function buildTaskWarnings(stageOutcomes, costSummary, reviewOutcome, interventionSummary) {
+function buildTaskWarnings(
+  stageOutcomes,
+  stageUsageEvents,
+  costSummary,
+  reviewOutcome,
+  interventionSummary
+) {
   const warnings = [];
 
   for (const [stageName, stageOutcome] of Object.entries(stageOutcomes)) {
-    if (stageOutcome.present && stageOutcome.usage_event_paths.length === 0 && stageName !== "plan") {
+    if (stageOutcome.present && !stageUsageEvents[stageName] && stageName !== "plan") {
       warnings.push(`Stage ${stageName} is present but no linked usage event was available.`);
     }
   }
@@ -434,7 +477,13 @@ export function synthesizeTaskResult({
   const costSummaryResult = buildCostSummary(task, costSummary, stageUsageEvents);
   const timing = buildTimingSummary(stageUsageEvents);
   const humanAudit = buildHumanAuditSummary(task);
-  const notes = buildTaskWarnings(stageOutcomes, costSummaryResult, reviewOutcome, interventionSummary);
+  const notes = buildTaskWarnings(
+    stageOutcomes,
+    stageUsageEvents,
+    costSummaryResult,
+    reviewOutcome,
+    interventionSummary
+  );
 
   return {
     schema_version: EVAL_SCHEMA_VERSION,
@@ -702,6 +751,13 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
+function resetTaskResultsDir(outputRoot) {
+  fs.rmSync(path.join(outputRoot, "tasks"), {
+    recursive: true,
+    force: true
+  });
+}
+
 export function getGitCommit(repoRoot = process.cwd()) {
   return execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repoRoot,
@@ -757,6 +813,7 @@ export function runEval({
     warnings: summary.task_warnings
   });
 
+  resetTaskResultsDir(outputRoot);
   writeJson(path.join(outputRoot, "run.json"), runManifest);
   for (const result of taskResults) {
     writeJson(path.join(outputRoot, "tasks", `${result.task_id}.json`), result);
