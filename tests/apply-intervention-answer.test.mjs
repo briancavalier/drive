@@ -7,6 +7,7 @@ import {
 } from "../scripts/lib/pr-metadata.mjs";
 import os from "node:os";
 import path from "node:path";
+import fs from "node:fs";
 
 process.env.GITHUB_OUTPUT = path.join(os.tmpdir(), "apply-intervention-output.txt");
 
@@ -84,6 +85,88 @@ test("applyInterventionAnswer resolves self-modify approval and resumes the bloc
   assert.match(execCall.env.FACTORY_COMMENT, /Resolved factory question `int_q_123`/);
   assert.match(execCall.env.FACTORY_COMMENT, /Resuming `implement`\./);
   assert.match(execCall.env.FACTORY_COMMENT, /Approved after applying the label\./);
+});
+
+test("applyInterventionAnswer resets PR to plan-ready when requested", async () => {
+  fs.writeFileSync(process.env.GITHUB_OUTPUT, "");
+  let execCall = null;
+
+  await applyInterventionAnswer(
+    {
+      FACTORY_PR_NUMBER: "22",
+      FACTORY_INTERVENTION_ID: "int_q_reset",
+      FACTORY_OPTION_ID: "reset_plan",
+      FACTORY_RESUME_ACTION: "",
+      GITHUB_ACTOR: "maintainer",
+      GITHUB_RUN_ID: "1000",
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "example/repo"
+    },
+    {
+      getPullRequest: async () => ({
+        labels: [],
+        body: buildPullRequestBody({
+          status: "blocked",
+          blockedAction: "repair",
+          repairAttempts: 4,
+          intervention: {
+            id: "int_q_reset",
+            type: "question",
+            status: "open",
+            stage: "repair",
+            payload: {
+              questionKind: "repair_exhaustion",
+              question: "Autonomous repair is exhausted. What should happen next?",
+              recommendedOptionId: "retry_repair",
+              options: [
+                {
+                  id: "retry_repair",
+                  label: "Retry repair after adjustments",
+                  effect: "resume_current_stage"
+                },
+                {
+                  id: "reset_plan",
+                  label: "Reset to plan-ready",
+                  effect: "reset_to_plan_ready"
+                },
+                {
+                  id: "human_takeover",
+                  label: "Pause for human takeover",
+                  effect: "manual_only"
+                }
+              ],
+              resumeContext: {
+                repairAttempts: 4,
+                repeatedFailureCount: 1,
+                failureSignature: "ci:build:failed"
+              }
+            }
+          }
+        })
+      }),
+      execFileAsync: async (_cmd, args, options) => {
+        execCall = { args, env: options.env };
+      }
+    }
+  );
+
+  assert.deepEqual(execCall.args, ["scripts/apply-pr-state.mjs"]);
+  assert.equal(execCall.env.FACTORY_STATUS, "plan_ready");
+  assert.equal(execCall.env.FACTORY_BLOCKED_ACTION, "");
+  assert.equal(execCall.env.FACTORY_REPAIR_ATTEMPTS, "0");
+  assert.equal(execCall.env.FACTORY_PAUSED, "false");
+  assert.equal(execCall.env.FACTORY_PAUSE_REASON, "");
+  assert.match(execCall.env.FACTORY_COMMENT, /Resetting status to `plan_ready`/);
+
+  const outputContent = fs.readFileSync(process.env.GITHUB_OUTPUT, "utf8");
+  assert.ok(
+    outputContent.includes("resume_action"),
+    "expected resume_action output entry"
+  );
+  assert.ok(
+    outputContent.includes("reset_to_plan_ready"),
+    "resume action output should reflect the reset choice"
+  );
 });
 
 test("applyInterventionAnswer persists an ambiguity decision before resuming implement", async () => {

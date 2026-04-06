@@ -32,6 +32,7 @@ test("nextRepairState allows configured attempts before blocking", () => {
   assert.equal(second.blocked, false);
   assert.equal(third.blocked, false);
   assert.equal(fourth.blocked, true);
+  assert.equal(fourth.exhaustedBy, "attempt_limit");
 });
 
 test("nextRepairState blocks after repeated identical failures", () => {
@@ -64,4 +65,5 @@ test("nextRepairState blocks after repeated identical failures", () => {
 
   assert.equal(first.blocked, false);
   assert.equal(second.blocked, true);
+  assert.equal(second.exhaustedBy, "repeated_failure");
 });

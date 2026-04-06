@@ -72,13 +72,17 @@ jobs:
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
       failure_intervention: ${{ steps.route.outputs.failure_intervention }}
+      repair_question_intervention: ${{ steps.route.outputs.repair_question_intervention }}
+      repair_question_comment: ${{ steps.route.outputs.repair_question_comment }}
       intervention_id: ${{ steps.route.outputs.intervention_id }}
       intervention_option_id: ${{ steps.route.outputs.intervention_option_id }}
       intervention_answer_note: ${{ steps.route.outputs.intervention_answer_note }}
       resume_action: ${{ steps.route.outputs.resume_action }}
       repair_attempts: ${{ steps.route.outputs.repair_attempts }}
+      max_repair_attempts: ${{ steps.route.outputs.max_repair_attempts }}
       intervention_repeated_failure_count: ${{ steps.route.outputs.intervention_repeated_failure_count }}
       intervention_failure_signature: ${{ steps.route.outputs.intervention_failure_signature }}
+      repair_exhaustion_reason: ${{ steps.route.outputs.repair_exhaustion_reason }}
       stage_noop_attempts: ${{ steps.route.outputs.stage_noop_attempts }}
       stage_setup_attempts: ${{ steps.route.outputs.stage_setup_attempts }}
     steps:
@@ -125,13 +129,17 @@ jobs:
       ci_run_id: ${{ steps.route.outputs.ci_run_id }}
       review_id: ${{ steps.route.outputs.review_id }}
       failure_intervention: ${{ steps.route.outputs.failure_intervention }}
+      repair_question_intervention: ${{ steps.route.outputs.repair_question_intervention }}
+      repair_question_comment: ${{ steps.route.outputs.repair_question_comment }}
       intervention_id: ${{ steps.route.outputs.intervention_id }}
       intervention_option_id: ${{ steps.route.outputs.intervention_option_id }}
       intervention_answer_note: ${{ steps.route.outputs.intervention_answer_note }}
       resume_action: ${{ steps.route.outputs.resume_action }}
       repair_attempts: ${{ steps.route.outputs.repair_attempts }}
+      max_repair_attempts: ${{ steps.route.outputs.max_repair_attempts }}
       intervention_repeated_failure_count: ${{ steps.route.outputs.intervention_repeated_failure_count }}
       intervention_failure_signature: ${{ steps.route.outputs.intervention_failure_signature }}
+      repair_exhaustion_reason: ${{ steps.route.outputs.repair_exhaustion_reason }}
       stage_noop_attempts: ${{ steps.route.outputs.stage_noop_attempts }}
       stage_setup_attempts: ${{ steps.route.outputs.stage_setup_attempts }}
     steps:
@@ -260,6 +268,8 @@ jobs:
           FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
           FACTORY_STATUS: ${{ needs.reroute.outputs.action == 'implement' && 'implementing' || needs.reroute.outputs.action == 'repair' && 'repairing' || 'reviewing' }}
           FACTORY_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.repair_attempts }}
+          FACTORY_MAX_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.max_repair_attempts }}
+          FACTORY_REPAIR_EXHAUSTION_REASON: ${{ needs.reroute.outputs.repair_exhaustion_reason }}
           FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT: ${{ needs.reroute.outputs.intervention_repeated_failure_count }}
           FACTORY_INTERVENTION_FAILURE_SIGNATURE: ${{ needs.reroute.outputs.intervention_failure_signature }}
           FACTORY_LAST_PROCESSED_WORKFLOW_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
@@ -678,7 +688,7 @@ jobs:
           FACTORY_REVIEW_ID: ${{ needs.reroute.outputs.review_id }}
 
   block:
-    if: needs.reroute.outputs.action == 'blocked'
+    if: needs.reroute.outputs.action == 'blocked' && needs.reroute.outputs.failure_intervention != ''
     needs: reroute
     runs-on: ubuntu-latest
     concurrency:
@@ -716,6 +726,43 @@ jobs:
           FACTORY_AUTO_APPLIED_SELF_MODIFY_LABEL: "false"
           FACTORY_COMMENT: Factory repair attempts hit the configured safety limit. Human intervention is required.
 
+  repair-exhaustion-question:
+    if: |
+      needs.reroute.outputs.action == 'blocked' &&
+      needs.reroute.outputs.repair_question_intervention != ''
+    needs: reroute
+    runs-on: ubuntu-latest
+    concurrency:
+      group: factory-pr-loop-${{ needs.reroute.outputs.concurrency_key }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Raise repair exhaustion question
+        run: node scripts/raise-repair-exhaustion-question.mjs
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ secrets.FACTORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PR_NUMBER: ${{ needs.reroute.outputs.pr_number }}
+          FACTORY_REPAIR_QUESTION_INTERVENTION: ${{ needs.reroute.outputs.repair_question_intervention }}
+          FACTORY_REPAIR_QUESTION_COMMENT: ${{ needs.reroute.outputs.repair_question_comment }}
+          FACTORY_REPAIR_ATTEMPTS: ${{ needs.reroute.outputs.repair_attempts }}
+          FACTORY_CI_RUN_ID: ${{ needs.reroute.outputs.ci_run_id }}
   process-review:
     if: |
       always() &&

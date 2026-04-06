@@ -1,0 +1,54 @@
+{
+  "category": "stage",
+  "stage": "implement",
+  "failureKind": null,
+  "provider": "openai",
+  "apiSurface": "codex-action",
+  "model": "gpt-5-codex",
+  "issueNumber": 109,
+  "prNumber": 140,
+  "branch": "factory/109-add-repair-exhaustion-decision-interventions",
+  "runId": "23929226736",
+  "runAttempt": 1,
+  "promptChars": 3721,
+  "estimatedUsageBeforeCalibration": {
+    "inputTokens": 931,
+    "cachedInputTokens": 0,
+    "outputTokens": 1164,
+    "reasoningTokens": null
+  },
+  "estimatedUsage": {
+    "inputTokens": 931,
+    "cachedInputTokens": 0,
+    "outputTokens": 1164,
+    "reasoningTokens": null
+  },
+  "actualUsage": {
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokens": null
+  },
+  "billableExtras": {},
+  "usageCalibration": {
+    "bucket": "openai:stage:implement:gpt-5-codex",
+    "sampleSize": 0,
+    "generatedAt": "",
+    "source": "default",
+    "multipliers": {
+      "inputTokens": 1,
+      "cachedInputTokens": 1,
+      "outputTokens": 1
+    }
+  },
+  "derivedCost": {
+    "estimatedUsdBeforeCalibration": 0.0128,
+    "estimatedUsd": 0.0128,
+    "actualUsd": null,
+    "pricingVersion": "openai-2026-03-19",
+    "pricingSource": "model",
+    "currency": "USD"
+  },
+  "outcome": "failed",
+  "recordedAt": "2026-04-03T01:09:06.288Z"
+}

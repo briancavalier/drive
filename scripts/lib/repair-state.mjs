@@ -15,15 +15,21 @@ export function nextRepairState(metadata, signature) {
     normalized && normalized === getFailureSignature(metadata)
       ? getFailureCounter(metadata, "repeatedFailureCount") + 1
       : 0;
-  const blocked =
-    (maxRepairAttempts > 0 && repairAttempts > maxRepairAttempts) ||
-    repeatedFailureCount >= 2;
+  const exceededAttemptLimit = maxRepairAttempts > 0 && repairAttempts > maxRepairAttempts;
+  const exceededRepeatedFailureLimit = repeatedFailureCount >= 2;
+  const blocked = exceededAttemptLimit || exceededRepeatedFailureLimit;
+  const exhaustedBy = blocked
+    ? exceededAttemptLimit
+      ? "attempt_limit"
+      : "repeated_failure"
+    : null;
 
   return {
     repairAttempts,
     maxRepairAttempts,
     lastFailureSignature: normalized,
     repeatedFailureCount,
-    blocked
+    blocked,
+    exhaustedBy
   };
 }

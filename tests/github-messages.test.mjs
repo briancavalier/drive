@@ -482,6 +482,32 @@ test("renderInterventionQuestionComment renders generic ambiguity questions", ()
   assert.match(comment, /\/factory answer int_q_ambiguity human_takeover/);
 });
 
+test("renderInterventionQuestionComment describes reset-to-plan-ready options", () => {
+  const comment = renderInterventionQuestionComment({
+    intervention: {
+      id: "int_q_reset_plan",
+      type: "question",
+      stage: "repair",
+      summary: "Autonomous repair exhausted after 3/3 attempts.",
+      detail: "",
+      payload: {
+        questionKind: "repair_exhaustion",
+        question: "The factory can’t repair this branch autonomously. What should happen next?",
+        recommendedOptionId: "reset_plan",
+        options: [
+          {
+            id: "reset_plan",
+            label: "Reset to plan-ready",
+            effect: "reset_to_plan_ready"
+          }
+        ]
+      }
+    }
+  });
+
+  assert.match(comment, /\*\*Reset to plan-ready\*\* — Returns to plan-ready state/);
+});
+
 test("renderInterventionQuestionComment skips context section when detail absent", () => {
   const intervention = defaultApprovalIntervention({
     id: "int_no_detail",

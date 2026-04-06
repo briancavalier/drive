@@ -88,7 +88,8 @@ const PR_SLASH_COMMANDS = Object.freeze({
 const OPTION_EFFECT_HINTS = Object.freeze({
   resume_current_stage: "Resumes automation",
   remain_blocked: "Keeps automation blocked",
-  manual_only: "Manual takeover required"
+  manual_only: "Manual takeover required",
+  reset_to_plan_ready: "Returns to plan-ready state"
 });
 
 function describeOptionEffect(effect = "") {
