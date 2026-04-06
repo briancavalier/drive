@@ -1,0 +1,37 @@
+{
+  "task_id": "factory-run-135-curated-review-body",
+  "split": "dev",
+  "status": "active",
+  "source_kind": "replayed_factory_run",
+  "issue_number": 135,
+  "title": "Curate GitHub review bodies from review artifacts",
+  "summary": "Replay a task that restructures published review output while preserving canonical traceability and review artifact contracts.",
+  "artifact_paths": {
+    "approved_issue": ".factory/runs/135/approved-issue.md",
+    "spec": ".factory/runs/135/spec.md",
+    "plan": ".factory/runs/135/plan.md",
+    "acceptance_tests": ".factory/runs/135/acceptance-tests.md",
+    "repair_log": ".factory/runs/135/repair-log.md",
+    "review_json": ".factory/runs/135/review.json",
+    "cost_summary": ".factory/runs/135/cost-summary.json"
+  },
+  "tags": [
+    "review-output",
+    "traceability",
+    "github-messages"
+  ],
+  "risk_profile": "medium",
+  "control_plane": true,
+  "expected_evidence": [
+    "published review bodies include a single canonical traceability block",
+    "legacy decision or methodology boilerplate is filtered out",
+    "pass and request-changes flows share the curated layout"
+  ],
+  "comparison_dimensions": [
+    "stage_completion",
+    "review_outcome",
+    "evidence_quality",
+    "artifact_integrity"
+  ],
+  "curator_notes": "Selected because it stresses review artifact interpretation and output quality without changing the underlying review.json decision contract."
+}

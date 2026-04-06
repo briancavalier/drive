@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "corpus_revision": 1,
+  "updated_at": "2026-04-05T00:00:00Z",
+  "splits": {
+    "dev": {
+      "task_ids": [
+        "factory-run-42-workflow-safety-review",
+        "factory-run-55-cost-telemetry-calibration",
+        "factory-run-126-post-merge-artifact-ref",
+        "factory-run-135-curated-review-body"
+      ]
+    },
+    "holdout": {
+      "task_ids": [
+        "holdout-factory-control-plane-001"
+      ],
+      "note": "Holdout contents are intentionally stored outside the workspace; see holdout-manifest.json."
+    }
+  },
+  "task_ids": [
+    "factory-run-42-workflow-safety-review",
+    "factory-run-55-cost-telemetry-calibration",
+    "factory-run-126-post-merge-artifact-ref",
+    "factory-run-135-curated-review-body"
+  ],
+  "holdout_ids": [
+    "holdout-factory-control-plane-001"
+  ],
+  "notes": [
+    "This corpus is the repo-local source of truth for factory eval task selection.",
+    "Public benchmarks may be used as secondary references only.",
+    "Do not silently change task semantics in place; increment corpus_revision when membership or meaning changes."
+  ]
+}

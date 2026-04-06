@@ -1,0 +1,37 @@
+{
+  "task_id": "factory-run-126-post-merge-artifact-ref",
+  "split": "dev",
+  "status": "active",
+  "source_kind": "replayed_factory_run",
+  "issue_number": 126,
+  "title": "Preserve dashboard artifact links after merge",
+  "summary": "Replay a task that adds durable artifact refs and post-merge PR-body rewriting so factory artifact links keep working after merge.",
+  "artifact_paths": {
+    "approved_issue": ".factory/runs/126/approved-issue.md",
+    "spec": ".factory/runs/126/spec.md",
+    "plan": ".factory/runs/126/plan.md",
+    "acceptance_tests": ".factory/runs/126/acceptance-tests.md",
+    "repair_log": ".factory/runs/126/repair-log.md",
+    "review_json": ".factory/runs/126/review.json",
+    "cost_summary": ".factory/runs/126/cost-summary.json"
+  },
+  "tags": [
+    "post-merge",
+    "artifact-links",
+    "workflow-routing"
+  ],
+  "risk_profile": "high",
+  "control_plane": true,
+  "expected_evidence": [
+    "PR metadata tracks a durable artifact ref",
+    "merged PR bodies are rewritten against the base branch",
+    "artifact links remain valid after head-branch deletion"
+  ],
+  "comparison_dimensions": [
+    "stage_completion",
+    "review_outcome",
+    "post_merge_relevance",
+    "control_plane_safety"
+  ],
+  "curator_notes": "Selected because it exercises merge-event routing and durable artifact semantics that are important for long-lived factory quality."
+}

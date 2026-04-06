@@ -177,6 +177,42 @@ The factory also supports a protected cross-run policy file at
 loaded into stage prompts as trusted control-plane context from reviewed
 `origin/main`, and is not part of the per-run artifact set.
 
+## Eval corpus and benchmark hygiene
+
+The repo-tracked private eval corpus lives under `eval/corpus/` and is the
+source of truth for future factory eval task selection.
+
+- `eval/corpus/index.json` tracks the current corpus revision, split membership,
+  and task IDs.
+- `eval/corpus/tasks/*.json` stores replayable dev-task manifests that point to
+  existing durable `.factory/runs/<issue>/` artifacts.
+- `eval/corpus/holdout-manifest.json` stores opaque holdout metadata only. It
+  must not contain runnable prompts, durable artifact paths, or other replayable
+  task contents.
+
+The corpus has two split types:
+
+- `dev`: repo-local replayable tasks used to iterate on eval tooling and compare
+  behavior over time.
+- `holdout`: manifest-only private tasks whose contents are intentionally kept
+  outside the workspace to preserve benchmark hygiene.
+
+Public benchmarks may still be used as secondary references, but the primary
+factory eval track is private, repo-local, and replayable.
+
+When updating the corpus:
+
+- Do not silently change the meaning of an existing task in place.
+- Increment `corpus_revision` when membership or task semantics change.
+- Prefer retire-and-replace to invisible mutation when a task needs substantial
+  redefinition.
+
+Validate the checked-in corpus with:
+
+```bash
+node scripts/validate-eval-corpus.mjs
+```
+
 Prompt precedence tiers for unattended runs are:
 
 1. Stage prompt templates and enforced control-plane logic

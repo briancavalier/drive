@@ -1,0 +1,35 @@
+{
+  "task_id": "factory-run-42-workflow-safety-review",
+  "split": "dev",
+  "status": "active",
+  "source_kind": "replayed_factory_run",
+  "issue_number": 42,
+  "title": "Add workflow-safety autonomous review methodology",
+  "summary": "Replay a factory task that adds a workflow-focused review methodology while preserving the existing review artifact contract.",
+  "artifact_paths": {
+    "spec": ".factory/runs/42/spec.md",
+    "plan": ".factory/runs/42/plan.md",
+    "acceptance_tests": ".factory/runs/42/acceptance-tests.md",
+    "review_json": ".factory/runs/42/review.json",
+    "cost_summary": ".factory/runs/42/cost-summary.json"
+  },
+  "tags": [
+    "review-methodology",
+    "workflow-safety",
+    "control-plane"
+  ],
+  "risk_profile": "high",
+  "control_plane": true,
+  "expected_evidence": [
+    "review methodology instructions are wired into prompt generation",
+    "review.json methodology validation remains backward compatible",
+    "documentation reflects operator selection for workflow-safety"
+  ],
+  "comparison_dimensions": [
+    "stage_completion",
+    "review_outcome",
+    "control_plane_safety",
+    "evidence_quality"
+  ],
+  "curator_notes": "Selected because it exercises workflow/control-plane review behavior without changing the core review artifact schema."
+}
