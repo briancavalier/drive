@@ -208,6 +208,49 @@ test("main blocks stage_noop failures after exhausting retries", async () => {
   assert.equal(JSON.parse(execEnv.FACTORY_INTERVENTION).blocking, true);
 });
 
+test("main emits repair exhaustion question when repair attempts exceed limit", async () => {
+  let execEnv = null;
+
+  await handleFailure(
+    {
+      FACTORY_FAILED_ACTION: "repair",
+      FACTORY_FAILURE_PHASE: "stage",
+      FACTORY_FAILURE_TYPE: FAILURE_TYPES.contentOrLogic,
+      FACTORY_FAILURE_MESSAGE: "Repair run failed after multiple attempts.",
+      FACTORY_PR_NUMBER: "321",
+      FACTORY_BRANCH: "factory/321",
+      FACTORY_ARTIFACTS_PATH: ".factory/runs/321",
+      FACTORY_CI_RUN_ID: "999",
+      FACTORY_REPOSITORY_URL: "https://github.com/example/repo",
+      FACTORY_REPAIR_ATTEMPTS: "4",
+      FACTORY_MAX_REPAIR_ATTEMPTS: "3",
+      FACTORY_REPAIR_EXHAUSTION_REASON: "attempt_limit"
+    },
+    {
+      execFileAsync: async (_cmd, _args, options) => {
+        execEnv = options.env;
+      },
+      githubClient: {
+        searchIssues: async () => ({ items: [] }),
+        createIssue: async () => {
+          throw new Error("should not create follow-up issue when raising repair exhaustion question");
+        }
+      }
+    }
+  );
+
+  assert.ok(execEnv, "expected apply-pr-state invocation");
+  assert.match(execEnv.FACTORY_COMMENT, /## Factory Question/);
+  const intervention = JSON.parse(execEnv.FACTORY_INTERVENTION);
+  assert.equal(intervention.type, "question");
+  assert.equal(intervention.payload.questionKind, "repair_exhaustion");
+  assert.equal(intervention.payload.recommendedOptionId, "retry_repair");
+  assert.deepEqual(
+    intervention.payload.options.map((option) => option.id),
+    ["retry_repair", "reset_plan", "human_takeover"]
+  );
+});
+
 test("main skips creating follow-up when signature already tracked", async () => {
   let createCalls = 0;
   let execEnv = null;

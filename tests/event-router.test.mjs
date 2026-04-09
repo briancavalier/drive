@@ -12,7 +12,12 @@ import {
   validateTrustedFactoryContext
 } from "../scripts/lib/event-router.mjs";
 import { FACTORY_LABELS } from "../scripts/lib/factory-config.mjs";
-import { renderPrBody } from "../scripts/lib/pr-metadata.mjs";
+import {
+  defaultFailureIntervention,
+  defaultQuestionIntervention,
+  renderPrBody
+} from "../scripts/lib/pr-metadata.mjs";
+import { normalizeFailureSignature } from "../scripts/lib/repair-state.mjs";
 
 function managedPrBody(status = "plan_ready", repairAttempts = 0, overrides = {}) {
   return renderPrBody({
@@ -410,6 +415,37 @@ test("routePullRequestReview also handles reviewing status", () => {
   assert.equal(result.reviewId, 56);
 });
 
+test("routePullRequestReview raises repair exhaustion question after repeated failures", () => {
+  const result = routePullRequestReview({
+    action: "submitted",
+    reviewerPermission: "write",
+    repository: { full_name: "example/repo" },
+    review: {
+      id: 60,
+      state: "changes_requested",
+      body: "Fix the failing integration tests.",
+      user: { login: "maintainer" }
+    },
+    pull_request: basePullRequest({
+      body: managedPrBody("repairing", 1, {
+        intervention: defaultFailureIntervention({
+          payload: {
+            failureSignature: normalizeFailureSignature(
+              "review:60:Fix the failing integration tests."
+            ),
+            repeatedFailureCount: 1
+          }
+        })
+      })
+    })
+  });
+
+  assert.equal(result.action, "blocked");
+  assert.ok(result.repairQuestionIntervention);
+  assert.equal(result.repairState.exhaustedBy, "repeated_failure");
+  assert.match(result.repairQuestionComment, /## Factory Question/);
+});
+
 test("routePullRequestReview ignores untrusted public reviewers", () => {
   const result = routePullRequestReview({
     action: "submitted",
@@ -657,6 +693,41 @@ test("routeWorkflowRun blocks after exceeding repair limit", () => {
   });
 
   assert.equal(result.action, "blocked");
+  assert.ok(result.repairQuestionIntervention);
+  assert.equal(result.repairQuestionIntervention.payload.questionKind, "repair_exhaustion");
+  assert.equal(result.repairQuestionIntervention.payload.resumeContext.repairAttempts, 4);
+  assert.equal(result.repairState.exhaustedBy, "attempt_limit");
+  assert.match(result.repairQuestionComment, /## Factory Question/);
+});
+
+test("routeWorkflowRun skips duplicate repair exhaustion question when one is already open", () => {
+  const existingQuestion = defaultQuestionIntervention({
+    id: "int_q_existing",
+    type: "question",
+    stage: "repair",
+    status: "open",
+    payload: {
+      questionKind: "repair_exhaustion",
+      question: "Existing question",
+      options: [{ id: "retry_repair", label: "Retry", effect: "resume_current_stage" }]
+    }
+  });
+
+  const result = routeWorkflowRun({
+    workflowRun: {
+      id: 101,
+      name: "CI",
+      conclusion: "failure",
+      event: "pull_request",
+      head_branch: "factory/12-sample",
+      repository: { full_name: "example/repo" }
+    },
+    pullRequest: basePullRequest({
+      body: managedPrBody("blocked", 3, { intervention: existingQuestion })
+    })
+  });
+
+  assert.equal(result.action, "noop");
 });
 
 test("routeWorkflowRun returns noop for fork-backed PRs", () => {

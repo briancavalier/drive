@@ -4,14 +4,13 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FACTORY_PR_STATUSES } from "./lib/factory-config.mjs";
 import { readFailureAdvisory } from "./lib/failure-diagnosis.mjs";
-import {
-  buildFailureComment
-} from "./lib/failure-comment.mjs";
+import { buildFailureComment } from "./lib/failure-comment.mjs";
 import {
   buildApprovalIntervention,
   buildFailureIntervention,
   buildQuestionIntervention
 } from "./lib/intervention-state.mjs";
+import { buildRepairExhaustionQuestion } from "./lib/repair-interventions.mjs";
 import { renderInterventionQuestionComment } from "./lib/github-messages.mjs";
 import {
   FAILURE_TYPES,
@@ -153,6 +152,9 @@ export async function main(env = process.env, dependencies = {}) {
   const repeatedFailureCountBase = normalizeCounter(
     env.FACTORY_INTERVENTION_REPEATED_FAILURE_COUNT
   );
+  const repairAttemptsReported = Number(env.FACTORY_REPAIR_ATTEMPTS || 0);
+  const maxRepairAttemptsConfigured = normalizeCounter(env.FACTORY_MAX_REPAIR_ATTEMPTS);
+  const repairExhaustionReason = `${env.FACTORY_REPAIR_EXHAUSTION_REASON || ""}`.trim();
   const previousFailureSignature =
     `${env.FACTORY_INTERVENTION_FAILURE_SIGNATURE || ""}`
       .trim() || null;
@@ -188,6 +190,17 @@ export async function main(env = process.env, dependencies = {}) {
     failureMessage
   );
   const budgetGuardrailQuestionRequired = isBudgetGuardrailQuestionRequired(failureType, env);
+  const repairStateSnapshot = {
+    repairAttempts: repairAttemptsReported,
+    maxRepairAttempts: maxRepairAttemptsConfigured,
+    repeatedFailureCount: repeatedFailureCountBase,
+    lastFailureSignature: previousFailureSignature,
+    exhaustedBy: repairExhaustionReason || null
+  };
+  const shouldBuildRepairExhaustionQuestion =
+    action === "repair" &&
+    status === FACTORY_PR_STATUSES.blocked &&
+    Boolean(repairStateSnapshot.exhaustedBy);
   const shouldClearBudgetAuthorization =
     `${env.FACTORY_BUDGET_AUTHORIZATION_CONSUMED || ""}`.trim() === "true";
   const shouldClearSelfModifyAuthorization =
@@ -223,7 +236,7 @@ export async function main(env = process.env, dependencies = {}) {
     ...(dependencies.followup || {})
   };
 
-  if (!selfModifyGuardFailure && !budgetGuardrailQuestionRequired) {
+  if (!selfModifyGuardFailure && !budgetGuardrailQuestionRequired && !shouldBuildRepairExhaustionQuestion) {
     try {
     const followupAssessment = followup.classifyFollowup({
       failureType,
@@ -370,11 +383,32 @@ export async function main(env = process.env, dependencies = {}) {
       resumeContext: {
         ciRunId: ciRunId || null,
         reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
-        repairAttempts: Number(env.FACTORY_REPAIR_ATTEMPTS || 0),
+        repairAttempts: repairAttemptsReported,
         repeatedFailureCount: repeatedFailureCountBase,
         failureSignature: previousFailureSignature,
         stageNoopAttempts: computedStageNoopAttempts,
         stageSetupAttempts: computedStageSetupAttempts
+      }
+    });
+    childEnv.FACTORY_INTERVENTION = JSON.stringify(intervention);
+    childEnv.FACTORY_COMMENT = renderInterventionQuestionComment({ intervention });
+  } else if (shouldBuildRepairExhaustionQuestion) {
+    const intervention = buildRepairExhaustionQuestion({
+      action,
+      repairState: repairStateSnapshot,
+      failureDetail: augmentedComment,
+      resumeContext: {
+        ciRunId: ciRunId || null,
+        reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
+        repairAttempts: repairAttemptsReported,
+        repeatedFailureCount: repeatedFailureCountBase,
+        failureSignature: previousFailureSignature,
+        stageNoopAttempts: computedStageNoopAttempts,
+        stageSetupAttempts: computedStageSetupAttempts
+      },
+      runInfo: {
+        runId: runId || null,
+        runUrl: resolvedRunUrl || null
       }
     });
     childEnv.FACTORY_INTERVENTION = JSON.stringify(intervention);
@@ -412,7 +446,7 @@ export async function main(env = process.env, dependencies = {}) {
       resumeContext: {
         ciRunId: ciRunId || null,
         reviewId: `${env.FACTORY_REVIEW_ID || ""}`.trim() || null,
-        repairAttempts: Number(env.FACTORY_REPAIR_ATTEMPTS || 0),
+        repairAttempts: repairAttemptsReported,
         repeatedFailureCount: repeatedFailureCountBase,
         failureSignature: previousFailureSignature,
         stageNoopAttempts: computedStageNoopAttempts,

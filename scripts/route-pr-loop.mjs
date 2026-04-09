@@ -160,13 +160,19 @@ export async function main(env = process.env) {
     review_id: route.reviewId || "",
     review_body: route.reviewBody || "",
     failure_intervention: route.intervention ? JSON.stringify(route.intervention) : "",
+    repair_question_intervention: route.repairQuestionIntervention
+      ? JSON.stringify(route.repairQuestionIntervention)
+      : "",
+    repair_question_comment: route.repairQuestionComment || "",
     intervention_id: route.interventionId || "",
     intervention_option_id: route.optionId || "",
     intervention_answer_note: route.answerNote || "",
     resume_action: route.resumeAction || "",
     repair_attempts: route.repairState?.repairAttempts || "",
+    max_repair_attempts: route.repairState?.maxRepairAttempts || "",
     intervention_repeated_failure_count: route.repairState?.repeatedFailureCount || "",
     intervention_failure_signature: route.repairState?.lastFailureSignature || "",
+    repair_exhaustion_reason: route.repairState?.exhaustedBy || "",
     stage_noop_attempts: route.stageNoopAttempts ?? "",
     stage_setup_attempts: route.stageSetupAttempts ?? ""
   });
