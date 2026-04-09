@@ -213,6 +213,40 @@ Validate the checked-in corpus with:
 node scripts/validate-eval-corpus.mjs
 ```
 
+## Eval substrate
+
+The local replay eval substrate is driven by:
+
+```bash
+node scripts/eval.mjs
+```
+
+The eval harness reads `eval/corpus/` as the task source of truth, then
+replays each selected dev task against the existing durable `.factory/runs/*`
+artifacts and linked `.factory/usage-events/*` telemetry. It does not trigger
+live GitHub workflows or re-run Codex; this is artifact-based evaluation of what
+the factory already produced.
+
+Outputs are written under `eval/runs/<run-id>/`:
+
+- `run.json` — the run manifest for the current eval execution
+- `tasks/<task-id>.json` — one normalized result per selected task
+- `eval-summary.json` — machine-readable aggregate rollup
+- `eval-summary.md` — compact human-readable summary
+
+Useful invocation forms:
+
+```bash
+node scripts/eval.mjs
+node scripts/eval.mjs --task factory-run-55-cost-telemetry-calibration
+node scripts/eval.mjs --output eval/runs/manual-smoke
+```
+
+The result schema includes a `human_audit` block for every task. Issue `#91`
+models this shape now, but does not populate real human judgments yet; required
+tasks currently report `status: "not_recorded"` until follow-up work adds human
+labels.
+
 Prompt precedence tiers for unattended runs are:
 
 1. Stage prompt templates and enforced control-plane logic
